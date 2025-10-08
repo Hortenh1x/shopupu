@@ -13,8 +13,8 @@ public class OpenApiConfig {
     public OpenAPI shopOpenAPI() {
         return new OpenAPI()
                 .info(new Info()
-                        .title("Shop API")
-                        .description("REST API интернет-магазина")
+                        .title("Shopupu API")
+                        .description("REST API of shopupu")
                         .version("v1.0"))
                 .externalDocs(new ExternalDocumentation()
                         .description("GitHub")

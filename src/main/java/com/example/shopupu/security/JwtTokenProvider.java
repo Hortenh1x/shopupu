@@ -3,6 +3,7 @@ package com.example.shopupu.security;
 import io.jsonwebtoken.Claims;
 import io.jsonwebtoken.Jwts;
 import io.jsonwebtoken.SignatureAlgorithm;
+import io.jsonwebtoken.io.Encoders;
 import io.jsonwebtoken.security.Keys;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.security.core.userdetails.UserDetails;
@@ -24,7 +25,8 @@ public class JwtTokenProvider {
             @Value("${jwt.access-token-ttl-min}") long jwtExpirationMin,
             @Value("${jwt.refresh-token-ttl-days}") long refreshExpirationDays
     ) {
-        this.key = Keys.hmacShaKeyFor(secret.getBytes());
+        key = Jwts.SIG.HS256.key().build();
+        System.out.println(Encoders.BASE64.encode(key.getEncoded()));
         this.jwtExpiration = jwtExpirationMin * 60 * 1000;
         this.refreshExpiration = refreshExpirationDays * 24 * 60 * 60 * 1000;
     }
@@ -34,11 +36,14 @@ public class JwtTokenProvider {
     }
 
     public <T> T extractClaim(String token, Function<Claims, T> claimsResolver) {
-        final Claims claims = Jwts.parserBuilder().setSigningKey(key).build()
+        final Claims claims = Jwts.parser()
+                .setSigningKey(key)
+                .build()
                 .parseClaimsJws(token)
                 .getBody();
         return claimsResolver.apply(claims);
     }
+
 
     public String generateToken(UserDetails userDetails) {
         return Jwts.builder()

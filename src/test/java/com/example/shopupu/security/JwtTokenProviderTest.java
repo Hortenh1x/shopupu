@@ -1,4 +1,4 @@
-package com.example.shopupu;
+package com.example.shopupu.security;
 
 public class JwtTokenProviderTest {
 }

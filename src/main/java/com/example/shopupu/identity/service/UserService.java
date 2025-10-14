@@ -10,6 +10,7 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 
 import java.util.Collections;
+import java.util.Optional;
 
 @Service
 @RequiredArgsConstructor
@@ -18,6 +19,11 @@ public class UserService {
     private final UserRepository userRepository;
     private final RoleRepository roleRepository;
     private final PasswordEncoder passwordEncoder;
+
+    public Optional<User> getByEmail(String email) {
+        return userRepository.findByEmail(email);
+    }
+
 
     public User registerUser(String email, String rawPassword) {
         if (userRepository.existsByEmail(email)) {

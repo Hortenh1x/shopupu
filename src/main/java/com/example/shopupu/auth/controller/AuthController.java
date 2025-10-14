@@ -1,10 +1,12 @@
 package com.example.shopupu.auth.controller;
 
+import com.example.shopupu.auth.dto.UserProfile;
 import com.example.shopupu.auth.service.AuthService;
 import com.example.shopupu.identity.entity.User;
 import com.example.shopupu.identity.service.UserService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.Authentication;
@@ -54,4 +56,15 @@ public class AuthController {
         var pair = authService.refresh(req.refreshToken());
         return ResponseEntity.ok(new TokenPairResponse(pair.accessToken(), pair.refreshToken()));
     }
+
+    @GetMapping("/me")
+    @PreAuthorize("isAuthenticated()")
+    public ResponseEntity<UserProfile> getCurrentUser(Authentication authentication) {
+
+        String email = authentication.getName();
+        var user = userService.getByEmail(email)
+                .orElseThrow(() -> new IllegalArgumentException("User not found"));
+        return ResponseEntity.ok(new UserProfile(user.getId(), user.getEmail(), user.isEnabled()));
+    }
+
 }

@@ -1,4 +1,3 @@
 package com.example.shopupu.auth.dto;
 
-public class UserProfile {
-}
+public record UserProfile(Long id, String email, boolean enabled) {}

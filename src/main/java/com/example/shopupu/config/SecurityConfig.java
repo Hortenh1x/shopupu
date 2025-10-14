@@ -25,8 +25,17 @@ public class SecurityConfig {
                 .csrf(csrf -> csrf.disable())
                 .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .authorizeHttpRequests(auth -> auth
-                        .requestMatchers("/api/v1/auth/**").permitAll() // регистрация/логин без токена
-                        .requestMatchers("/api/v1/catalog/**").permitAll() // каталог доступен всем
+                         // регистрация/логин без токена
+                        .requestMatchers(
+                                "/",
+                                "/index.html",
+                                "/api/v1/auth/**",
+                                "/auth/**",
+                                "/swagger-ui/**",
+                                "/v3/api-docs/**",
+                                "/api/catalog/**"
+                        ).permitAll()
+                        // каталог доступен всем
                         .anyRequest().authenticated()
                 )
                 .addFilterBefore(jwtAuthFilter, UsernamePasswordAuthenticationFilter.class)

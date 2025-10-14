@@ -1,6 +1,7 @@
 package com.example.shopupu.security;
 
 import io.jsonwebtoken.Claims;
+import io.jsonwebtoken.ExpiredJwtException;
 import io.jsonwebtoken.Jwts;
 import io.jsonwebtoken.SignatureAlgorithm;
 import io.jsonwebtoken.io.Encoders;
@@ -25,7 +26,7 @@ public class JwtTokenProvider {
             @Value("${jwt.access-token-ttl-min}") long jwtExpirationMin,
             @Value("${jwt.refresh-token-ttl-days}") long refreshExpirationDays
     ) {
-        key = Jwts.SIG.HS256.key().build();
+        this.key = Jwts.SIG.HS256.key().build();
         System.out.println(Encoders.BASE64.encode(key.getEncoded()));
         this.jwtExpiration = jwtExpirationMin * 60 * 1000;
         this.refreshExpiration = refreshExpirationDays * 24 * 60 * 60 * 1000;
@@ -36,16 +37,35 @@ public class JwtTokenProvider {
     }
 
     public <T> T extractClaim(String token, Function<Claims, T> claimsResolver) {
-        final Claims claims = Jwts.parser()
+        try {
+            final Claims claims = extractAllClaims(token);
+            return claimsResolver.apply(claims);
+        } catch (ExpiredJwtException e) {
+            return claimsResolver.apply(e.getClaims());
+        }
+    }
+
+    private Claims extractAllClaims(String token) {
+        return Jwts.parser()
                 .setSigningKey(key)
                 .build()
                 .parseClaimsJws(token)
                 .getBody();
-        return claimsResolver.apply(claims);
     }
 
 
     public String generateToken(UserDetails userDetails) {
+        return generateTokenWithExpiration(userDetails, jwtExpiration);
+    }
+
+    public String generateRefreshToken(UserDetails userDetails) {
+        return generateTokenWithExpiration(userDetails, refreshExpiration);
+    }
+
+    private String generateTokenWithExpiration(UserDetails userDetails, long expirationMs) {
+        Date now = new Date();
+        Date expiryDate = new Date(now.getTime() + expirationMs);
+
         return Jwts.builder()
                 .setSubject(userDetails.getUsername())
                 .setIssuedAt(new Date(System.currentTimeMillis()))
@@ -54,12 +74,21 @@ public class JwtTokenProvider {
                 .compact();
     }
 
+
+
     public boolean isTokenValid(String token, UserDetails userDetails) {
-        final String username = extractUsername(token);
-        return (username.equals(userDetails.getUsername())) && !isTokenExpired(token);
+        try {
+            final String username = extractUsername(token);
+            return username.equals(userDetails.getUsername()) && !isTokenExpired(token);
+        } catch (ExpiredJwtException e) {
+            return false;
+        } catch (Exception e) {
+            return false;
+        }
     }
 
     private boolean isTokenExpired(String token) {
-        return extractClaim(token, Claims::getExpiration).before(new Date());
+        Date expiration = extractClaim(token, Claims::getExpiration);
+        return expiration.before(new Date());
     }
 }

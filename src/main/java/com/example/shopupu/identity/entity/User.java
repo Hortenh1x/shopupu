@@ -21,8 +21,7 @@ public class User {
     @Column(nullable = false)
     private String passwordHash;
 
-    private String firstName;
-    private String lastName;
+    private String username;
     private boolean enabled = true;
 
     @ManyToMany(fetch = FetchType.EAGER)

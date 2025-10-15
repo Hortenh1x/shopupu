@@ -34,7 +34,8 @@ public class SecurityConfig {
                                 "/api/v1/auth/**",
                                 "/swagger-ui/**",
                                 "/v3/api-docs/**",
-                                "/api/catalog/**"
+                                "/api/catalog/**",
+                                "/api/payments/webhook"
                         ).permitAll()
                         .requestMatchers("/api/cart/**").authenticated()
                         // каталог доступен всем

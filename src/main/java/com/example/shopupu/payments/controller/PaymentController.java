@@ -1,70 +1,57 @@
 package com.example.shopupu.payments.controller;
 
-import com.example.shopupu.orders.entity.Order;
-import com.example.shopupu.orders.repository.OrderRepository;
 import com.example.shopupu.payments.dto.PaymentResponse;
-import com.example.shopupu.payments.provider.PaymentProvider;
-import com.example.shopupu.payments.provider.stripe.StripePaymentProvider;
 import com.example.shopupu.payments.service.PaymentService;
 import lombok.RequiredArgsConstructor;
-import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
-import java.util.Map;
-
 /**
- * RU: Контроллер для платежей (создание и webhook-и).
- * EN: Payment controller (create payments and handle webhooks).
+ * RU: Контроллер для работы с платежами.
+ * EN: REST controller for payment operations.
  */
-@Slf4j
 @RestController
 @RequestMapping("/api/payments")
 @RequiredArgsConstructor
 public class PaymentController {
 
     private final PaymentService paymentService;
-    private final OrderRepository orderRepository;
-    private final StripePaymentProvider stripePaymentProvider;
 
     /**
      * RU: Создание нового платежа для заказа.
-     * EN: Create a new payment for the given order.
+     * EN: Creates a new payment for an order.
      */
-    @PostMapping("/create/{orderId}")
-    public ResponseEntity<PaymentResponse> createPayment(@PathVariable Long orderId) {
-        Order order = orderRepository.findById(orderId)
-                .orElseThrow(() -> new IllegalArgumentException("Order not found"));
-
-        PaymentResponse response = paymentService.processPayment(order);
-        return ResponseEntity.ok(response);
-    }
-
-    /**
-     * RU: Webhook от Stripe (обработка уведомлений).
-     * EN: Webhook endpoint for Stripe notifications.
-     */
-    @PostMapping("/webhook/stripe")
-    public ResponseEntity<String> handleStripeWebhook(
-            @RequestHeader("Stripe-Signature") String signatureHeader,
-            @RequestBody String payload
+    @PostMapping("/create")
+    public ResponseEntity<PaymentResponse> createPayment(
+            @RequestParam Long orderId,
+            @RequestParam(defaultValue = "stripe") String provider
     ) {
-        try {
-            stripePaymentProvider.handleWebhook(payload, signatureHeader);
-            return ResponseEntity.ok("Webhook processed");
-        } catch (Exception e) {
-            log.error("Ошибка обработки Stripe webhook: {}", e.getMessage());
-            return ResponseEntity.badRequest().body("Webhook error: " + e.getMessage());
-        }
+        PaymentResponse payment = paymentService.createPayment(orderId, provider);
+        return ResponseEntity.ok(payment);
     }
 
     /**
-     * RU: Для отладки — тестовый webhook вызов без подписи.
-     * EN: Test-only webhook endpoint.
+     * RU: Получение платежа по ID.
+     * EN: Gets payment by ID.
      */
-    @PostMapping("/webhook/test")
-    public ResponseEntity<Map<String, String>> testWebhook(@RequestBody Map<String, Object> payload) {
-        log.info("Webhook received (test): {}", payload);
-        return ResponseEntity.ok(Map.of("status", "ok"));
+    @GetMapping("/{id}")
+    public ResponseEntity<PaymentResponse> getPayment(@PathVariable Long id) {
+        return ResponseEntity.ok(paymentService.getPayment(id));
+    }
+
+    /**
+     * RU: Webhook от провайдера (Stripe, PayPal).
+     * EN: Webhook endpoint for provider callbacks.
+     *
+     * ⚠️ Важно: этот эндпоинт должен быть открыт в SecurityConfig!
+     */
+    @PostMapping("/webhook/{provider}")
+    public ResponseEntity<String> handleWebhook(
+            @PathVariable String provider,
+            @RequestBody String payload,
+            @RequestHeader("Stripe-Signature") String signature
+    ) {
+        paymentService.handleWebhook(provider, payload, signature);
+        return ResponseEntity.ok("Webhook received");
     }
 }

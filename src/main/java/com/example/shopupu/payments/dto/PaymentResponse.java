@@ -12,5 +12,6 @@ public record PaymentResponse(
         String externalPaymentId,
         String provider,
         PaymentStatus status,
-        BigDecimal amount
+        BigDecimal amount,
+        String clientSecret
 ) {}

@@ -22,6 +22,7 @@ CREATE TABLE IF NOT EXISTS payments (
 
     -- Технические поля
     provider_payload TEXT,
+    client_secret VARCHAR(255),
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );

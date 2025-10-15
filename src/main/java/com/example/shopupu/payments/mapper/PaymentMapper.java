@@ -18,12 +18,12 @@ public class PaymentMapper {
      */
     public PaymentResponse toResponse(Payment payment) {
         if (payment == null) return null;
-
         return new PaymentResponse(
                 payment.getExternalId(),
                 payment.getProvider(),
-                PaymentStatus.fromStripeStatus(payment.getStatus().name()),
-                payment.getAmount()
+                payment.getStatus(),  // без вызова fromStripeStatus
+                payment.getAmount(),
+                payment.getClientSecret() // если у тебя есть такое поле
         );
     }
 }

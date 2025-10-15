@@ -1,6 +1,7 @@
 package com.example.shopupu.payments.service;
 
 import com.example.shopupu.orders.entity.Order;
+import com.example.shopupu.orders.entity.OrderStatus;
 import com.example.shopupu.orders.repository.OrderRepository;
 import com.example.shopupu.payments.dto.PaymentEventDto;
 import com.example.shopupu.payments.dto.PaymentResponse;
@@ -56,8 +57,9 @@ public class PaymentService {
                 .amount(order.getTotalAmount())
                 .provider(providerName)
                 .status(externalResponse.status()) // enum PaymentStatus
-                .externalId(externalResponse.externalId())
+                .externalId(externalResponse.externalPaymentId())
                 .clientSecret(externalResponse.clientSecret())
+                .currency("EUR")
                 .build();
 
         paymentRepository.save(payment);
@@ -81,7 +83,7 @@ public class PaymentService {
 
         Optional<PaymentEventDto> eventOpt = provider.parseWebhook(payload, signature);
         if (eventOpt.isEmpty()) {
-            log.warn("⚠️ Skipped unknown webhook from {}", providerName);
+            log.warn("Skipped unknown webhook from {}", providerName);
             return;
         }
 
@@ -107,8 +109,8 @@ public class PaymentService {
 
         // 4️⃣ Обновляем статус заказа (например, при успешной оплате)
         if (newStatus == PaymentStatus.SUCCEEDED) {
-            orderRepository.updateStatus(payment.getOrder().getId(), "PAID");
-            log.info("💰 Order {} marked as PAID", payment.getOrder().getId());
+            orderRepository.updateStatus(payment.getOrder().getId(), OrderStatus.PAID);
+            log.info("Order {} marked as PAID", payment.getOrder().getId());
         }
     }
 

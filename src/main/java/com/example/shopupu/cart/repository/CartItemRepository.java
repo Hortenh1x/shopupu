@@ -1,8 +1,10 @@
 package com.example.shopupu.cart.repository;
 
 import com.example.shopupu.cart.entity.CartItem;
+import com.example.shopupu.identity.entity.User;
 import org.springframework.data.jpa.repository.JpaRepository;
 
+import java.util.List;
 import java.util.Optional;
 
 public interface CartItemRepository extends JpaRepository<CartItem, Long> {
@@ -12,4 +14,6 @@ public interface CartItemRepository extends JpaRepository<CartItem, Long> {
     void deleteByCart_IdAndProduct_Id(Long cartId, Long productId);
 
     long countByCart_Id(Long cartId);
+
+    List<CartItem> findByUser(User user);
 }

@@ -1,83 +1,105 @@
 package com.example.shopupu.payments.provider.stripe;
 
 import com.example.shopupu.orders.entity.Order;
+import com.example.shopupu.payments.dto.PaymentEventDto;
+import com.example.shopupu.payments.dto.PaymentResponse;
+import com.example.shopupu.payments.dto.PaymentDto;
+import com.example.shopupu.payments.entity.PaymentStatus;
 import com.example.shopupu.payments.provider.PaymentProvider;
 import com.stripe.Stripe;
-import com.stripe.exception.StripeException;
-import com.stripe.model.checkout.Session;
-import com.stripe.param.checkout.SessionCreateParams;
-import lombok.RequiredArgsConstructor;
+import com.stripe.exception.SignatureVerificationException;
+import com.stripe.model.Event;
+import com.stripe.model.PaymentIntent;
+import com.stripe.net.Webhook;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 
-import java.math.BigDecimal;
+import java.util.Optional;
 
-@Component
-@RequiredArgsConstructor
+/**
+ * RU: Реализация платёжного провайдера Stripe.
+ * EN: Implementation of Stripe payment provider.
+ */
+@Component("stripe")
+@Slf4j
 public class StripePaymentProvider implements PaymentProvider {
 
-    @Value("${app.payments.stripe.apiKey}")
-    private String apiKey;
+    private final String apiKey;
+    private final String webhookSecret;
 
-    @Value("${app.payments.successUrl}")
-    private String successUrl;
-
-    @Value("${app.payments.cancelUrl}")
-    private String cancelUrl;
-
-    // RU: Stripe работает в центах, конвертим BigDecimal → long
-    // EN: Stripe expects amounts in the smallest currency unit (cents)
-    private static long toMinorUnits(BigDecimal amount) {
-        return amount.movePointRight(2).longValueExact();
+    public StripePaymentProvider(
+            @Value("${payments.stripe.apiKey}") String apiKey,
+            @Value("${payments.stripe.webhookSecret}") String webhookSecret
+    ) {
+        this.apiKey = apiKey;
+        this.webhookSecret = webhookSecret;
+        Stripe.apiKey = apiKey;
     }
 
     @Override
-    public ProviderCreateResponse createCheckout(Order order, BigDecimal amount, String currency, String idempotencyKey) {
-        Stripe.apiKey = apiKey;
+    public String getName() {
+        return "stripe";
+    }
 
-        SessionCreateParams params =
-                SessionCreateParams.builder()
-                        .setMode(SessionCreateParams.Mode.PAYMENT)
-                        .setSuccessUrl(successUrl + "?orderId=" + order.getId())
-                        .setCancelUrl(cancelUrl + "?orderId=" + order.getId())
-                        .addLineItem(
-                                SessionCreateParams.LineItem.builder()
-                                        .setQuantity(1L)
-                                        .setPriceData(
-                                                SessionCreateParams.LineItem.PriceData.builder()
-                                                        .setCurrency(currency.toLowerCase())
-                                                        .setUnitAmount(toMinorUnits(amount))
-                                                        .setProductData(
-                                                                SessionCreateParams.LineItem.PriceData.ProductData.builder()
-                                                                        .setName("Order #" + order.getId())
-                                                                        .build()
-                                                        )
-                                                        .build()
-                                        )
-                                        .build()
-                        )
-                        .putExtraParam("idempotency_key", idempotencyKey) // неофициальный путь
-                        .build();
-
+    /**
+     * RU: Создание платежа через Stripe API.
+     * EN: Creates a payment via Stripe API.
+     */
+    @Override
+    public PaymentResponse createPayment(Order order) {
         try {
-            // RU: официальная идемпотентность Stripe задаётся на уровне HTTP-заголовка Idempotency-Key.
-            // EN: official idempotency uses HTTP header "Idempotency-Key".
-            // Stripe Java SDK позволяет передать его через RequestOptions:
-            var options = com.stripe.net.RequestOptions.builder()
-                    .setIdempotencyKey(idempotencyKey)
-                    .build();
+            PaymentIntent intent = PaymentIntent.builder()
+                    .setAmount(order.getTotalAmount().multiply(java.math.BigDecimal.valueOf(100)).longValue()) // в центах
+                    .setCurrency("eur")
+                    .putMetadata("orderId", order.getId().toString())
+                    .build()
+                    .create();
 
-            Session session = Session.create(params, options);
-            return new ProviderCreateResponse(session.getUrl(), session.getId());
-        } catch (StripeException e) {
-            // RU: здесь можно подключить ретраи/алёртинг
-            // EN: place to add retries/alerting
+            return new PaymentResponse(
+                    intent.getId(),
+                    "STRIPE",
+                    PaymentStatus.fromStripeStatus(intent.getStatus()),
+                    order.getTotalAmount(),
+                    intent.getClientSecret()
+            );
+        } catch (Exception e) {
+            log.error("❌ Stripe payment creation failed", e);
             throw new RuntimeException("Stripe error: " + e.getMessage(), e);
         }
     }
 
+    /**
+     * RU: Обработка webhook’ов Stripe с проверкой подписи.
+     * EN: Handles Stripe webhooks with signature verification.
+     */
     @Override
-    public void refund(String providerPaymentId, BigDecimal amount) {
-        // опционально: реализовать через Refund.create(...)
+    public Optional<PaymentEventDto> parseWebhook(String payload, String signature) {
+        try {
+            Event event = Webhook.constructEvent(payload, signature, webhookSecret);
+
+            if (event.getType().startsWith("payment_intent.")) {
+                PaymentIntent intent = (PaymentIntent) event.getDataObjectDeserializer()
+                        .getObject().orElse(null);
+
+                if (intent != null) {
+                    log.info("💳 Stripe webhook: {} for payment {}", event.getType(), intent.getId());
+                    return Optional.of(new PaymentEventDto(
+                            intent.getId(),
+                            PaymentStatus.fromStripeStatus(intent.getStatus())
+                    ));
+                }
+            }
+
+            log.warn("⚠️ Unknown Stripe event type: {}", event.getType());
+            return Optional.empty();
+
+        } catch (SignatureVerificationException e) {
+            log.error("❌ Invalid Stripe webhook signature", e);
+            return Optional.empty();
+        } catch (Exception e) {
+            log.error("❌ Stripe webhook parsing error", e);
+            return Optional.empty();
+        }
     }
 }

@@ -1,0 +1,48 @@
+spring:
+  application:
+    name: shopupu
+  server:
+    port: 8080
+
+  datasource:
+    url: jdbc:postgresql://localhost:5432/postgres
+    username: postgres
+    password: 1832
+    driver-class-name: org.postgresql.Driver
+
+  jpa:
+    hibernate:
+      ddl-auto: update
+    properties:
+      hibernate:
+        hbm2ddl:
+          auto: update
+        format_sql: true
+        jdbc:
+          time_zone: UTC
+    show-sql: true
+
+  flyway:
+    baseline-on-migrate: true
+    enabled: true
+    locations: classpath:db/migration
+
+jwt:
+  secret: 6A94C1D9F8A263B9E1A0C4F233B0D8226A9C1E7B5F2A1D4B9E5A7C3D2F1B8E9C
+  access-token-ttl-min: 15
+  refresh-token-ttl-days: 7
+
+logging:
+  level:
+    org.hibernate.SQL: DEBUG
+    org.hibernate.type.descriptor.sql.BasicBinder: TRACE
+
+payments:
+  stripe:
+    apiKey: ${STRIPE_API_KEY}
+    webhookSecret: ${STRIPE_WEBHOOK_SECRET}
+  paypal:
+    clientId: ${PAYPAL_CLIENT_ID}
+    clientSecret: ${PAYPAL_CLIENT_SECRET}
+  defaultProvider: stripe
+  currency: EUR

@@ -1,18 +1,33 @@
 package com.example.shopupu.payments.repository;
 
-import com.example.shopupu.orders.entity.Order;
 import com.example.shopupu.payments.entity.Payment;
+import com.example.shopupu.orders.entity.Order;
 import org.springframework.data.jpa.repository.JpaRepository;
 
-import java.util.List;
 import java.util.Optional;
+import java.util.UUID;
 
+/**
+ * RU: Репозиторий для платежей.
+ * EN: Repository for payment entities.
+ */
 public interface PaymentRepository extends JpaRepository<Payment, Long> {
 
-    // RU: все платежи заказа / EN: all payments of an order
-    List<Payment> findByOrder(Order order);
-    Optional<Payment> findByIdempotencyKey(String key);
+    /**
+     * RU: Находим платёж по заказу.
+     * EN: Find payment by order.
+     */
+    Optional<Payment> findByOrder(Order order);
 
-    // RU: поиск по id платежа на стороне провайдера / EN: lookup by provider payment id
-    Optional<Payment> findByProviderPaymentId(String providerPaymentId);
+    /**
+     * RU: Находим платёж по внешнему ID (например, ID из Stripe).
+     * EN: Find payment by external ID (from provider).
+     */
+    Optional<Payment> findByExternalId(String externalId);
+
+    /**
+     * RU: Находим платёж по идемпотентному ключу.
+     * EN: Find payment by idempotency key.
+     */
+    Optional<Payment> findByIdempotencyKey(String idempotencyKey);
 }

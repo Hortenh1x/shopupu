@@ -1,23 +1,29 @@
 package com.example.shopupu.payments.mapper;
 
-import com.example.shopupu.payments.dto.PaymentDto;
+import com.example.shopupu.payments.dto.PaymentResponse;
 import com.example.shopupu.payments.entity.Payment;
+import com.example.shopupu.payments.entity.PaymentStatus;
+import org.springframework.stereotype.Component;
 
-public final class PaymentMapper {
-    private PaymentMapper(){}
+/**
+ * RU: Конвертер между сущностями платежей и DTO.
+ * EN: Mapper between payment entities and DTOs.
+ */
+@Component
+public class PaymentMapper {
 
-    public static PaymentDto toDto(Payment p){
-        return new PaymentDto(
-                p.getId(),
-                p.getOrder().getId(),
-                p.getAmount(),
-                p.getCurrency(),
-                p.getProvider(),
-                p.getStatus(),
-                p.getProviderPaymentId(),
-                p.getClientSecret(),
-                p.getCreatedAt(),
-                p.getUpdatedAt()
+    /**
+     * RU: Преобразует Payment в PaymentResponse.
+     * EN: Maps Payment entity to DTO.
+     */
+    public PaymentResponse toResponse(Payment payment) {
+        if (payment == null) return null;
+
+        return new PaymentResponse(
+                payment.getExternalId(),
+                payment.getProvider(),
+                PaymentStatus.fromStripeStatus(payment.getStatus().name()),
+                payment.getAmount()
         );
     }
 }

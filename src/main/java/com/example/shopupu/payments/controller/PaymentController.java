@@ -1,57 +1,70 @@
 package com.example.shopupu.payments.controller;
 
-import com.example.shopupu.payments.dto.PaymentDto;
-import com.example.shopupu.payments.mapper.PaymentMapper;
+import com.example.shopupu.orders.entity.Order;
+import com.example.shopupu.orders.repository.OrderRepository;
+import com.example.shopupu.payments.dto.PaymentResponse;
+import com.example.shopupu.payments.provider.PaymentProvider;
+import com.example.shopupu.payments.provider.stripe.StripePaymentProvider;
 import com.example.shopupu.payments.service.PaymentService;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
+import java.util.Map;
+
 /**
- * RU: Контроллер платежей: создание intent, подтверждение (webhook/кнопка), отмена.
- * EN: Payments controller: create intent, confirm (webhook/button), cancel.
+ * RU: Контроллер для платежей (создание и webhook-и).
+ * EN: Payment controller (create payments and handle webhooks).
  */
+@Slf4j
 @RestController
 @RequestMapping("/api/payments")
 @RequiredArgsConstructor
 public class PaymentController {
 
     private final PaymentService paymentService;
+    private final OrderRepository orderRepository;
+    private final StripePaymentProvider stripePaymentProvider;
 
-    // RU: создать платёж (intent) по заказу
-    // EN: create payment intent for an order
-    public record CreatePaymentRequest(String provider, String currency) {}
-    @PostMapping("/{orderId}")
-    public ResponseEntity<PaymentDto> createPayment(@PathVariable Long orderId,
-                                                    @RequestBody CreatePaymentRequest req){
-        var p = paymentService.createPayment(orderId, req.provider(), req.currency());
-        return ResponseEntity.ok(PaymentMapper.toDto(p));
+    /**
+     * RU: Создание нового платежа для заказа.
+     * EN: Create a new payment for the given order.
+     */
+    @PostMapping("/create/{orderId}")
+    public ResponseEntity<PaymentResponse> createPayment(@PathVariable Long orderId) {
+        Order order = orderRepository.findById(orderId)
+                .orElseThrow(() -> new IllegalArgumentException("Order not found"));
+
+        PaymentResponse response = paymentService.processPayment(order);
+        return ResponseEntity.ok(response);
     }
 
-    // RU: подтверждение (например, после 3DS или колбэка)
-    // EN: confirm (e.g., after 3DS or provider callback)
-    public record ConfirmRequest(String providerPaymentId) {}
-    @PostMapping("/confirm")
-    public ResponseEntity<PaymentDto> confirmPayment(@RequestBody ConfirmRequest req){
-        var p = paymentService.confirm(req.providerPaymentId());
-        return ResponseEntity.ok(PaymentMapper.toDto(p));
+    /**
+     * RU: Webhook от Stripe (обработка уведомлений).
+     * EN: Webhook endpoint for Stripe notifications.
+     */
+    @PostMapping("/webhook/stripe")
+    public ResponseEntity<String> handleStripeWebhook(
+            @RequestHeader("Stripe-Signature") String signatureHeader,
+            @RequestBody String payload
+    ) {
+        try {
+            stripePaymentProvider.handleWebhook(payload, signatureHeader);
+            return ResponseEntity.ok("Webhook processed");
+        } catch (Exception e) {
+            log.error("Ошибка обработки Stripe webhook: {}", e.getMessage());
+            return ResponseEntity.badRequest().body("Webhook error: " + e.getMessage());
+        }
     }
 
-    // RU: отмена платежа
-    // EN: cancel payment
-    public record CancelRequest(String providerPaymentId) {}
-    @PostMapping("/cancel")
-    public ResponseEntity<PaymentDto> cancelPayment(@RequestBody CancelRequest req){
-        var p = paymentService.cancel(req.providerPaymentId());
-        return ResponseEntity.ok(PaymentMapper.toDto(p));
+    /**
+     * RU: Для отладки — тестовый webhook вызов без подписи.
+     * EN: Test-only webhook endpoint.
+     */
+    @PostMapping("/webhook/test")
+    public ResponseEntity<Map<String, String>> testWebhook(@RequestBody Map<String, Object> payload) {
+        log.info("Webhook received (test): {}", payload);
+        return ResponseEntity.ok(Map.of("status", "ok"));
     }
-
-    // (опционально) вебхук провайдера — тогда нужно .permitAll() в Security
-    // (optionally) provider webhook — then add .permitAll() in Security
-    @PostMapping("/webhook")
-    public ResponseEntity<Void> webhook() {
-        // парсим JSON провайдера, вызываем paymentService.confirm()/cancel() по событию
-        return ResponseEntity.ok().build();
-    }
-
 }

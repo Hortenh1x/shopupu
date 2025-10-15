@@ -3,63 +3,109 @@ package com.example.shopupu.payments.entity;
 import com.example.shopupu.orders.entity.Order;
 import jakarta.persistence.*;
 import lombok.*;
+import org.hibernate.annotations.CreationTimestamp;
 import org.hibernate.annotations.UpdateTimestamp;
 
 import java.math.BigDecimal;
 import java.time.Instant;
 
+/**
+ * RU: Платёж, связанный с заказом. Содержит данные о транзакции в платёжной системе.
+ * EN: Payment linked to an order. Stores transaction details from external provider.
+ */
 @Entity
 @Table(name = "payments",
         indexes = {
-                @Index(name = "idx_payments_provider_payment_id", columnList = "provider_payment_id", unique = true),
-                @Index(name = "idx_payments_idempotency_key", columnList = "idempotency_key", unique = true)
+                @Index(name = "idx_payment_external_id", columnList = "external_id"),
+                @Index(name = "idx_payment_provider", columnList = "provider")
+        },
+        uniqueConstraints = {
+                @UniqueConstraint(name = "uq_payment_idempotency_key", columnNames = "idempotency_key")
         })
-
-@Getter @Setter @Builder
-@NoArgsConstructor @AllArgsConstructor
+@Getter
+@Setter
+@NoArgsConstructor
+@AllArgsConstructor
+@Builder
 public class Payment {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    @ManyToOne(optional=false, fetch = FetchType.LAZY)
-    @JoinColumn(name="order_id")
+    /**
+     * RU: Заказ, к которому относится платёж.
+     * EN: The order this payment belongs to.
+     */
+    @ManyToOne(fetch = FetchType.LAZY, optional = false)
+    @JoinColumn(name = "order_id", nullable = false)
     private Order order;
 
-    @Column(nullable=false, precision = 19, scale = 2)
-    private BigDecimal amount;
+    /**
+     * RU: Уникальный идентификатор транзакции у провайдера (например, Stripe или PayPal).
+     * EN: External transaction ID (from Stripe, PayPal, etc.).
+     */
+    @Column(name = "external_id", length = 128)
+    private String externalId;
 
-    @Column(nullable=false, length=3)
-    private String currency; // RU: ISO-4217, пример "USD" / EN: ISO-4217 like "USD"
-
-    @Enumerated(EnumType.STRING)
-    @Column(nullable=false, length=32)
-    private PaymentStatus status;
-
-    @Column(nullable=false, length=64)
+    /**
+     * RU: Имя платёжного провайдера (STRIPE, PAYPAL, MOCK и т.д.).
+     * EN: Payment provider name (STRIPE, PAYPAL, MOCK, etc.).
+     */
+    @Column(nullable = false, length = 50)
     private String provider;
 
-    @Column(name="provider_pid", length=128, unique=false)
-    private String providerPaymentId;
+    /**
+     * RU: Сумма платежа (в валюте магазина).
+     * EN: Payment amount (in store currency).
+     */
+    @Column(nullable = false, precision = 19, scale = 2)
+    private BigDecimal amount;
 
-    @Column(name="client_secret", length=128)
-    private String clientSecret;
+    /**
+     * RU: Валюта платежа (например, EUR, USD).
+     * EN: Payment currency (e.g. EUR, USD).
+     */
+    @Column(nullable = false, length = 3)
+    private String currency;
 
-    @Column(name="created_at", nullable=false, updatable=false)
-    private Instant createdAt = Instant.now();
+    /**
+     * RU: Текущий статус платежа.
+     * Возможные значения: CREATED, PENDING, SUCCESS, FAILED, REFUNDED.
+     * EN: Current payment status.
+     */
+    @Enumerated(EnumType.STRING)
+    @Column(nullable = false, length = 20)
+    private PaymentStatus status;
 
-    @UpdateTimestamp
-    @Column(name="updated_at", nullable=false)
-    private Instant updatedAt;
-
-    // RU: ключ идемпотентности наших вызовов (unique)
-    // EN: our idempotency key (unique)
-    @Column(name = "idempotency_key", length = 128, nullable = false)
+    /**
+     * RU: Уникальный ключ для идемпотентности.
+     * EN: Unique key to prevent duplicate processing.
+     */
+    @Column(name = "idempotency_key", nullable = false, unique = true, length = 64)
     private String idempotencyKey;
 
-    // RU: для контроля количества попыток (ретраи)
-    // EN: attempt counter (retries)
-    @Column(name = "attempts", nullable = false)
-    private int attempts;
+    /**
+     * RU: Дата/время создания платежа.
+     * EN: Payment creation timestamp.
+     */
+    @CreationTimestamp
+    @Column(name = "created_at", nullable = false, updatable = false)
+    private Instant createdAt;
+
+    /**
+     * RU: Дата/время последнего обновления.
+     * EN: Last update timestamp.
+     */
+    @UpdateTimestamp
+    @Column(name = "updated_at", nullable = false)
+    private Instant updatedAt;
+
+    /**
+     * RU: Дополнительные данные от провайдера (например, JSON-ответ Stripe).
+     * EN: Optional raw provider payload (for debugging or refunds).
+     */
+    @Lob
+    @Column(name = "provider_payload", columnDefinition = "TEXT")
+    private String providerPayload;
 }

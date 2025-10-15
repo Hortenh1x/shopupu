@@ -1,12 +1,29 @@
 package com.example.shopupu.payments.entity;
 
-/** RU: Статусы платежа. EN: Payment statuses. */
+/**
+ * RU: Возможные статусы платежа.
+ * EN: Possible payment statuses.
+ */
 public enum PaymentStatus {
-    NEW,              // RU: создан, но ещё не инициирован у провайдера / EN: created, not yet started
-    PENDING,          // RU: нужна 3DS/подтверждение / EN: needs user action (3DS/SCA)
-    AUTHORIZED,       // RU: заморожены средства / EN: funds authorized (hold)
-    CAPTURED,         // RU: списание прошло / EN: captured (charged)
-    CANCELED,         // RU: отменён / EN: canceled
-    FAILED,           // RU: ошибка / EN: failed
-    REFUNDED          // RU: возвращён / EN: refunded
+    CREATED,
+    PENDING,
+    SUCCEEDED,
+    FAILED,
+    CANCELED,
+    REFUNDED;
+
+    /**
+     * RU: Конвертация статуса из Stripe в локальный enum.
+     * EN: Converts Stripe status string to our enum.
+     */
+    public static PaymentStatus fromStripeStatus(String stripeStatus) {
+        if (stripeStatus == null) return FAILED;
+
+        return switch (stripeStatus) {
+            case "requires_payment_method", "requires_confirmation", "processing" -> PENDING;
+            case "succeeded" -> SUCCEEDED;
+            case "canceled" -> CANCELED;
+            default -> FAILED;
+        };
+    }
 }

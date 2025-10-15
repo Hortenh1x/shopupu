@@ -1,29 +1,32 @@
 package com.example.shopupu.payments.provider;
 
 import com.example.shopupu.orders.entity.Order;
-import com.example.shopupu.payments.entity.Payment;
+import com.example.shopupu.payments.dto.PaymentResponse;
+import com.example.shopupu.payments.dto.PaymentEventDto;
 
-import java.math.BigDecimal;
+import java.util.Optional;
 
+/**
+ * RU: Контракт для интеграции с любыми платёжными провайдерами.
+ * EN: Common contract for any payment provider (Stripe, PayPal, etc.)
+ */
 public interface PaymentProvider {
 
-    /** RU: Создать платеж/интент у провайдера. EN: Create payment/intent at provider. */
-    Payment createIntent(Payment payment);
+    /**
+     * RU: Создать новый платёж у провайдера.
+     * EN: Creates a new payment with the provider.
+     */
+    PaymentResponse createPayment(Order order);
 
-    /** RU: Подтвердить/захолдить или списать. EN: Confirm (authorize/capture). */
-    Payment confirm(String providerPaymentId);
+    /**
+     * RU: Обработать webhook от провайдера.
+     * EN: Parses and validates incoming webhook.
+     */
+    Optional<PaymentEventDto> parseWebhook(String payload, String signature);
 
-    /** RU: Отмена/void. EN: Cancel/void. */
-    Payment cancel(String providerPaymentId);
-
-    // RU: создать платёжную сессию (страница оплаты либо clientSecret)
-    // EN: create a checkout session (redirect URL or clientSecret)
-    ProviderCreateResponse createCheckout(Order order, BigDecimal amount, String currency, String idempotencyKey);
-
-    // RU: обработка возврата средств (опционально)
-    // EN: refund (optional)
-    void refund(String providerPaymentId, BigDecimal amount);
-
-    // ===== DTO =====
-    record ProviderCreateResponse(String checkoutUrl, String providerPaymentId) {}
+    /**
+     * RU: Получить имя провайдера (например, "STRIPE" или "PAYPAL").
+     * EN: Returns provider name.
+     */
+    String getName();
 }

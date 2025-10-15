@@ -1,112 +1,139 @@
 package com.example.shopupu.payments.service;
 
 import com.example.shopupu.orders.entity.Order;
-import com.example.shopupu.orders.entity.OrderStatus;
 import com.example.shopupu.orders.repository.OrderRepository;
-import com.example.shopupu.payments.entity.Payment;
-import com.example.shopupu.payments.entity.PaymentStatus;
+import com.example.shopupu.payments.dto.PaymentEventDto;
+import com.example.shopupu.payments.dto.PaymentResponse;
+import com.example.shopupu.payments.entity.*;
 import com.example.shopupu.payments.provider.PaymentProvider;
+import com.example.shopupu.payments.provider.PaymentProviderFactory;
+import com.example.shopupu.payments.repository.PaymentEventRepository;
 import com.example.shopupu.payments.repository.PaymentRepository;
-import jakarta.transaction.Transactional;
+import com.example.shopupu.payments.mapper.PaymentMapper;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
-import java.util.EnumMap;
-import java.util.Map;
-import java.util.Set;
+import java.math.BigDecimal;
+import java.util.Optional;
 
+/**
+ * RU: Основной сервис работы с платежами.
+ * EN: Main business service for payments.
+ */
 @Service
 @RequiredArgsConstructor
+@Slf4j
 public class PaymentService {
 
-    private final OrderRepository orderRepository;
     private final PaymentRepository paymentRepository;
-    private final PaymentProvider paymentProvider; // подставится FakePaymentProvider
-
-    // RU: Разрешённые переходы статусов платежа — простая state machine
-    // EN: Allowed transitions of payment status (simple state machine)
-    private static final Map<PaymentStatus, Set<PaymentStatus>> transitions = new EnumMap<>(PaymentStatus.class);
-
-    static {
-        transitions.put(PaymentStatus.NEW, Set.of(PaymentStatus.PENDING, PaymentStatus.CANCELED));
-        transitions.put(PaymentStatus.PENDING, Set.of(PaymentStatus.AUTHORIZED, PaymentStatus.CAPTURED, PaymentStatus.CANCELED, PaymentStatus.FAILED));
-        transitions.put(PaymentStatus.AUTHORIZED, Set.of(PaymentStatus.CAPTURED, PaymentStatus.CANCELED));
-        transitions.put(PaymentStatus.CAPTURED, Set.of(PaymentStatus.REFUNDED));
-        transitions.put(PaymentStatus.CANCELED, Set.of());
-        transitions.put(PaymentStatus.FAILED, Set.of());
-        transitions.put(PaymentStatus.REFUNDED, Set.of());
-    }
-
-    private void ensureTransition(PaymentStatus from, PaymentStatus to) {
-        if (!transitions.getOrDefault(from, Set.of()).contains(to)) {
-            throw new IllegalStateException("Illegal payment status transition: " + from + " -> " + to);
-        }
-    }
+    private final PaymentEventRepository paymentEventRepository;
+    private final OrderRepository orderRepository;
+    private final PaymentProviderFactory providerFactory;
+    private final PaymentMapper paymentMapper;
 
     /**
-     * RU: Создаём платёж для заказа и делаем intent у провайдера.
-     * EN: Create payment for order and create intent at provider.
+     * RU: Создаёт новый платёж для заказа.
+     * EN: Creates a new payment for the given order.
      */
     @Transactional
-    public Payment createPayment(Long orderId, String provider, String currency) {
+    public PaymentResponse createPayment(Long orderId, String providerName) {
         Order order = orderRepository.findById(orderId)
-                .orElseThrow(() -> new IllegalStateException("Order with id " + orderId + " not found"));
+                .orElseThrow(() -> new IllegalArgumentException("Order not found"));
 
-        if (order.getStatus() != OrderStatus.NEW) {
-            throw new IllegalStateException("Order must be NEW to start payment");
+        PaymentProvider provider = providerFactory.getProvider(providerName);
+        if (provider == null) {
+            throw new IllegalArgumentException("Unknown payment provider: " + providerName);
         }
 
+        // 1️⃣ Создаём платёж в системе провайдера (Stripe, PayPal и т.д.)
+        PaymentResponse externalResponse = provider.createPayment(order);
+
+        // 2️⃣ Создаём локальную запись в БД
         Payment payment = Payment.builder()
                 .order(order)
                 .amount(order.getTotalAmount())
-                .currency(currency)
-                .status(PaymentStatus.NEW)
-                .provider(provider.toUpperCase())
+                .provider(providerName)
+                .status(externalResponse.status()) // enum PaymentStatus
+                .externalId(externalResponse.externalId())
+                .clientSecret(externalResponse.clientSecret())
                 .build();
 
-        payment = paymentRepository.save(payment);
+        paymentRepository.save(payment);
 
-        // intent у провайдера
-        payment = paymentProvider.createIntent(payment);
-        ensureTransition(PaymentStatus.NEW, payment.getStatus());
+        // 3️⃣ Логируем событие
+        recordEvent(payment, payment.getStatus(), "SYSTEM", "Payment created");
 
-        return paymentRepository.save(payment);
+        return paymentMapper.toResponse(payment);
     }
 
     /**
-     * RU: Подтверждение (например после 3DS). Если CAPTURED — переводим заказ в PAID.
-     * EN: Confirm (e.g., after 3DS). If CAPTURED — mark order as PAID.
+     * RU: Обработка входящего webhook-а от провайдера.
+     * EN: Handles incoming webhook from payment provider.
      */
     @Transactional
-    public Payment confirm(String providerPaymentId) {
-        Payment existing = paymentRepository.findByProviderPaymentId(providerPaymentId)
-                .orElseThrow(() -> new IllegalStateException("Payment with id " + providerPaymentId + " not found"));
-
-        Payment providerState = paymentProvider.confirm(providerPaymentId);
-        ensureTransition(existing.getStatus(), providerState.getStatus());
-
-        existing.setStatus(providerState.getStatus());
-        Payment saved = paymentRepository.save(existing);
-
-        if (saved.getStatus() == PaymentStatus.CAPTURED) {
-            Order order = saved.getOrder();
-            order.setStatus(OrderStatus.PAID);
-            orderRepository.save(order);
+    public void handleWebhook(String providerName, String payload, String signature) {
+        PaymentProvider provider = providerFactory.getProvider(providerName);
+        if (provider == null) {
+            throw new IllegalArgumentException("Unknown provider: " + providerName);
         }
-        return saved;
+
+        Optional<PaymentEventDto> eventOpt = provider.parseWebhook(payload, signature);
+        if (eventOpt.isEmpty()) {
+            log.warn("⚠️ Skipped unknown webhook from {}", providerName);
+            return;
+        }
+
+        PaymentEventDto eventData = eventOpt.get();
+        String externalId = eventData.externalPaymentId();
+        PaymentStatus newStatus = eventData.status();
+
+        // 1️⃣ Проверка на идемпотентность (если уже был такой статус — пропускаем)
+        Payment payment = paymentRepository.findByExternalId(externalId)
+                .orElseThrow(() -> new IllegalArgumentException("Payment not found for webhook: " + externalId));
+
+        if (payment.getStatus() == newStatus) {
+            log.info("✅ Duplicate webhook ignored for payment {}", externalId);
+            return;
+        }
+
+        // 2️⃣ Обновляем статус платежа
+        payment.setStatus(newStatus);
+        paymentRepository.save(payment);
+
+        // 3️⃣ Записываем событие
+        recordEvent(payment, newStatus, providerName.toUpperCase() + "_WEBHOOK", payload);
+
+        // 4️⃣ Обновляем статус заказа (например, при успешной оплате)
+        if (newStatus == PaymentStatus.SUCCEEDED) {
+            orderRepository.updateStatus(payment.getOrder().getId(), "PAID");
+            log.info("💰 Order {} marked as PAID", payment.getOrder().getId());
+        }
     }
 
     /**
-     * RU: Отмена платежа.
-     * EN: Cancel payment.
+     * RU: Запись события в историю платежей.
+     * EN: Records event in payment history.
      */
-    @Transactional
-    public Payment cancel(String providerPaymentId) {
-        Payment existing = paymentRepository.findByProviderPaymentId(providerPaymentId)
-                .orElseThrow(() -> new IllegalStateException("Payment with id " + providerPaymentId + " not found"));
-        Payment providerState = paymentProvider.cancel(providerPaymentId);
-        ensureTransition(existing.getStatus(), providerState.getStatus());
-        existing.setStatus(providerState.getStatus());
-        return paymentRepository.save(existing);
+    private void recordEvent(Payment payment, PaymentStatus status, String source, String details) {
+        PaymentEvent event = PaymentEvent.builder()
+                .payment(payment)
+                .newStatus(status)
+                .source(source)
+                .details(details)
+                .build();
+        paymentEventRepository.save(event);
+    }
+
+    /**
+     * RU: Возвращает платёж по ID (для UI или админки).
+     * EN: Returns payment by ID.
+     */
+    @Transactional(readOnly = true)
+    public PaymentResponse getPayment(Long id) {
+        Payment payment = paymentRepository.findById(id)
+                .orElseThrow(() -> new IllegalArgumentException("Payment not found"));
+        return paymentMapper.toResponse(payment);
     }
 }

@@ -1,18 +1,31 @@
--- RU: Платеж, связанный с заказом. Денежные суммы в minor units/BigDecimal.
--- EN: Payment linked to an order. Amounts with BigDecimal.
+CREATE TABLE IF NOT EXISTS payments (
+    id BIGSERIAL PRIMARY KEY,
 
-CREATE TABLE payments (
-    id              BIGSERIAL PRIMARY KEY,
-    order_id        BIGINT NOT NULL REFERENCES orders(id),
-    amount          NUMERIC(19, 2) NOT NULL,
-    currency        VARCHAR(3) NOT NULL,
-    status          VARCHAR(32) NOT NULL,       -- NEW, REQUIRES_ACTION, AUTHORIZED, CAPTURED, CANCELED, FAILED, REFUNDED
-    provider        VARCHAR(64) NOT NULL,       -- e.g. "FAKE", "STRIPE"
-    provider_pid    VARCHAR(128),               -- provider payment id / intent id
-    client_secret   VARCHAR(128),               -- для клиентских SDK (если нужно)
-    created_at      TIMESTAMP NOT NULL DEFAULT now(),
-    updated_at      TIMESTAMP NOT NULL DEFAULT now()
+    -- Связь с заказом
+    order_id BIGINT NOT NULL REFERENCES orders(id) ON DELETE CASCADE,
+
+    -- Внешний ID транзакции у платёжного провайдера
+    external_id VARCHAR(128),
+
+    -- Имя провайдера (STRIPE, PAYPAL, MOCK, ...)
+    provider VARCHAR(50) NOT NULL,
+
+    -- Финансовые параметры
+    amount NUMERIC(19, 2) NOT NULL,
+    currency CHAR(3) NOT NULL,
+
+    -- Статус платежа
+    status VARCHAR(20) NOT NULL DEFAULT 'CREATED',
+
+    -- Ключ идемпотентности (уникальный)
+    idempotency_key VARCHAR(64) NOT NULL UNIQUE,
+
+    -- Технические поля
+    provider_payload TEXT,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
-CREATE INDEX idx_payments_order ON payments(order_id);
-CREATE UNIQUE INDEX uq_payments_provider_pid ON payments(provider_pid) WHERE provider_pid IS NOT NULL;
+-- Индексы для быстрого поиска
+CREATE INDEX IF NOT EXISTS idx_payment_external_id ON payments(external_id);
+CREATE INDEX IF NOT EXISTS idx_payment_provider ON payments(provider);

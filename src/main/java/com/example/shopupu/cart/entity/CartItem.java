@@ -1,6 +1,7 @@
 package com.example.shopupu.cart.entity;
 
 import com.example.shopupu.catalog.entity.Product;
+import com.example.shopupu.identity.entity.User;
 import jakarta.persistence.*;
 import lombok.*;
 import org.hibernate.annotations.UpdateTimestamp;
@@ -30,8 +31,8 @@ public class CartItem {
     @JoinColumn(name = "cart_id", nullable = false)
     private Cart cart;
 
-    // RU: Ссылка на товар
-    // EN: Linked product
+    // RU: Один товар может быть в нескольких корзинах.
+    // EN: One product can appear in many carts.
     @ManyToOne(optional = false, fetch = FetchType.LAZY)
     @JoinColumn(name = "product_id", nullable = false)
     private Product product;

@@ -1,7 +1,7 @@
 package com.example.shopupu.cart.repository;
 
+import com.example.shopupu.cart.entity.Cart;
 import com.example.shopupu.cart.entity.CartItem;
-import com.example.shopupu.identity.entity.User;
 import org.springframework.data.jpa.repository.JpaRepository;
 
 import java.util.List;
@@ -15,5 +15,5 @@ public interface CartItemRepository extends JpaRepository<CartItem, Long> {
 
     long countByCart_Id(Long cartId);
 
-    List<CartItem> findByUser(User user);
+    List<CartItem> findByCart(Cart cart);
 }

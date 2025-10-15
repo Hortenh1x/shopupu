@@ -1,7 +1,9 @@
 package com.example.shopupu.orders.service;
 
+import com.example.shopupu.cart.entity.Cart;
 import com.example.shopupu.cart.entity.CartItem;
 import com.example.shopupu.cart.repository.CartItemRepository;
+import com.example.shopupu.cart.repository.CartRepository;
 import com.example.shopupu.identity.entity.User;
 import com.example.shopupu.orders.entity.Order;
 import com.example.shopupu.orders.entity.OrderItem;
@@ -39,14 +41,20 @@ public class OrderService {
         allowedTransitions.put(OrderStatus.CANCELED, Set.of());
     }
 
+    private final CartRepository cartRepository;
+
     /**
      * RU: Создаёт заказ из содержимого корзины.
      * EN: Creates a new order from the user's cart contents.
      */
     @Transactional
     public Order createOrderFromCart(User user) {
+        // Получаем корзину
+        Cart cart = cartRepository.findByUser(user)
+                .orElseThrow(() -> new IllegalArgumentException("Cart not found for user: " + user.getEmail()));
+
         // Получаем все товары из корзины пользователя
-        List<CartItem> cartItems = cartItemRepository.findByUser(user);
+        List<CartItem> cartItems = cartItemRepository.findByCart(cart);
         if (cartItems.isEmpty()) {
             throw new IllegalStateException("Cart is empty - nothing to order");
         }

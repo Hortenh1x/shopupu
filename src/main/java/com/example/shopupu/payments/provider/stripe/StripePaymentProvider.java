@@ -63,7 +63,7 @@ public class StripePaymentProvider implements PaymentProvider {
             // Создание Intent через API Stripe
             PaymentIntent intent = PaymentIntent.create(params);
 
-            log.info("✅ Stripe payment intent created: {}", intent.getId());
+            log.info("Stripe payment intent created: {}", intent.getId());
 
             return new PaymentResponse(
                     intent.getId(),
@@ -74,7 +74,7 @@ public class StripePaymentProvider implements PaymentProvider {
             );
 
         } catch (Exception e) {
-            log.error("❌ Stripe createPayment failed", e);
+            log.error("Stripe createPayment failed", e);
             throw new RuntimeException("Stripe error: " + e.getMessage(), e);
         }
     }
@@ -87,7 +87,7 @@ public class StripePaymentProvider implements PaymentProvider {
     public Optional<PaymentEventDto> parseWebhook(String payload, String signature) {
         try {
             Event event = Webhook.constructEvent(payload, signature, webhookSecret);
-            log.info("📩 Received Stripe event: {}", event.getType());
+            log.info("Received Stripe event: {}", event.getType());
 
             if (event.getType().startsWith("payment_intent.")) {
                 PaymentIntent intent = (PaymentIntent) event.getDataObjectDeserializer()
@@ -96,7 +96,7 @@ public class StripePaymentProvider implements PaymentProvider {
                 if (intent == null) return Optional.empty();
 
                 PaymentStatus status = PaymentStatus.fromStripeStatus(intent.getStatus());
-                log.info("💳 Stripe webhook payment {} → {}", intent.getId(), status);
+                log.info("Stripe webhook payment {} → {}", intent.getId(), status);
 
                 return Optional.of(new PaymentEventDto(intent.getId(), status));
             }
@@ -104,10 +104,10 @@ public class StripePaymentProvider implements PaymentProvider {
             return Optional.empty();
 
         } catch (SignatureVerificationException e) {
-            log.error("❌ Invalid Stripe signature", e);
+            log.error("Invalid Stripe signature", e);
             return Optional.empty();
         } catch (Exception e) {
-            log.error("❌ Stripe webhook error", e);
+            log.error("Stripe webhook error", e);
             return Optional.empty();
         }
     }

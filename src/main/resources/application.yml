@@ -46,3 +46,11 @@ payments:
     clientSecret: ${PAYPAL_CLIENT_SECRET}
   defaultProvider: stripe
   currency: EUR
+
+shipping:
+  currency: EUR
+  rates:
+    dhl: 9.99
+    standardPost: 4.99
+    localPickup: 0.00
+    defaultRate: 7.49

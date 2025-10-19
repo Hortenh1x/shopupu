@@ -48,10 +48,10 @@ public class PaymentService {
             throw new IllegalArgumentException("Unknown payment provider: " + providerName);
         }
 
-        // 1️⃣ Создаём платёж в системе провайдера (Stripe, PayPal и т.д.)
+        // Создаём платёж в системе провайдера (Stripe, PayPal и т.д.)
         PaymentResponse externalResponse = provider.createPayment(order);
 
-        // 2️⃣ Создаём локальную запись в БД
+        // Создаём локальную запись в БД
         Payment payment = Payment.builder()
                 .order(order)
                 .amount(order.getTotalAmount())
@@ -64,7 +64,7 @@ public class PaymentService {
 
         paymentRepository.save(payment);
 
-        // 3️⃣ Логируем событие
+        // Логируем событие
         recordEvent(payment, payment.getStatus(), "SYSTEM", "Payment created");
 
         return paymentMapper.toResponse(payment);
@@ -91,23 +91,23 @@ public class PaymentService {
         String externalId = eventData.externalPaymentId();
         PaymentStatus newStatus = eventData.status();
 
-        // 1️⃣ Проверка на идемпотентность (если уже был такой статус — пропускаем)
+        // Проверка на идемпотентность (если уже был такой статус — пропускаем)
         Payment payment = paymentRepository.findByExternalId(externalId)
                 .orElseThrow(() -> new IllegalArgumentException("Payment not found for webhook: " + externalId));
 
         if (payment.getStatus() == newStatus) {
-            log.info("✅ Duplicate webhook ignored for payment {}", externalId);
+            log.info("Duplicate webhook ignored for payment {}", externalId);
             return;
         }
 
-        // 2️⃣ Обновляем статус платежа
+        // Обновляем статус платежа
         payment.setStatus(newStatus);
         paymentRepository.save(payment);
 
-        // 3️⃣ Записываем событие
+        // Записываем событие
         recordEvent(payment, newStatus, providerName.toUpperCase() + "_WEBHOOK", payload);
 
-        // 4️⃣ Обновляем статус заказа (например, при успешной оплате)
+        // Обновляем статус заказа (например, при успешной оплате)
         if (newStatus == PaymentStatus.SUCCEEDED) {
             orderRepository.updateStatus(payment.getOrder().getId(), OrderStatus.PAID);
             log.info("Order {} marked as PAID", payment.getOrder().getId());

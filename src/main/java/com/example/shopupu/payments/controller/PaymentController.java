@@ -10,6 +10,7 @@ import org.springframework.web.bind.annotation.*;
  * RU: Контроллер для работы с платежами.
  * EN: REST controller for payment operations.
  */
+@CrossOrigin(origins = "http://localhost:5173")
 @RestController
 @RequestMapping("/api/payments")
 @RequiredArgsConstructor

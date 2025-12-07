@@ -11,7 +11,7 @@ import java.math.BigDecimal;
 import java.util.List;
 
 @Service
-@Transactional // все публичные методы — в транзакции
+@Transactional // D��?D� D���D�D�D,��D��<D� D�D�,D_D'�< �?" D� �,�?D�D�D�D�D��+D,D,
 public class CatalogService {
     private final CategoryRepository categoryRepository;
     private final ProductRepository productRepository;
@@ -21,7 +21,7 @@ public class CatalogService {
         this.productRepository = productRepository;
     }
 
-    /** Создать категорию. Проверяем уникальность slug. */
+
     public Category createCategory(String name, String slug, String description, Long parentId) {
         if (categoryRepository.existsBySlug(slug)) {
             throw new IllegalArgumentException("Category with slug " + slug + " already exists");
@@ -34,8 +34,8 @@ public class CatalogService {
         return categoryRepository.save(category);
     }
 
-    /** Создать товар в категории по ее id. SKU должен быть уникальным. */
-    public Product createProduct(Long categoryId, String title, String description, BigDecimal price, String sku, Integer stock) {
+
+    public Product createProduct(Long categoryId, String title, String description, BigDecimal price, String sku, Integer stock, Boolean enabled) {
         var category = categoryRepository.findById(categoryId).orElseThrow(() -> new IllegalArgumentException("Category with id " + categoryId + " not found"));
 
         if (productRepository.findBySku(sku).isPresent()) {
@@ -43,6 +43,9 @@ public class CatalogService {
         }
 
         var product = new Product(title, description, price, sku, stock, category);
+        if (enabled != null) {
+            product.setEnabled(enabled);
+        }
         return productRepository.save(product);
     }
 
@@ -50,8 +53,8 @@ public class CatalogService {
         return productRepository.findAll();
     }
 
-    // Получить товары конкретной категории
     public List<Product> getProductsByCategory(String slug) {
         return productRepository.findByCategory_Slug(slug);
     }
 }
+

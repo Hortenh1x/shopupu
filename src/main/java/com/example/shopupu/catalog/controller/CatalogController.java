@@ -1,86 +1,84 @@
 package com.example.shopupu.catalog.controller;
 
+import com.example.shopupu.catalog.dto.CategoryRequest;
+import com.example.shopupu.catalog.dto.CategoryResponse;
+import com.example.shopupu.catalog.dto.ProductRequest;
+import com.example.shopupu.catalog.dto.ProductResponse;
 import com.example.shopupu.catalog.entity.Category;
-import com.example.shopupu.catalog.entity.Product;
+import com.example.shopupu.catalog.mapper.CatalogMapper;
 import com.example.shopupu.catalog.repository.CategoryRepository;
 import com.example.shopupu.catalog.service.CatalogService;
-import jakarta.validation.constraints.NotBlank;
-import jakarta.validation.constraints.NotNull;
+import jakarta.validation.Valid;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
-import java.math.BigDecimal;
 import java.util.List;
 
+@CrossOrigin(origins = "http://localhost:5173")
 @RestController
 @RequestMapping("/api/catalog")
 public class CatalogController {
 
     private final CatalogService catalogService;
     private final CategoryRepository categoryRepository;
+    private final CatalogMapper catalogMapper;
 
-    public CatalogController(CatalogService catalogService, CategoryRepository categoryRepository) {
+    public CatalogController(CatalogService catalogService,
+                             CategoryRepository categoryRepository,
+                             CatalogMapper catalogMapper) {
         this.catalogService = catalogService;
         this.categoryRepository = categoryRepository;
+        this.catalogMapper = catalogMapper;
     }
 
-    // -------- Категории --------
-
     @PostMapping("/categories")
-    public ResponseEntity<Category> createCategory(@RequestBody CreateCategoryRequest req) {
-        var created = catalogService.createCategory(req.name(), req.slug(), req.description(), req.parentId());
-        return ResponseEntity.ok(created);
+    public ResponseEntity<CategoryResponse> createCategory(@Valid @RequestBody CategoryRequest req) {
+        Category created = catalogService.createCategory(req.name(), req.slug(), req.description(), req.parentId());
+        return ResponseEntity.ok(catalogMapper.toCategoryResponse(created));
     }
 
     @GetMapping("/categories")
-    public List<Category> listCategories() {
-        return categoryRepository.findAll();
+    public List<CategoryResponse> listCategories() {
+        return categoryRepository.findAll().stream()
+                .map(catalogMapper::toCategoryResponse)
+                .toList();
     }
 
     @GetMapping("/categories/{slug}")
-    public ResponseEntity<Category> getBySlug(@PathVariable String slug) {
+    public ResponseEntity<CategoryResponse> getBySlug(@PathVariable String slug) {
         return categoryRepository.findBySlug(slug)
+                .map(catalogMapper::toCategoryResponse)
                 .map(ResponseEntity::ok)
                 .orElse(ResponseEntity.notFound().build());
     }
 
-    // -------- Товары --------
-
     @PostMapping("/products")
-    public ResponseEntity<Product> createProduct(@RequestBody CreateProductRequest req) {
-        var created = catalogService.createProduct(req.categoryId(), req.title(), req.description(), req.price(), req.sku(), req.stock());
-        return ResponseEntity.ok(created);
+    public ResponseEntity<ProductResponse> createProduct(@Valid @RequestBody ProductRequest req) {
+        var created = catalogService.createProduct(
+                req.categoryId(),
+                req.title(),
+                req.description(),
+                req.price(),
+                req.sku(),
+                req.stock(),
+                req.enabled()
+        );
+        return ResponseEntity.ok(catalogMapper.toProductResponse(created));
     }
 
     @GetMapping("/products")
-    public ResponseEntity<List<Product>> getAllProducts() {
-        List<Product> products = catalogService.getAllProducts();
+    public ResponseEntity<List<ProductResponse>> getAllProducts() {
+        List<ProductResponse> products = catalogService.getAllProducts().stream()
+                .map(catalogMapper::toProductResponse)
+                .toList();
         return ResponseEntity.ok(products);
     }
 
     @GetMapping("/categories/{slug}/products")
-    public ResponseEntity<List<Product>> getProductsByCategory(@PathVariable String slug) {
-        List<Product> products = catalogService.getProductsByCategory(slug);
+    public ResponseEntity<List<ProductResponse>> getProductsByCategory(@PathVariable String slug) {
+        List<ProductResponse> products = catalogService.getProductsByCategory(slug).stream()
+                .map(catalogMapper::toProductResponse)
+                .toList();
         return ResponseEntity.ok(products);
     }
-
-
-    // DTO-рекорды для входящих тел — простые и понятные
-
-    public record CreateCategoryRequest(
-            @NotBlank String name,
-            @NotBlank String slug,
-            String description,
-            Long parentId
-    ) {}
-
-    public record CreateProductRequest(
-            @NotNull Long categoryId,
-            @NotBlank String title,
-            String description,
-            @NotNull BigDecimal price,
-            @NotBlank String sku,
-            @NotNull Integer stock
-    ) {}
-
 }

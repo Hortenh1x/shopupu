@@ -16,6 +16,7 @@ import java.util.List;
  * RU: Контроллер для заказов
  * EN: REST controller for orders
  */
+@CrossOrigin(origins = "http://localhost:5173")
 @RestController
 @RequestMapping("/api/orders")
 @RequiredArgsConstructor

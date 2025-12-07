@@ -2,13 +2,9 @@ package com.example.shopupu.payments.repository;
 
 import com.example.shopupu.payments.entity.Payment;
 import com.example.shopupu.orders.entity.Order;
-import com.example.shopupu.payments.entity.PaymentEvent;
-import com.example.shopupu.payments.entity.PaymentStatus;
 import org.springframework.data.jpa.repository.JpaRepository;
 
-import java.util.List;
 import java.util.Optional;
-import java.util.UUID;
 
 /**
  * RU: Репозиторий для платежей.
@@ -33,6 +29,4 @@ public interface PaymentRepository extends JpaRepository<Payment, Long> {
      * EN: Find payment by idempotency key.
      */
     Optional<Payment> findByIdempotencyKey(String idempotencyKey);
-
-    List<PaymentEvent> findByNewStatus(PaymentStatus status);
 }

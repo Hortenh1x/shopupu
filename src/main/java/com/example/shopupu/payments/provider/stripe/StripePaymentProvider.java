@@ -18,6 +18,7 @@ import java.math.BigDecimal;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Optional;
+import java.util.UUID;
 
 /**
  * RU: Реализация Stripe API (создание платежей + обработка webhook).
@@ -29,14 +30,20 @@ public class StripePaymentProvider implements PaymentProvider {
 
     private final String apiKey;
     private final String webhookSecret;
+    private final boolean enabled;
 
     public StripePaymentProvider(
-            @Value("${payments.stripe.apiKey}") String apiKey,
-            @Value("${payments.stripe.webhookSecret}") String webhookSecret
+            @Value("${payments.stripe.apiKey:}") String apiKey,
+            @Value("${payments.stripe.webhookSecret:}") String webhookSecret
     ) {
         this.apiKey = apiKey;
         this.webhookSecret = webhookSecret;
-        Stripe.apiKey = apiKey;
+        this.enabled = apiKey != null && !apiKey.isBlank();
+        if (enabled) {
+            Stripe.apiKey = apiKey;
+        } else {
+            log.warn("Stripe API key is missing. Falling back to dummy provider responses.");
+        }
     }
 
     @Override
@@ -50,6 +57,18 @@ public class StripePaymentProvider implements PaymentProvider {
      */
     @Override
     public PaymentResponse createPayment(Order order) {
+        if (!enabled) {
+            String dummyId = "dummy-" + order.getId() + "-" + UUID.randomUUID();
+            log.info("Returning dummy Stripe payment {} because API key is not configured", dummyId);
+            return new PaymentResponse(
+                    dummyId,
+                    "STRIPE",
+                    PaymentStatus.PENDING,
+                    order.getTotalAmount(),
+                    null
+            );
+        }
+
         try {
             // Stripe принимает параметры через Map<String, Object>
             Map<String, Object> params = new HashMap<>();
@@ -85,6 +104,11 @@ public class StripePaymentProvider implements PaymentProvider {
      */
     @Override
     public Optional<PaymentEventDto> parseWebhook(String payload, String signature) {
+        if (!enabled || webhookSecret == null || webhookSecret.isBlank()) {
+            log.warn("Stripe webhook secret is not configured. Incoming webhook will be ignored.");
+            return Optional.empty();
+        }
+
         try {
             Event event = Webhook.constructEvent(payload, signature, webhookSecret);
             log.info("Received Stripe event: {}", event.getType());

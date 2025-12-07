@@ -2,11 +2,11 @@ package com.example.shopupu.catalog.model;
 
 public class ProductFilter {
     public String q;          // поиск по названию/описанию/sku
-    public Long categoryId;   // фильтр по категории
-    public Double minPrice;   // цена от
-    public Double maxPrice;   // цена до
-    public Boolean enabled;   // только доступные/все
+    public Long categoryId;
+    public Double minPrice;
+    public Double maxPrice;
+    public Boolean enabled;
 
-    // пустой конструктор нужен для удобной сборки
+
     public ProductFilter() {}
 }

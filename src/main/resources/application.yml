@@ -39,11 +39,11 @@ logging:
 
 payments:
   stripe:
-    apiKey: ${STRIPE_API_KEY}
-    webhookSecret: ${STRIPE_WEBHOOK_SECRET}
+    apiKey: ${STRIPE_API_KEY:}
+    webhookSecret: ${STRIPE_WEBHOOK_SECRET:}
   paypal:
-    clientId: ${PAYPAL_CLIENT_ID}
-    clientSecret: ${PAYPAL_CLIENT_SECRET}
+    clientId: ${PAYPAL_CLIENT_ID:}
+    clientSecret: ${PAYPAL_CLIENT_SECRET:}
   defaultProvider: stripe
   currency: EUR
 

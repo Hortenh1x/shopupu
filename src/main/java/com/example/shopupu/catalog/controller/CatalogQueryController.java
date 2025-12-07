@@ -1,7 +1,8 @@
 package com.example.shopupu.catalog.controller;
 
-import com.example.shopupu.catalog.entity.Product;
+import com.example.shopupu.catalog.dto.ProductListItem;
 import com.example.shopupu.catalog.model.ProductFilter;
+import com.example.shopupu.catalog.mapper.CatalogMapper;
 import com.example.shopupu.catalog.service.ProductQueryService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
@@ -14,14 +15,15 @@ import org.springframework.web.bind.annotation.*;
 public class CatalogQueryController {
 
     private final ProductQueryService productQueryService;
+    private final CatalogMapper catalogMapper;
     /**
      * Листинг товаров с фильтрами:
      * Примеры:
      *   /api/catalog/products/search?q=iphone&minPrice=500&maxPrice=1500&categoryId=1&enabled=true&page=0&size=12&sort=price,desc
      *   /api/catalog/products/search?sort=createdAt,desc
      */
-    @GetMapping("products/search")
-    public Page<Product> searchProducts(
+    @GetMapping("/products/search")
+    public Page<ProductListItem> searchProducts(
             @RequestParam(required = false) String q,
             @RequestParam(required = false) Long categoryId,
             @RequestParam(required = false) Double minPrice,
@@ -36,6 +38,7 @@ public class CatalogQueryController {
         filter.maxPrice = maxPrice;
         filter.enabled = enabled;
 
-        return productQueryService.findProducts(filter, pageable);
+        return productQueryService.findProducts(filter, pageable)
+                .map(catalogMapper::toProductListItem);
     }
 }

@@ -13,6 +13,7 @@ import org.springframework.web.bind.annotation.*;
  * RU: REST API корзины (требует аутентификации)
  * EN: Cart REST API (requires authentication)
  */
+@CrossOrigin(origins = "http://localhost:5173")
 @RestController
 @RequestMapping("/api/cart")
 @RequiredArgsConstructor

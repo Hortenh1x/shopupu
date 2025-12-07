@@ -16,8 +16,8 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.math.BigDecimal;
 import java.util.Optional;
+import java.util.UUID;
 
 /**
  * RU: Основной сервис работы с платежами.
@@ -50,6 +50,7 @@ public class PaymentService {
 
         // Создаём платёж в системе провайдера (Stripe, PayPal и т.д.)
         PaymentResponse externalResponse = provider.createPayment(order);
+        String idempotencyKey = UUID.randomUUID().toString();
 
         // Создаём локальную запись в БД
         Payment payment = Payment.builder()
@@ -59,6 +60,7 @@ public class PaymentService {
                 .status(externalResponse.status()) // enum PaymentStatus
                 .externalId(externalResponse.externalPaymentId())
                 .clientSecret(externalResponse.clientSecret())
+                .idempotencyKey(idempotencyKey)
                 .currency("EUR")
                 .build();
 

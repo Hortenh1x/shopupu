@@ -1,7 +1,10 @@
 package com.example.shopupu.catalog.entity;
 
 import jakarta.persistence.*;
+import lombok.Getter;
+import lombok.Setter;
 
+@Getter
 @Entity
 @Table(name = "product_images")
 public class ProductImage {
@@ -9,15 +12,19 @@ public class ProductImage {
     @Id @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
+    @Setter
     @Column(nullable = false, columnDefinition = "text")
     private String url;
 
+    @Setter
     @Column(name = "alt_text", length = 255)
     private String altText;
 
+    @Setter
     @Column(nullable = false)
     private Integer position = 0;
 
+    @Setter
     @ManyToOne(fetch = FetchType.LAZY, optional = false)
     @JoinColumn(name = "product_id")
     private Product product;
@@ -31,17 +38,4 @@ public class ProductImage {
         this.product = product;
     }
 
-    public Long getId() { return id; }
-
-    public String getUrl() { return url; }
-    public void setUrl(String url) { this.url = url; }
-
-    public String getAltText() { return altText; }
-    public void setAltText(String altText) { this.altText = altText; }
-
-    public Integer getPosition() { return position; }
-    public void setPosition(Integer position) { this.position = position; }
-
-    public Product getProduct() { return product; }
-    public void setProduct(Product product) { this.product = product; }
 }

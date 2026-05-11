@@ -10,8 +10,9 @@ import jakarta.validation.constraints.Size;
 
 import java.math.BigDecimal;
 
+
 /**
- * Request payload for creating or editing a product.
+ * describes the ProductRequest record.
  */
 public record ProductRequest(
         @NotNull
@@ -41,4 +42,3 @@ public record ProductRequest(
         Boolean enabled
 ) {
 }
-

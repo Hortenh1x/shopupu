@@ -1,5 +1,8 @@
 package com.example.shopupu.shipping.dto;
 
+/**
+ * describes the ShippingAddressDto record.
+ */
 public record ShippingAddressDto(
         Long id,
         String fullName,
@@ -10,4 +13,3 @@ public record ShippingAddressDto(
         String postalCode,
         String country
 ) {}
-

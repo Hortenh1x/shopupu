@@ -4,8 +4,9 @@ import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Pattern;
 import jakarta.validation.constraints.Size;
 
+
 /**
- * Request payload for creating or updating category data.
+ * describes the CategoryRequest record.
  */
 public record CategoryRequest(
         @NotBlank

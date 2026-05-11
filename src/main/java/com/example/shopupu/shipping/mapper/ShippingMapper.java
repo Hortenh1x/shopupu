@@ -8,8 +8,12 @@ import com.example.shopupu.shipping.entity.ShippingAddress;
 import org.springframework.stereotype.Component;
 
 @Component
+/**
+ * describes the ShippingMapper class.
+ */
 public class ShippingMapper {
 
+    // handles toDto.
     public ShippingAddressDto toDto(ShippingAddress a) {
         if (a == null) return null;
         return new ShippingAddressDto(
@@ -24,6 +28,7 @@ public class ShippingMapper {
         );
     }
 
+    // handles toDto.
     public ShipmentDto toDto(Shipment s, Order order) {
         if (s == null || order == null) return null;
         return new ShipmentDto(
@@ -40,4 +45,3 @@ public class ShippingMapper {
         );
     }
 }
-

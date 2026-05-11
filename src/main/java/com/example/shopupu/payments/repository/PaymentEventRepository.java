@@ -6,12 +6,14 @@ import com.example.shopupu.payments.entity.PaymentStatus;
 import org.springframework.data.jpa.repository.JpaRepository;
 
 import java.util.List;
+import java.util.Optional;
+
 
 /**
- * RU: Репозиторий событий платежей.
- * EN: Repository for payment events.
+ * describes the PaymentEventRepository interface.
  */
 public interface PaymentEventRepository extends JpaRepository<PaymentEvent, Long> {
     List<PaymentEvent> findByPayment(Payment payment);
     List<PaymentEvent> findByNewStatus(PaymentStatus status);
+    Optional<PaymentEvent> findByExternalEventId(String externalEventId);
 }

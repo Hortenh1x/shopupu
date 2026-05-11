@@ -1,7 +1,8 @@
 package com.example.shopupu.shipping.entity;
 
+
 /**
- * EN: Shipment lifecycle statuses.
+ * describes the ShippingStatus enum.
  */
 public enum ShippingStatus {
     PENDING,
@@ -12,4 +13,3 @@ public enum ShippingStatus {
     PICKED_UP,
     CANCELED
 }
-

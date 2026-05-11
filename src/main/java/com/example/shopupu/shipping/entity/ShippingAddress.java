@@ -3,9 +3,7 @@ package com.example.shopupu.shipping.entity;
 import jakarta.persistence.*;
 import lombok.*;
 
-/**
- * EN: Shipping address entity entered by the user.
- */
+
 @Entity
 @Table(name = "shipping_addresses")
 @Getter
@@ -13,6 +11,9 @@ import lombok.*;
 @NoArgsConstructor
 @AllArgsConstructor
 @Builder
+/**
+ * describes the ShippingAddress class.
+ */
 public class ShippingAddress {
 
     @Id
@@ -40,4 +41,3 @@ public class ShippingAddress {
     @Column(nullable = false, length = 64)
     private String country;
 }
-

@@ -1,28 +1,30 @@
--- Shipping addresses and shipments
-
-CREATE TABLE IF NOT EXISTS shipping_addresses (
-    id BIGSERIAL PRIMARY KEY,
-    full_name VARCHAR(128) NOT NULL,
-    line1 VARCHAR(128) NOT NULL,
-    line2 VARCHAR(128),
-    city VARCHAR(64) NOT NULL,
-    state VARCHAR(64) NOT NULL,
-    postal_code VARCHAR(16) NOT NULL,
-    country VARCHAR(64) NOT NULL
+create table shipping_addresses
+(
+    id          bigserial primary key,
+    full_name   varchar(128) not null,
+    line1       varchar(128) not null,
+    line2       varchar(128),
+    city        varchar(64) not null,
+    state       varchar(64) not null,
+    postal_code varchar(16) not null,
+    country     varchar(64) not null
 );
 
-CREATE TABLE IF NOT EXISTS shipments (
-    id BIGSERIAL PRIMARY KEY,
-    order_id BIGINT NOT NULL REFERENCES orders(id) ON DELETE CASCADE,
-    address_id BIGINT REFERENCES shipping_addresses(id) ON DELETE SET NULL,
-    method VARCHAR(32) NOT NULL,
-    status VARCHAR(32) NOT NULL,
-    cost NUMERIC(10,2) NOT NULL,
-    currency VARCHAR(16) NOT NULL,
-    tracking_number VARCHAR(64),
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+create table shipments
+(
+    id              bigserial primary key,
+    order_id        bigint not null references orders (id) on delete cascade,
+    address_id      bigint references shipping_addresses (id) on delete set null,
+    method          varchar(32) not null,
+    status          varchar(32) not null,
+    cost            numeric(19, 2) not null,
+    currency        varchar(8) not null,
+    tracking_number varchar(64),
+    created_at      timestamp with time zone not null default now(),
+    updated_at      timestamp with time zone not null default now(),
+    constraint uq_shipments_order_id unique (order_id),
+    constraint ck_shipments_cost_non_negative check (cost >= 0)
 );
 
-CREATE INDEX IF NOT EXISTS idx_shipments_order_id ON shipments(order_id);
-
+create index idx_shipments_order_id on shipments (order_id);
+create index idx_shipments_address_id on shipments (address_id);

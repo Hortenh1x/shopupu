@@ -9,6 +9,9 @@ import java.math.BigDecimal;
 @Data
 @Configuration
 @ConfigurationProperties(prefix = "shipping")
+/**
+ * describes the ShippingProperties class.
+ */
 public class ShippingProperties {
 
     private String currency = "EUR";

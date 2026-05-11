@@ -1,9 +1,15 @@
 package com.example.shopupu.auth.controller;
 
 import com.example.shopupu.auth.dto.UserProfile;
+import com.example.shopupu.auth.dto.LoginRequest;
+import com.example.shopupu.auth.dto.RefreshRequest;
+import com.example.shopupu.auth.dto.RegisterRequest;
+import com.example.shopupu.auth.dto.TokenPairResponse;
 import com.example.shopupu.auth.service.AuthService;
+import com.example.shopupu.common.exception.ResourceNotFoundException;
 import com.example.shopupu.identity.entity.User;
 import com.example.shopupu.identity.service.UserService;
+import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
@@ -13,37 +19,35 @@ import org.springframework.security.core.Authentication;
 import org.springframework.security.core.AuthenticationException;
 import org.springframework.web.bind.annotation.*;
 
-@CrossOrigin(origins = "http://localhost:5173")
 @RestController
-@RequestMapping("/api/v1/auth")
+@RequestMapping("/api/auth")
 @RequiredArgsConstructor
+/**
+ * describes the AuthController class.
+ */
 public class AuthController {
 
     private final AuthenticationManager authenticationManager;
     private final UserService userService;
     private final AuthService authService;
 
-    // ===== DTO =====
-    public record RegisterRequest(String email, String password) {}
-    public record LoginRequest(String email, String password) {}
-    public record RefreshRequest(String refreshToken) {}
-    public record TokenPairResponse(String accessToken, String refreshToken) {}
-
     @PostMapping("/register")
-    public ResponseEntity<TokenPairResponse> register(@RequestBody RegisterRequest req) {
+    // handles register.
+    public ResponseEntity<TokenPairResponse> register(@Valid @RequestBody RegisterRequest req) {
         User user = userService.registerUser(req.email(), req.password());
         var pair = authService.issueTokens(user);
         return ResponseEntity.ok(new TokenPairResponse(pair.accessToken(), pair.refreshToken()));
     }
 
     @PostMapping("/login")
-    public ResponseEntity<?> login(@RequestBody LoginRequest req) {
+    // handles login.
+    public ResponseEntity<?> login(@Valid @RequestBody LoginRequest req) {
         try {
             Authentication auth = authenticationManager.authenticate(
                     new UsernamePasswordAuthenticationToken(req.email(), req.password())
             );
             var user = userService.getByEmail(req.email())
-                    .orElseThrow(() -> new IllegalArgumentException("User not found"));
+                    .orElseThrow(() -> new ResourceNotFoundException("User not found"));
             var pair = authService.issueTokens(user);
             return ResponseEntity.ok(new TokenPairResponse(pair.accessToken(), pair.refreshToken()));
         } catch (AuthenticationException e) {
@@ -51,21 +55,28 @@ public class AuthController {
         }
     }
 
-    /** обновление access-токена по refresh-токену */
+
     @PostMapping("/refresh")
-    public ResponseEntity<TokenPairResponse> refresh(@RequestBody RefreshRequest req) {
+    // handles refresh.
+    public ResponseEntity<TokenPairResponse> refresh(@Valid @RequestBody RefreshRequest req) {
         var pair = authService.refresh(req.refreshToken());
         return ResponseEntity.ok(new TokenPairResponse(pair.accessToken(), pair.refreshToken()));
     }
 
     @GetMapping("/me")
     @PreAuthorize("isAuthenticated()")
+    // handles getCurrentUser.
     public ResponseEntity<UserProfile> getCurrentUser(Authentication authentication) {
 
         String email = authentication.getName();
         var user = userService.getByEmail(email)
-                .orElseThrow(() -> new IllegalArgumentException("User not found"));
-        return ResponseEntity.ok(new UserProfile(user.getId(), user.getEmail(), user.isEnabled()));
+                .orElseThrow(() -> new ResourceNotFoundException("User not found"));
+        return ResponseEntity.ok(new UserProfile(
+                user.getId(),
+                user.getEmail(),
+                user.isEnabled(),
+                user.getRoles().stream().map(role -> role.getName()).toList()
+        ));
     }
 
 }

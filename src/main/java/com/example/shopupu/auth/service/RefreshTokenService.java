@@ -2,6 +2,8 @@ package com.example.shopupu.auth.service;
 
 import com.example.shopupu.auth.entity.RefreshToken;
 import com.example.shopupu.auth.repository.RefreshTokenRepository;
+import com.example.shopupu.common.exception.BusinessRuleException;
+import com.example.shopupu.common.exception.ResourceNotFoundException;
 import com.example.shopupu.identity.entity.User;
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Value;
@@ -14,6 +16,9 @@ import java.util.Base64;
 
 @Service
 @RequiredArgsConstructor
+/**
+ * describes the RefreshTokenService class.
+ */
 public class RefreshTokenService {
 
     private final RefreshTokenRepository refreshTokenRepository;
@@ -23,14 +28,16 @@ public class RefreshTokenService {
 
     private static final SecureRandom RANDOM = new SecureRandom();
 
-    /** Генерим крипто-стойкую случайную строку (около 256 бит энтропии). */
+
+    // handles generateRefreshToken.
     private String generateRefreshToken() {
         byte[] bytes = new byte[32];
         RANDOM.nextBytes(bytes);
         return Base64.getUrlEncoder().withoutPadding().encodeToString(bytes);
     }
 
-    /** Создать новый refresh токен для пользователя. */
+
+    // handles mint.
     public RefreshToken mint(User user) {
         var token = RefreshToken.builder()
                 .user(user)
@@ -42,36 +49,37 @@ public class RefreshTokenService {
         return refreshTokenRepository.save(token);
     }
 
-    /**
-     * Проверить, что токен существует, не просрочен и не отозван.
-     * Вернуть сам объект (нужен для ротации).
-     */
+
+    // handles verifyActive.
     public RefreshToken verifyActive(String token) {
         var rt = refreshTokenRepository.findByToken(token)
-                .orElseThrow(() -> new IllegalArgumentException("Refresh token not found"));
+                .orElseThrow(() -> new ResourceNotFoundException("Refresh token not found"));
         if (rt.isRevoked()) {
-            throw new IllegalStateException("Refresh token is revoked");
+            throw new BusinessRuleException("Refresh token is revoked");
         }
 
         if (rt.getExpiresAt().isBefore(Instant.now())) {
-            throw new IllegalStateException("Refresh token is expired");
+            throw new BusinessRuleException("Refresh token is expired");
         }
         return rt;
     }
 
-    /** Ротация: старый помечаем revoked, выдаём новый. */
+
+    // handles rotate.
     public RefreshToken rotate(RefreshToken oldToken) {
         oldToken.setRevoked(true);
         refreshTokenRepository.save(oldToken);
         return mint(oldToken.getUser());
     }
 
-    /** Отозвать все токены пользователя (logout со всех устройств). */
+
+    // handles revokeAll.
     public void revokeAll(User user) {
         refreshTokenRepository.deleteByUser(user);
     }
 
-    /** Мягко отозвать один токен */
+
+    // handles revoke.
     public void revoke(RefreshToken rt) {
         rt.setRevoked(true);
         refreshTokenRepository.save(rt);

@@ -7,6 +7,9 @@ import com.example.shopupu.shipping.entity.ShippingStatus;
 import java.math.BigDecimal;
 import java.time.Instant;
 
+/**
+ * describes the ShipmentDto record.
+ */
 public record ShipmentDto(
         Long orderId,
         ShippingMethod method,
@@ -19,4 +22,3 @@ public record ShipmentDto(
         Instant createdAt,
         Instant updatedAt
 ) {}
-

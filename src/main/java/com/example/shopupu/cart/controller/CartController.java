@@ -1,6 +1,7 @@
 package com.example.shopupu.cart.controller;
 
-import com.example.shopupu.cart.dto.CartDtos.*;
+import com.example.shopupu.cart.dto.AddOrUpdateItemRequest;
+import com.example.shopupu.cart.dto.CartResponse;
 import com.example.shopupu.cart.service.CartService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -9,41 +10,43 @@ import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
 
-/**
- * RU: REST API корзины (требует аутентификации)
- * EN: Cart REST API (requires authentication)
- */
-@CrossOrigin(origins = "http://localhost:5173")
+
 @RestController
 @RequestMapping("/api/cart")
 @RequiredArgsConstructor
+/**
+ * describes the CartController class.
+ */
 public class CartController {
 
     private final CartService cartService;
 
-    // RU: Получить корзину
-    // EN: Get cart
+
+
     @GetMapping
     @PreAuthorize("isAuthenticated()")
+    // handles getCart.
     public ResponseEntity<CartResponse> getCart(Authentication auth) {
         String email = auth.getName();
         return ResponseEntity.ok(cartService.getCart(email));
     }
 
-    // RU: Добавить товар (или увеличить количество, если уже есть)
-    // EN: Add item (or increase quantity if exists)
+
+
     @PostMapping("/items")
     @PreAuthorize("isAuthenticated()")
+    // handles addItem.
     public ResponseEntity<CartResponse> addItem(Authentication auth,
                                                 @Valid @RequestBody AddOrUpdateItemRequest req) {
         String email = auth.getName();
         return ResponseEntity.ok(cartService.addItem(email, req.productId(), req.quantity()));
     }
 
-    // RU: Установить точное количество (0 — удалить)
-    // EN: Set exact quantity (0 — remove)
+
+
     @PutMapping("/items/{productId}")
     @PreAuthorize("isAuthenticated()")
+    // handles setQuantity.
     public ResponseEntity<CartResponse> setQuantity(Authentication auth,
                                                     @PathVariable Long productId,
                                                     @Valid @RequestBody AddOrUpdateItemRequest req) {
@@ -51,20 +54,22 @@ public class CartController {
         return ResponseEntity.ok(cartService.setQuantity(email, productId, req.quantity()));
     }
 
-    // RU: Удалить товар из корзины
-    // EN: Remove item from cart
+
+
     @DeleteMapping("/items/{productId}")
     @PreAuthorize("isAuthenticated()")
+    // handles removeItem.
     public ResponseEntity<CartResponse> removeItem(Authentication auth,
                                                    @PathVariable Long productId) {
         String email = auth.getName();
         return ResponseEntity.ok(cartService.removeItem(email, productId));
     }
 
-    // RU: Очистить корзину
-    // EN: Clear cart
+
+
     @DeleteMapping
     @PreAuthorize("isAuthenticated()")
+    // handles clear.
     public ResponseEntity<CartResponse> clear(Authentication auth) {
         String email = auth.getName();
         return ResponseEntity.ok(cartService.clear(email));

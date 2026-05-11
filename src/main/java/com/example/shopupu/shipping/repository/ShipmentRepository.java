@@ -6,8 +6,10 @@ import org.springframework.data.jpa.repository.JpaRepository;
 
 import java.util.Optional;
 
+/**
+ * describes the ShipmentRepository interface.
+ */
 public interface ShipmentRepository extends JpaRepository<Shipment, Long> {
     Optional<Shipment> findByOrder(Order order);
     Optional<Shipment> findByOrderId(Long orderId);
 }
-

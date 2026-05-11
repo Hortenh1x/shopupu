@@ -11,6 +11,9 @@ import java.util.List;
 @Setter
 @Entity
 @Table(name = "categories")
+/**
+ * describes the Category class.
+ */
 public class Category {
 
     @Id
@@ -33,8 +36,10 @@ public class Category {
     @OneToMany(mappedBy = "parent")
     private List<Category> children = new ArrayList<>();
 
+    // handles Category.
     public Category() {}
 
+    // handles Category.
     public Category(String name, String slug, String description, Category parent) {
         this.name = name;
         this.slug = slug;

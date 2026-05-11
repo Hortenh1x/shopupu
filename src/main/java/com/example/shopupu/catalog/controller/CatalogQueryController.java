@@ -12,17 +12,16 @@ import org.springframework.web.bind.annotation.*;
 @RestController
 @RequiredArgsConstructor
 @RequestMapping("/api/catalog")
+/**
+ * describes the CatalogQueryController class.
+ */
 public class CatalogQueryController {
 
     private final ProductQueryService productQueryService;
     private final CatalogMapper catalogMapper;
-    /**
-     * Листинг товаров с фильтрами:
-     * Примеры:
-     *   /api/catalog/products/search?q=iphone&minPrice=500&maxPrice=1500&categoryId=1&enabled=true&page=0&size=12&sort=price,desc
-     *   /api/catalog/products/search?sort=createdAt,desc
-     */
+
     @GetMapping("/products/search")
+    // handles searchProducts.
     public Page<ProductListItem> searchProducts(
             @RequestParam(required = false) String q,
             @RequestParam(required = false) Long categoryId,
@@ -36,7 +35,7 @@ public class CatalogQueryController {
         filter.categoryId = categoryId;
         filter.minPrice = minPrice;
         filter.maxPrice = maxPrice;
-        filter.enabled = enabled;
+        filter.enabled = enabled == null ? Boolean.TRUE : enabled;
 
         return productQueryService.findProducts(filter, pageable)
                 .map(catalogMapper::toProductListItem);

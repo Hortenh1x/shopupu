@@ -6,13 +6,15 @@ import java.math.BigDecimal;
 import java.time.Instant;
 import java.util.List;
 
+
 /**
- * RU: DTO заказа
- * EN: DTO for order details
+ * describes the OrderDto record.
  */
 public record OrderDto(
         Long id,
-        BigDecimal totalAmount,
+        BigDecimal subtotalAmount,
+        BigDecimal shippingAmount,
+        BigDecimal paymentAmount,
         OrderStatus status,
         Instant createdAt,
         Instant updatedAt,

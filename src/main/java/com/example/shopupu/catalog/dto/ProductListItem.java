@@ -3,8 +3,9 @@ package com.example.shopupu.catalog.dto;
 import java.math.BigDecimal;
 import java.time.Instant;
 
+
 /**
- * Lightweight DTO for catalog product listings/search.
+ * describes the ProductListItem record.
  */
 public record ProductListItem(
         Long id,
@@ -13,7 +14,8 @@ public record ProductListItem(
         Boolean enabled,
         Instant createdAt,
         Long categoryId,
-        String categorySlug
+        String categorySlug,
+        String imageUrl,
+        String imageAltText
 ) {
 }
-

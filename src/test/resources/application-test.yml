@@ -1,0 +1,23 @@
+spring:
+  jpa:
+    hibernate:
+      ddl-auto: validate
+    show-sql: false
+  flyway:
+    enabled: true
+
+jwt:
+  secret: test-secret-key-test-secret-key-test-secret-key-test-secret-key
+  access-token-ttl-min: 15
+  refresh-token-ttl-days: 7
+
+app:
+  bootstrap-admin:
+    enabled: false
+  cors:
+    allowed-origins: http://localhost:5173
+
+payments:
+  default-provider: stub
+  currency: EUR
+  callback-secret:

@@ -1,0 +1,9 @@
+spring:
+  jpa:
+    show-sql: false
+  flyway:
+    enabled: true
+
+logging:
+  level:
+    org.hibernate.SQL: INFO

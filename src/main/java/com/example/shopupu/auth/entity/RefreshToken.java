@@ -9,6 +9,9 @@ import java.time.Instant;
 @Entity
 @Table(name = "refresh_tokens")
 @Getter @Setter @NoArgsConstructor @AllArgsConstructor @Builder
+/**
+ * describes the RefreshToken class.
+ */
 public class RefreshToken {
     @Id @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;

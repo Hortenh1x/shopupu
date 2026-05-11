@@ -1,16 +1,26 @@
 package com.example.shopupu.payments.service;
 
+import com.example.shopupu.common.exception.BusinessRuleException;
+import com.example.shopupu.common.exception.ForbiddenOperationException;
+import com.example.shopupu.common.exception.ResourceNotFoundException;
+import com.example.shopupu.common.security.AccessControlService;
+import com.example.shopupu.config.PaymentProperties;
 import com.example.shopupu.orders.entity.Order;
 import com.example.shopupu.orders.entity.OrderStatus;
 import com.example.shopupu.orders.repository.OrderRepository;
-import com.example.shopupu.payments.dto.PaymentEventDto;
+import com.example.shopupu.orders.service.OrderService;
+import com.example.shopupu.payments.dto.PaymentCallbackRequest;
 import com.example.shopupu.payments.dto.PaymentResponse;
-import com.example.shopupu.payments.entity.*;
-import com.example.shopupu.payments.provider.PaymentProvider;
-import com.example.shopupu.payments.provider.PaymentProviderFactory;
+import com.example.shopupu.payments.entity.Payment;
+import com.example.shopupu.payments.entity.PaymentEvent;
+import com.example.shopupu.payments.entity.PaymentStatus;
+import com.example.shopupu.payments.gateway.PaymentCallbackVerifier;
+import com.example.shopupu.payments.gateway.PaymentGatewayClient;
+import com.example.shopupu.payments.gateway.PaymentGatewayCreateRequest;
 import com.example.shopupu.payments.repository.PaymentEventRepository;
 import com.example.shopupu.payments.repository.PaymentRepository;
 import com.example.shopupu.payments.mapper.PaymentMapper;
+import com.example.shopupu.shipping.repository.ShipmentRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -19,10 +29,7 @@ import org.springframework.transaction.annotation.Transactional;
 import java.util.Optional;
 import java.util.UUID;
 
-/**
- * RU: Основной сервис работы с платежами.
- * EN: Main business service for payments.
- */
+
 @Service
 @RequiredArgsConstructor
 @Slf4j
@@ -31,98 +38,95 @@ public class PaymentService {
     private final PaymentRepository paymentRepository;
     private final PaymentEventRepository paymentEventRepository;
     private final OrderRepository orderRepository;
-    private final PaymentProviderFactory providerFactory;
     private final PaymentMapper paymentMapper;
+    private final PaymentGatewayClient paymentGatewayClient;
+    private final PaymentCallbackVerifier paymentCallbackVerifier;
+    private final PaymentProperties paymentProperties;
+    private final ShipmentRepository shipmentRepository;
+    private final OrderService orderService;
+    private final AccessControlService accessControlService;
 
-    /**
-     * RU: Создаёт новый платёж для заказа.
-     * EN: Creates a new payment for the given order.
-     */
+
     @Transactional
-    public PaymentResponse createPayment(Long orderId, String providerName) {
-        Order order = orderRepository.findById(orderId)
-                .orElseThrow(() -> new IllegalArgumentException("Order not found"));
+    public PaymentResponse createPayment(Long orderId) {
+        Order order = findOrder(orderId);
+        accessControlService.requireOrderOwnerOrAdmin(order);
 
-        PaymentProvider provider = providerFactory.getProvider(providerName);
-        if (provider == null) {
-            throw new IllegalArgumentException("Unknown payment provider: " + providerName);
-        }
+        validateOrderCanBePaid(order);
+        validatePaymentAttemptAllowed(order);
 
-        // Создаём платёж в системе провайдера (Stripe, PayPal и т.д.)
-        PaymentResponse externalResponse = provider.createPayment(order);
         String idempotencyKey = UUID.randomUUID().toString();
 
-        // Создаём локальную запись в БД
         Payment payment = Payment.builder()
                 .order(order)
-                .amount(order.getTotalAmount())
-                .provider(providerName)
-                .status(externalResponse.status()) // enum PaymentStatus
-                .externalId(externalResponse.externalPaymentId())
-                .clientSecret(externalResponse.clientSecret())
+                .amount(order.getPaymentAmount())
+                .provider(paymentProperties.getDefaultProvider())
+                .status(PaymentStatus.CREATED)
                 .idempotencyKey(idempotencyKey)
-                .currency("EUR")
+                .currency(paymentProperties.getCurrency())
                 .build();
+        paymentRepository.save(payment);
+
+        var gatewayResponse = paymentGatewayClient.createPayment(new PaymentGatewayCreateRequest(
+                order.getId(),
+                payment.getId(),
+                payment.getAmount(),
+                payment.getCurrency()
+        ));
+
+        payment.setStatus(gatewayResponse.status());
+        payment.setProvider(gatewayResponse.provider());
+        payment.setExternalId(gatewayResponse.externalPaymentId());
+        payment.setPaymentUrl(gatewayResponse.paymentUrl());
+        payment.setClientToken(gatewayResponse.clientToken());
 
         paymentRepository.save(payment);
 
-        // Логируем событие
-        recordEvent(payment, payment.getStatus(), "SYSTEM", "Payment created");
+        recordEvent(payment, null, payment.getStatus(), "SYSTEM", "Payment created");
 
         return paymentMapper.toResponse(payment);
     }
 
-    /**
-     * RU: Обработка входящего webhook-а от провайдера.
-     * EN: Handles incoming webhook from payment provider.
-     */
+
     @Transactional
-    public void handleWebhook(String providerName, String payload, String signature) {
-        PaymentProvider provider = providerFactory.getProvider(providerName);
-        if (provider == null) {
-            throw new IllegalArgumentException("Unknown provider: " + providerName);
+    public void handleCallback(PaymentCallbackRequest callback, String rawPayload, String signature) {
+        if (!paymentCallbackVerifier.isValid(rawPayload, signature)) {
+            throw new ForbiddenOperationException("Invalid payment callback signature");
         }
 
-        Optional<PaymentEventDto> eventOpt = provider.parseWebhook(payload, signature);
-        if (eventOpt.isEmpty()) {
-            log.warn("Skipped unknown webhook from {}", providerName);
+        if (isDuplicateCallback(callback.externalEventId())) {
+            log.info("Duplicate payment callback ignored: {}", callback.externalEventId());
             return;
         }
 
-        PaymentEventDto eventData = eventOpt.get();
-        String externalId = eventData.externalPaymentId();
-        PaymentStatus newStatus = eventData.status();
-
-        // Проверка на идемпотентность (если уже был такой статус — пропускаем)
-        Payment payment = paymentRepository.findByExternalId(externalId)
-                .orElseThrow(() -> new IllegalArgumentException("Payment not found for webhook: " + externalId));
+        Payment payment = findPaymentByExternalId(callback.externalPaymentId());
+        PaymentStatus newStatus = callback.status();
 
         if (payment.getStatus() == newStatus) {
-            log.info("Duplicate webhook ignored for payment {}", externalId);
+            recordEvent(payment, callback.externalEventId(), newStatus, "PAYMENT_CALLBACK", callback.details());
+            log.info("Duplicate payment status ignored for payment {}", callback.externalPaymentId());
             return;
         }
 
-        // Обновляем статус платежа
         payment.setStatus(newStatus);
         paymentRepository.save(payment);
 
-        // Записываем событие
-        recordEvent(payment, newStatus, providerName.toUpperCase() + "_WEBHOOK", payload);
+        recordEvent(payment, callback.externalEventId(), newStatus, "PAYMENT_CALLBACK", callback.details());
 
-        // Обновляем статус заказа (например, при успешной оплате)
         if (newStatus == PaymentStatus.SUCCEEDED) {
-            orderRepository.updateStatus(payment.getOrder().getId(), OrderStatus.PAID);
+            orderService.markPaidFromPayment(payment.getOrder().getId());
             log.info("Order {} marked as PAID", payment.getOrder().getId());
         }
     }
 
-    /**
-     * RU: Запись события в историю платежей.
-     * EN: Records event in payment history.
-     */
-    private void recordEvent(Payment payment, PaymentStatus status, String source, String details) {
+    public void handleCallback(PaymentCallbackRequest callback, String signature) {
+        handleCallback(callback, "", signature);
+    }
+
+    private void recordEvent(Payment payment, String externalEventId, PaymentStatus status, String source, String details) {
         PaymentEvent event = PaymentEvent.builder()
                 .payment(payment)
+                .externalEventId(externalEventId)
                 .newStatus(status)
                 .source(source)
                 .details(details)
@@ -130,14 +134,59 @@ public class PaymentService {
         paymentEventRepository.save(event);
     }
 
-    /**
-     * RU: Возвращает платёж по ID (для UI или админки).
-     * EN: Returns payment by ID.
-     */
+
     @Transactional(readOnly = true)
-    public PaymentResponse getPayment(Long id) {
+    public PaymentResponse getPaymentForCurrentUser(Long id) {
         Payment payment = paymentRepository.findById(id)
-                .orElseThrow(() -> new IllegalArgumentException("Payment not found"));
+                .orElseThrow(() -> new ResourceNotFoundException("Payment not found"));
+        accessControlService.requireOrderOwnerOrAdmin(payment.getOrder());
         return paymentMapper.toResponse(payment);
+    }
+
+    private void validateOrderCanBePaid(Order order) {
+        if (order.getStatus() == OrderStatus.PAID) {
+            throw new BusinessRuleException("Order is already paid");
+        }
+        if (order.getStatus() != OrderStatus.NEW) {
+            throw new BusinessRuleException("Only NEW orders can be paid");
+        }
+        if (shipmentRepository.findByOrder(order).isEmpty()) {
+            throw new BusinessRuleException("Shipping must be selected before payment");
+        }
+        if (order.getPaymentAmount() == null || order.getPaymentAmount().signum() < 0) {
+            throw new BusinessRuleException("Order payment amount is invalid");
+        }
+    }
+
+    private void validatePaymentAttemptAllowed(Order order) {
+        Optional<Payment> latestPayment = paymentRepository.findTopByOrderOrderByCreatedAtDesc(order);
+        if (latestPayment.isEmpty()) {
+            return;
+        }
+
+        PaymentStatus status = latestPayment.get().getStatus();
+        if (status == PaymentStatus.CREATED || status == PaymentStatus.PENDING) {
+            throw new BusinessRuleException("Payment is already in progress");
+        }
+        if (status == PaymentStatus.SUCCEEDED) {
+            throw new BusinessRuleException("Order is already paid");
+        }
+    }
+
+    private Order findOrder(Long orderId) {
+        return orderRepository.findById(orderId)
+                .orElseThrow(() -> new ResourceNotFoundException("Order not found"));
+    }
+
+    private Payment findPaymentByExternalId(String externalPaymentId) {
+        return paymentRepository.findByExternalId(externalPaymentId)
+                .orElseThrow(() -> new ResourceNotFoundException("Payment not found for callback: " + externalPaymentId));
+    }
+
+    private boolean isDuplicateCallback(String externalEventId) {
+        if (externalEventId == null || externalEventId.isBlank()) {
+            return false;
+        }
+        return paymentEventRepository.findByExternalEventId(externalEventId).isPresent();
     }
 }

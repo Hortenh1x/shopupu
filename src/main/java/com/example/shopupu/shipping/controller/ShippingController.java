@@ -1,44 +1,40 @@
 package com.example.shopupu.shipping.controller;
 
 import com.example.shopupu.shipping.dto.ShipmentDto;
-import com.example.shopupu.shipping.dto.ShippingRequests;
-import com.example.shopupu.shipping.entity.ShippingStatus;
+import com.example.shopupu.shipping.dto.SetShippingAddressRequest;
+import com.example.shopupu.shipping.dto.SetShippingMethodRequest;
 import com.example.shopupu.shipping.service.ShippingService;
+import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
-import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
-@CrossOrigin(origins = "http://localhost:5173")
 @RestController
 @RequestMapping("/api/shipping")
 @RequiredArgsConstructor
+/**
+ * describes the ShippingController class.
+ */
 public class ShippingController {
 
     private final ShippingService shippingService;
 
     @PostMapping("/address")
-    public ResponseEntity<ShipmentDto> setAddress(@RequestBody ShippingRequests.SetAddress req) {
+    // handles setAddress.
+    public ResponseEntity<ShipmentDto> setAddress(@Valid @RequestBody SetShippingAddressRequest req) {
         return ResponseEntity.ok(shippingService.setAddress(req));
     }
 
     @PostMapping("/method")
-    public ResponseEntity<ShipmentDto> setMethod(@RequestBody ShippingRequests.SetMethod req) {
+    // handles setMethod.
+    public ResponseEntity<ShipmentDto> setMethod(@Valid @RequestBody SetShippingMethodRequest req) {
         return ResponseEntity.ok(shippingService.setMethod(req));
     }
 
     @GetMapping("/{orderId}")
+    // handles get.
     public ResponseEntity<ShipmentDto> get(@PathVariable Long orderId) {
         return ResponseEntity.ok(shippingService.getByOrder(orderId));
     }
 
-    @PreAuthorize("hasRole('ADMIN')")
-    @PatchMapping("/{orderId}/status")
-    public ResponseEntity<ShipmentDto> updateStatus(
-            @PathVariable Long orderId,
-            @RequestParam ShippingStatus status,
-            @RequestParam(required = false) String trackingNumber
-    ) {
-        return ResponseEntity.ok(shippingService.updateStatus(orderId, status, trackingNumber));
-    }
 }

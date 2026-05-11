@@ -5,16 +5,16 @@ import lombok.*;
 
 import java.math.BigDecimal;
 
-/**
- * RU: Позиция в заказе (фиксированные данные на момент покупки)
- * EN: Order line item (snapshot of data at checkout time)
- */
+
 @Entity
 @Table(name = "order_items")
 @Getter @Setter
 @NoArgsConstructor
 @AllArgsConstructor
 @Builder
+/**
+ * describes the OrderItem class.
+ */
 public class OrderItem {
 
     @Id
@@ -31,12 +31,12 @@ public class OrderItem {
     @Column(nullable = false)
     private String title;
 
-    @Column(nullable = false)
+    @Column(nullable = false, precision = 19, scale = 2)
     private BigDecimal price;
 
     @Column(nullable = false)
     private Integer quantity;
 
-    @Column(name = "line_total", nullable = false)
+    @Column(name = "line_total", nullable = false, precision = 19, scale = 2)
     private BigDecimal lineTotal;
 }

@@ -9,16 +9,18 @@ import org.hibernate.annotations.UpdateTimestamp;
 import java.math.BigDecimal;
 import java.time.Instant;
 
-/**
- * EN: Shipment bound to an order, with address, method, cost and status.
- */
+
 @Entity
-@Table(name = "shipments")
+@Table(name = "shipments",
+        uniqueConstraints = @UniqueConstraint(name = "uq_shipments_order_id", columnNames = "order_id"))
 @Getter
 @Setter
 @NoArgsConstructor
 @AllArgsConstructor
 @Builder
+/**
+ * describes the Shipment class.
+ */
 public class Shipment {
 
     @Id
@@ -41,10 +43,10 @@ public class Shipment {
     @Column(nullable = false, length = 32)
     private ShippingStatus status;
 
-    @Column(nullable = false, precision = 10, scale = 2)
+    @Column(nullable = false, precision = 19, scale = 2)
     private BigDecimal cost;
 
-    @Column(length = 64)
+    @Column(length = 8)
     private String currency;
 
     @Column(length = 64)
@@ -56,4 +58,3 @@ public class Shipment {
     @UpdateTimestamp
     private Instant updatedAt;
 }
-

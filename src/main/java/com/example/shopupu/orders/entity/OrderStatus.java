@@ -1,8 +1,8 @@
 package com.example.shopupu.orders.entity;
 
+
 /**
- * RU: Возможные статусы заказа.
- * EN: Possible order statuses.
+ * describes the OrderStatus enum.
  */
 public enum OrderStatus {
     NEW,

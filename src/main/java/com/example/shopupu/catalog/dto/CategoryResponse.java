@@ -1,7 +1,8 @@
 package com.example.shopupu.catalog.dto;
 
+
 /**
- * DTO returned to clients for category representation.
+ * describes the CategoryResponse record.
  */
 public record CategoryResponse(
         Long id,
@@ -11,4 +12,3 @@ public record CategoryResponse(
         Long parentId
 ) {
 }
-

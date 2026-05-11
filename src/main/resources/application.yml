@@ -1,26 +1,22 @@
 spring:
   application:
     name: shopupu
-  server:
-    port: 8080
 
   datasource:
-    url: jdbc:postgresql://localhost:5432/postgres
-    username: postgres
-    password: 1832
+    url: ${DB_URL:jdbc:postgresql://localhost:5432/shopupu}
+    username: ${DB_USERNAME:postgres}
+    password: ${DB_PASSWORD:}
     driver-class-name: org.postgresql.Driver
 
   jpa:
     hibernate:
-      ddl-auto: update
+      ddl-auto: validate
     properties:
       hibernate:
-        hbm2ddl:
-          auto: update
         format_sql: true
         jdbc:
           time_zone: UTC
-    show-sql: true
+    show-sql: false
 
   flyway:
     baseline-on-migrate: true
@@ -28,24 +24,37 @@ spring:
     locations: classpath:db/migration
 
 jwt:
-  secret: 6A94C1D9F8A263B9E1A0C4F233B0D8226A9C1E7B5F2A1D4B9E5A7C3D2F1B8E9C
+  secret: ${JWT_SECRET:6A94C1D9F8A263B9E1A0C4F233B0D8226A9C1E7B5F2A1D4B9E5A7C3D2F1B8E9C6A94C1D9F8A263B9E1A0C4F233B0D822}
   access-token-ttl-min: 15
   refresh-token-ttl-days: 7
 
 logging:
   level:
-    org.hibernate.SQL: DEBUG
-    org.hibernate.type.descriptor.sql.BasicBinder: TRACE
+    org.hibernate.SQL: INFO
 
 payments:
-  stripe:
-    apiKey: ${STRIPE_API_KEY:}
-    webhookSecret: ${STRIPE_WEBHOOK_SECRET:}
-  paypal:
-    clientId: ${PAYPAL_CLIENT_ID:}
-    clientSecret: ${PAYPAL_CLIENT_SECRET:}
-  defaultProvider: stripe
-  currency: EUR
+  default-provider: ${PAYMENTS_DEFAULT_PROVIDER:stub}
+  currency: ${PAYMENT_CURRENCY:EUR}
+  service-base-url: ${PAYMENT_SERVICE_BASE_URL:}
+  service-client-id: ${PAYMENT_SERVICE_CLIENT_ID:shopupu}
+  service-secret: ${PAYMENT_SERVICE_SECRET:}
+  callback-secret: ${PAYMENT_CALLBACK_SECRET:}
+  callback-url: ${PAYMENT_CALLBACK_URL:http://localhost:8080/api/payments/callback}
+  request-timeout-seconds: ${PAYMENT_REQUEST_TIMEOUT_SECONDS:10}
+
+server:
+  port: ${SERVER_PORT:8080}
+
+app:
+  cors:
+    allowed-origins: ${CORS_ALLOWED_ORIGINS:http://localhost:5173,http://localhost:3000,http://127.0.0.1:3000}
+  uploads:
+    dir: ${UPLOADS_DIR:uploads}
+    public-base-url: ${PUBLIC_UPLOADS_BASE_URL:http://localhost:8080/uploads}
+  bootstrap-admin:
+    enabled: ${BOOTSTRAP_ADMIN_ENABLED:false}
+    email: ${BOOTSTRAP_ADMIN_EMAIL:dmytro.bolibok@gmail.com}
+    password: ${BOOTSTRAP_ADMIN_PASSWORD:}
 
 shipping:
   currency: EUR

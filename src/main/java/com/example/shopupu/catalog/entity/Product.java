@@ -3,6 +3,7 @@ package com.example.shopupu.catalog.entity;
 import jakarta.persistence.*;
 import lombok.Getter;
 import lombok.Setter;
+import org.hibernate.annotations.CreationTimestamp;
 
 import java.math.BigDecimal;
 import java.time.Instant;
@@ -13,6 +14,9 @@ import java.util.List;
 @Setter
 @Entity
 @Table(name = "products")
+/**
+ * describes the Product class.
+ */
 public class Product {
 
     @Id
@@ -26,31 +30,34 @@ public class Product {
     private String description;
 
     @Column(nullable = false, precision = 19, scale = 2)
-    private BigDecimal price;               // DECIMAL → BigDecimal
+    private BigDecimal price;
 
     @Column(nullable = false, unique = true, length = 64)
-    private String sku;                     // уникальный артикул
+    private String sku;
 
     @Column(nullable = false)
-    private Integer stock = 0;              // остатки
+    private Integer stock = 0;
 
     @Column(nullable = false)
     private Boolean enabled = true;
 
+    @CreationTimestamp
     @Column(name = "created_at", nullable = false)
-    private Instant createdAt = Instant.now();
+    private Instant createdAt;
 
-    // Много товаров -> одна категория
+
     @ManyToOne(fetch = FetchType.LAZY, optional = false)
     @JoinColumn(name = "category_id")
     private Category category;
 
-    // Обратная сторона связи с картинками
+
     @OneToMany(mappedBy = "product", cascade = CascadeType.ALL, orphanRemoval = true)
     private List<ProductImage> images = new ArrayList<>();
 
+    // handles Product.
     public Product() {}
 
+    // handles Product.
     public Product(String title, String description, BigDecimal price, String sku, Integer stock, Category category) {
         this.title = title;
         this.description = description;

@@ -1,14 +1,13 @@
--- ==============================================================
--- История изменений платежей
--- ==============================================================
-
-CREATE TABLE IF NOT EXISTS payment_events (
-    id BIGSERIAL PRIMARY KEY,
-    payment_id BIGINT NOT NULL REFERENCES payments(id) ON DELETE CASCADE,
-    new_status VARCHAR(20) NOT NULL,
-    source VARCHAR(50) NOT NULL,
-    details TEXT,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+create table payment_events
+(
+    id                bigserial primary key,
+    payment_id        bigint not null references payments (id) on delete cascade,
+    external_event_id varchar(128),
+    new_status        varchar(32) not null,
+    source            varchar(50) not null,
+    details           text,
+    created_at        timestamp with time zone not null default now(),
+    constraint uq_payment_events_external_event_id unique (external_event_id)
 );
 
-CREATE INDEX IF NOT EXISTS idx_payment_event_payment_id ON payment_events(payment_id);
+create index idx_payment_events_payment_id on payment_events (payment_id);

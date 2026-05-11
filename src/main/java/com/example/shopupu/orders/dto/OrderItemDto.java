@@ -2,9 +2,9 @@ package com.example.shopupu.orders.dto;
 
 import java.math.BigDecimal;
 
+
 /**
- * RU: DTO позиции заказа (то, что возвращаем на фронт)
- * EN: DTO for an order line item
+ * describes the OrderItemDto record.
  */
 public record OrderItemDto(
         Long id,

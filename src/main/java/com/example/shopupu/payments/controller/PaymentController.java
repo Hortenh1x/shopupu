@@ -1,58 +1,52 @@
 package com.example.shopupu.payments.controller;
 
+import com.example.shopupu.payments.dto.CreatePaymentRequest;
+import com.example.shopupu.payments.dto.PaymentCallbackRequest;
 import com.example.shopupu.payments.dto.PaymentResponse;
 import com.example.shopupu.payments.service.PaymentService;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
-/**
- * RU: Контроллер для работы с платежами.
- * EN: REST controller for payment operations.
- */
-@CrossOrigin(origins = "http://localhost:5173")
+
 @RestController
 @RequestMapping("/api/payments")
 @RequiredArgsConstructor
 public class PaymentController {
 
     private final PaymentService paymentService;
+    private final ObjectMapper objectMapper;
 
-    /**
-     * RU: Создание нового платежа для заказа.
-     * EN: Creates a new payment for an order.
-     */
-    @PostMapping("/create")
+    @PostMapping
     public ResponseEntity<PaymentResponse> createPayment(
-            @RequestParam Long orderId,
-            @RequestParam(defaultValue = "stripe") String provider
+            @Valid @RequestBody CreatePaymentRequest request
     ) {
-        PaymentResponse payment = paymentService.createPayment(orderId, provider);
+        PaymentResponse payment = paymentService.createPayment(request.orderId());
         return ResponseEntity.ok(payment);
     }
 
-    /**
-     * RU: Получение платежа по ID.
-     * EN: Gets payment by ID.
-     */
-    @GetMapping("/{id}")
-    public ResponseEntity<PaymentResponse> getPayment(@PathVariable Long id) {
-        return ResponseEntity.ok(paymentService.getPayment(id));
+    @PostMapping("/create")
+    public ResponseEntity<PaymentResponse> createPaymentLegacy(
+            @RequestParam Long orderId
+    ) {
+        PaymentResponse payment = paymentService.createPayment(orderId);
+        return ResponseEntity.ok(payment);
     }
 
-    /**
-     * RU: Webhook от провайдера (Stripe, PayPal).
-     * EN: Webhook endpoint for provider callbacks.
-     *
-     * ⚠️ Важно: этот эндпоинт должен быть открыт в SecurityConfig!
-     */
-    @PostMapping("/webhook/{provider}")
-    public ResponseEntity<String> handleWebhook(
-            @PathVariable String provider,
-            @RequestBody String payload,
-            @RequestHeader("Stripe-Signature") String signature
-    ) {
-        paymentService.handleWebhook(provider, payload, signature);
-        return ResponseEntity.ok("Webhook received");
+    @GetMapping("/{id}")
+    public ResponseEntity<PaymentResponse> getPayment(@PathVariable Long id) {
+        return ResponseEntity.ok(paymentService.getPaymentForCurrentUser(id));
+    }
+
+    @PostMapping("/callback")
+    public ResponseEntity<String> handleCallback(
+            @RequestBody String rawPayload,
+            @RequestHeader(value = "X-Payment-Signature", required = false) String signature
+    ) throws Exception {
+        PaymentCallbackRequest request = objectMapper.readValue(rawPayload, PaymentCallbackRequest.class);
+        paymentService.handleCallback(request, rawPayload, signature);
+        return ResponseEntity.ok("Payment callback received");
     }
 }

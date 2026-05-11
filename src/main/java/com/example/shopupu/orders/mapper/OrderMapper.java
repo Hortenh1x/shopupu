@@ -8,13 +8,14 @@ import org.springframework.stereotype.Component;
 
 import java.util.List;
 
-/**
- * RU: Маппер из сущностей в DTO.
- * EN: Mapper to convert entities to DTOs.
- */
+
 @Component
+/**
+ * describes the OrderMapper class.
+ */
 public class OrderMapper {
 
+    // handles toDto.
     public OrderDto toDto(Order order) {
         List<OrderItemDto> itemDtos = order.getItems().stream()
                 .map(this::toDto)
@@ -22,7 +23,9 @@ public class OrderMapper {
 
         return new OrderDto(
                 order.getId(),
-                order.getTotalAmount(),
+                order.getSubtotalAmount(),
+                order.getShippingAmount(),
+                order.getPaymentAmount(),
                 order.getStatus(),
                 order.getCreatedAt(),
                 order.getUpdatedAt(),
@@ -30,6 +33,7 @@ public class OrderMapper {
         );
     }
 
+    // handles toDto.
     public OrderItemDto toDto(OrderItem item) {
         return new OrderItemDto(
                 item.getId(),

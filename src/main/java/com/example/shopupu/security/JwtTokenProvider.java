@@ -3,21 +3,20 @@ package com.example.shopupu.security;
 import io.jsonwebtoken.Claims;
 import io.jsonwebtoken.ExpiredJwtException;
 import io.jsonwebtoken.Jwts;
-import io.jsonwebtoken.SignatureAlgorithm;
-import io.jsonwebtoken.io.Encoders;
 import io.jsonwebtoken.security.Keys;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.stereotype.Component;
 
-import java.security.Key;
+import javax.crypto.SecretKey;
+import java.nio.charset.StandardCharsets;
 import java.util.Date;
 import java.util.function.Function;
 
 @Component
 public class JwtTokenProvider {
 
-    private final Key key;
+    private final SecretKey key;
     private final long jwtExpiration;
     private final long refreshExpiration;
 
@@ -26,8 +25,11 @@ public class JwtTokenProvider {
             @Value("${jwt.access-token-ttl-min}") long jwtExpirationMin,
             @Value("${jwt.refresh-token-ttl-days}") long refreshExpirationDays
     ) {
-        this.key = Jwts.SIG.HS256.key().build();
-        System.out.println(Encoders.BASE64.encode(key.getEncoded()));
+        byte[] secretBytes = secret.getBytes(StandardCharsets.UTF_8);
+        if (secretBytes.length < 32) {
+            throw new IllegalArgumentException("JWT secret must be at least 32 bytes for HS256");
+        }
+        this.key = Keys.hmacShaKeyFor(secretBytes);
         this.jwtExpiration = jwtExpirationMin * 60 * 1000;
         this.refreshExpiration = refreshExpirationDays * 24 * 60 * 60 * 1000;
     }
@@ -38,7 +40,7 @@ public class JwtTokenProvider {
 
     public <T> T extractClaim(String token, Function<Claims, T> claimsResolver) {
         try {
-            final Claims claims = extractAllClaims(token);
+            Claims claims = extractAllClaims(token);
             return claimsResolver.apply(claims);
         } catch (ExpiredJwtException e) {
             return claimsResolver.apply(e.getClaims());
@@ -47,12 +49,11 @@ public class JwtTokenProvider {
 
     private Claims extractAllClaims(String token) {
         return Jwts.parser()
-                .setSigningKey(key)
+                .verifyWith(key)
                 .build()
-                .parseClaimsJws(token)
-                .getBody();
+                .parseSignedClaims(token)
+                .getPayload();
     }
-
 
     public String generateToken(UserDetails userDetails) {
         return generateTokenWithExpiration(userDetails, jwtExpiration);
@@ -63,25 +64,20 @@ public class JwtTokenProvider {
     }
 
     private String generateTokenWithExpiration(UserDetails userDetails, long expirationMs) {
-        Date now = new Date();
-        Date expiryDate = new Date(now.getTime() + expirationMs);
+        Date now = new Date(System.currentTimeMillis());
 
         return Jwts.builder()
-                .setSubject(userDetails.getUsername())
-                .setIssuedAt(new Date(System.currentTimeMillis()))
-                .setExpiration(new Date(System.currentTimeMillis() + jwtExpiration))
-                .signWith(key, SignatureAlgorithm.HS256)
+                .subject(userDetails.getUsername())
+                .issuedAt(now)
+                .expiration(new Date(now.getTime() + expirationMs))
+                .signWith(key)
                 .compact();
     }
 
-
-
     public boolean isTokenValid(String token, UserDetails userDetails) {
         try {
-            final String username = extractUsername(token);
+            String username = extractUsername(token);
             return username.equals(userDetails.getUsername()) && !isTokenExpired(token);
-        } catch (ExpiredJwtException e) {
-            return false;
         } catch (Exception e) {
             return false;
         }

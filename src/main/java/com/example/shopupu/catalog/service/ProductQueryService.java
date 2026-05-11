@@ -12,14 +12,15 @@ import org.springframework.transaction.annotation.Transactional;
 
 @Service
 @RequiredArgsConstructor
+/**
+ * describes the ProductQueryService class.
+ */
 public class ProductQueryService {
 
     private final ProductRepository productRepository;
-    /**
-     * Главный метод листинга: принимает фильтр и Pageable.
-     * Pageable включает page/size/sort — Spring сам соберёт из query params.
-     */
+
     @Transactional(readOnly = true)
+    // handles findProducts.
     public Page<Product> findProducts(ProductFilter f, Pageable pageable) {
         var spec = ProductSpecifications.build(
                 f.q, f.categoryId, f.minPrice, f.maxPrice, f.enabled

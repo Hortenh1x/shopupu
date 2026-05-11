@@ -4,8 +4,9 @@ import java.math.BigDecimal;
 import java.time.Instant;
 import java.util.List;
 
+
 /**
- * Detailed representation of a catalog product for clients.
+ * describes the ProductResponse record.
  */
 public record ProductResponse(
         Long id,
@@ -21,6 +22,9 @@ public record ProductResponse(
         String categorySlug,
         List<ProductResponseImage> images
 ) {
+    /**
+     * describes the ProductResponseImage record.
+     */
     public record ProductResponseImage(
             Long id,
             String url,
@@ -29,4 +33,3 @@ public record ProductResponse(
     ) {
     }
 }
-

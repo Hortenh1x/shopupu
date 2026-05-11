@@ -8,6 +8,9 @@ import org.springframework.data.jpa.repository.JpaSpecificationExecutor;
 import java.util.List;
 import java.util.Optional;
 
+/**
+ * describes the ProductRepository interface.
+ */
 public interface ProductRepository extends JpaRepository<Product, Long>, JpaSpecificationExecutor<Product> {
 
     Optional<Product> findBySku(String sku);
@@ -15,4 +18,6 @@ public interface ProductRepository extends JpaRepository<Product, Long>, JpaSpec
     List<Product> findAll();
     List<Product> findByCategory_Slug(String slug);
     List<Product> findByCategoryAndEnabledIsTrue(Category category);
+    List<Product> findByEnabledIsTrue();
+    List<Product> findByCategory_SlugAndEnabledIsTrue(String slug);
 }

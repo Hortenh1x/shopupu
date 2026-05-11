@@ -7,10 +7,13 @@ import org.springframework.data.jpa.repository.JpaRepository;
 
 import java.util.Optional;
 
+/**
+ * describes the CartRepository interface.
+ */
 public interface CartRepository extends JpaRepository<Cart, Long> {
 
-    // RU: Находим корзину по email пользователя + сразу грузим items и product (EntityGraph)
-    // EN: Find cart by user email + eagerly load items.product (EntityGraph)
+
+
     @EntityGraph(attributePaths = {"items", "items.product"})
     Optional<Cart> findByUser_Email(String email);
     Optional<Cart> findByUser(User user);

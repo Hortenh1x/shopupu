@@ -7,6 +7,9 @@ import lombok.*;
 @Table(name = "roles")
 @Getter @Setter
 @NoArgsConstructor @AllArgsConstructor @Builder
+/**
+ * describes the Role class.
+ */
 public class Role {
 
     @Id
@@ -14,5 +17,5 @@ public class Role {
     private Long id;
 
     @Column(nullable = false, unique = true)
-    private String name; // ADMIN / CUSTOMER / MANAGER
+    private String name;
 }

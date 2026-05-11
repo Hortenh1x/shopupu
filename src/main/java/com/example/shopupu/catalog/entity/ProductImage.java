@@ -7,6 +7,9 @@ import lombok.Setter;
 @Getter
 @Entity
 @Table(name = "product_images")
+/**
+ * describes the ProductImage class.
+ */
 public class ProductImage {
 
     @Id @GeneratedValue(strategy = GenerationType.IDENTITY)
@@ -29,8 +32,10 @@ public class ProductImage {
     @JoinColumn(name = "product_id")
     private Product product;
 
+    // handles ProductImage.
     public ProductImage() {}
 
+    // handles ProductImage.
     public ProductImage(String url, String altText, Integer position, Product product) {
         this.url = url;
         this.altText = altText;

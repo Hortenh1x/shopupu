@@ -1,0 +1,17 @@
+<component name="ProjectRunConfigurationManager">
+  <configuration default="false" name="ShopupuApplication" type="Application" factoryName="Application">
+    <envs>
+      <env name="DB_URL" value="jdbc:postgresql://localhost:5432/shopupu" />
+      <env name="DB_USERNAME" value="postgres" />
+      <env name="DB_PASSWORD" value="1832" />
+      <env name="BOOTSTRAP_ADMIN_ENABLED" value="true" />
+      <env name="BOOTSTRAP_ADMIN_EMAIL" value="admin@gmail.com" />
+      <env name="BOOTSTRAP_ADMIN_PASSWORD" value="18321832" />
+    </envs>
+    <option name="MAIN_CLASS_NAME" value="com.example.shopupu.ShopupuApplication" />
+    <module name="shopupu" />
+    <method v="2">
+      <option name="Make" enabled="true" />
+    </method>
+  </configuration>
+</component>

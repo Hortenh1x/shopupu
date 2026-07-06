@@ -30,3 +30,9 @@ build/
 
 ### VS Code ###
 .vscode/
+
+### Local runtime artifacts ###
+*.log
+.idea/
+uploads/
+.env

@@ -1,10 +1,9 @@
 package com.example.shopupu.payments.entity;
 
 import jakarta.persistence.*;
+import java.time.Instant;
 import lombok.*;
 import org.hibernate.annotations.CreationTimestamp;
-
-import java.time.Instant;
 
 
 @Entity

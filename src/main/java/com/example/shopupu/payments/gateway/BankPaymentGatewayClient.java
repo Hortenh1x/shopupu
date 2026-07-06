@@ -3,16 +3,13 @@ package com.example.shopupu.payments.gateway;
 import com.example.shopupu.config.PaymentProperties;
 import com.example.shopupu.payments.entity.PaymentStatus;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import lombok.RequiredArgsConstructor;
+import java.time.Instant;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.http.MediaType;
 import org.springframework.stereotype.Component;
 import org.springframework.web.client.RestClient;
 
-import java.time.Instant;
-
 @Component
-@RequiredArgsConstructor
 @ConditionalOnProperty(name = "payments.default-provider", havingValue = "bank_back")
 public class BankPaymentGatewayClient implements PaymentGatewayClient {
 
@@ -20,6 +17,23 @@ public class BankPaymentGatewayClient implements PaymentGatewayClient {
 
     private final PaymentProperties paymentProperties;
     private final ObjectMapper objectMapper;
+    private final RestClient restClient;
+
+    public BankPaymentGatewayClient(PaymentProperties paymentProperties, ObjectMapper objectMapper) {
+        this.paymentProperties = paymentProperties;
+        this.objectMapper = objectMapper;
+        // one client with explicit timeouts, built once (PERF-06/PERF-07)
+        java.time.Duration timeout = java.time.Duration.ofSeconds(paymentProperties.getRequestTimeoutSeconds());
+        var httpClient = java.net.http.HttpClient.newBuilder()
+                .connectTimeout(timeout)
+                .build();
+        var requestFactory = new org.springframework.http.client.JdkClientHttpRequestFactory(httpClient);
+        requestFactory.setReadTimeout(timeout);
+        this.restClient = RestClient.builder()
+                .baseUrl(required(paymentProperties.getServiceBaseUrl(), "payments.service-base-url"))
+                .requestFactory(requestFactory)
+                .build();
+    }
 
     @Override
     public PaymentGatewayCreateResponse createPayment(PaymentGatewayCreateRequest request) {
@@ -36,7 +50,7 @@ public class BankPaymentGatewayClient implements PaymentGatewayClient {
             long timestamp = Instant.now().toEpochMilli();
             String signature = signRequest(timestamp, payload);
 
-            BankCreatePaymentResponse response = RestClient.create(required(paymentProperties.getServiceBaseUrl(), "payments.service-base-url"))
+            BankCreatePaymentResponse response = restClient
                     .post()
                     .uri(CREATE_PAYMENT_PATH)
                     .contentType(MediaType.APPLICATION_JSON)

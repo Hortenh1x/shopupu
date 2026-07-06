@@ -2,12 +2,11 @@ package com.example.shopupu.shipping.entity;
 
 import com.example.shopupu.orders.entity.Order;
 import jakarta.persistence.*;
+import java.math.BigDecimal;
+import java.time.Instant;
 import lombok.*;
 import org.hibernate.annotations.CreationTimestamp;
 import org.hibernate.annotations.UpdateTimestamp;
-
-import java.math.BigDecimal;
-import java.time.Instant;
 
 
 @Entity
@@ -51,6 +50,10 @@ public class Shipment {
 
     @Column(length = 64)
     private String trackingNumber;
+
+    /** Immutable copy of the delivery address at checkout time (ORD-02). */
+    @Column(name = "address_snapshot", columnDefinition = "text")
+    private String addressSnapshot;
 
     @CreationTimestamp
     private Instant createdAt;

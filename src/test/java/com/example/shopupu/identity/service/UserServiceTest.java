@@ -1,26 +1,25 @@
 package com.example.shopupu.identity.service;
 
-import com.example.shopupu.common.exception.ConflictException;
-import com.example.shopupu.identity.entity.Role;
-import com.example.shopupu.identity.entity.User;
-import com.example.shopupu.identity.repository.RoleRepository;
-import com.example.shopupu.identity.repository.UserRepository;
-import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.extension.ExtendWith;
-import org.mockito.InjectMocks;
-import org.mockito.Mock;
-import org.mockito.junit.jupiter.MockitoExtension;
-import org.springframework.security.crypto.password.PasswordEncoder;
-
-import java.util.List;
-import java.util.Optional;
-
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
+
+import com.example.shopupu.common.exception.ConflictException;
+import com.example.shopupu.identity.entity.Role;
+import com.example.shopupu.identity.entity.User;
+import com.example.shopupu.identity.repository.RoleRepository;
+import com.example.shopupu.identity.repository.UserRepository;
+import java.util.List;
+import java.util.Optional;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.InjectMocks;
+import org.mockito.Mock;
+import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.security.crypto.password.PasswordEncoder;
 
 /**
  * describes the UserServiceTest test class.
@@ -51,10 +50,12 @@ class UserServiceTest {
 
     // handles getUsers.
     @Test
-    void getUsersReturnsAllUsers() {
-        when(userRepository.findAll()).thenReturn(List.of(User.builder().email("a@example.com").build()));
+    void getUsersReturnsPagedUsers() {
+        var pageable = org.springframework.data.domain.PageRequest.of(0, 20);
+        when(userRepository.findAll(pageable)).thenReturn(new org.springframework.data.domain.PageImpl<>(
+                List.of(User.builder().email("a@example.com").build())));
 
-        assertEquals(1, userService.getUsers().size());
+        assertEquals(1, userService.getUsers(pageable).getTotalElements());
     }
 
     // handles registerUser.
@@ -80,5 +81,30 @@ class UserServiceTest {
         when(userRepository.existsByEmail("user@example.com")).thenReturn(true);
 
         assertThrows(ConflictException.class, () -> userService.registerUser("user@example.com", "password"));
+    }
+
+    // handles changePassword.
+    @Test
+    void changePasswordVerifiesCurrentPassword() {
+        User user = User.builder().email("user@example.com").passwordHash("old-hash").build();
+        when(userRepository.findByEmail("user@example.com")).thenReturn(Optional.of(user));
+        when(passwordEncoder.matches("current", "old-hash")).thenReturn(true);
+        when(passwordEncoder.encode("newPassword1")).thenReturn("new-hash");
+        when(userRepository.save(any(User.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        User updated = userService.changePassword("user@example.com", "current", "newPassword1");
+
+        assertEquals("new-hash", updated.getPasswordHash());
+    }
+
+    // handles changePassword.
+    @Test
+    void changePasswordRejectsWrongCurrentPassword() {
+        User user = User.builder().email("user@example.com").passwordHash("old-hash").build();
+        when(userRepository.findByEmail("user@example.com")).thenReturn(Optional.of(user));
+        when(passwordEncoder.matches("wrong", "old-hash")).thenReturn(false);
+
+        assertThrows(com.example.shopupu.common.exception.UnauthorizedException.class,
+                () -> userService.changePassword("user@example.com", "wrong", "newPassword1"));
     }
 }

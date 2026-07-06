@@ -1,44 +1,33 @@
 package com.example.shopupu.cart.entity;
 
-import com.example.shopupu.catalog.entity.Product;
-import com.example.shopupu.identity.entity.User;
+import com.example.shopupu.catalog.entity.ProductVariant;
 import jakarta.persistence.*;
+import java.time.Instant;
 import lombok.*;
 import org.hibernate.annotations.CreationTimestamp;
 import org.hibernate.annotations.UpdateTimestamp;
 
-import java.time.Instant;
-
 
 @Entity
 @Table(name = "cart_items",
-        uniqueConstraints = @UniqueConstraint(name="uq_cart_items_cart_product", columnNames = {"cart_id","product_id"}))
+        uniqueConstraints = @UniqueConstraint(name = "uq_cart_items_cart_variant", columnNames = {"cart_id", "variant_id"}))
 @Getter @Setter
 @NoArgsConstructor
 @AllArgsConstructor
 @Builder
-/**
- * describes the CartItem class.
- */
 public class CartItem {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-
-
     @ManyToOne(optional = false, fetch = FetchType.LAZY)
     @JoinColumn(name = "cart_id", nullable = false)
     private Cart cart;
 
-
-
     @ManyToOne(optional = false, fetch = FetchType.LAZY)
-    @JoinColumn(name = "product_id", nullable = false)
-    private Product product;
-
-
+    @JoinColumn(name = "variant_id", nullable = false)
+    private ProductVariant variant;
 
     @Column(nullable = false)
     private Integer quantity;

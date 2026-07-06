@@ -1,13 +1,12 @@
 package com.example.shopupu.payments.gateway;
 
-import com.example.shopupu.payments.entity.PaymentStatus;
-import org.junit.jupiter.api.Test;
-
-import java.math.BigDecimal;
-
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+
+import com.example.shopupu.payments.entity.PaymentStatus;
+import java.math.BigDecimal;
+import org.junit.jupiter.api.Test;
 
 /**
  * describes the StubPaymentGatewayClientTest test class.

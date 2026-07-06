@@ -1,38 +1,52 @@
 package com.example.shopupu.orders.service;
 
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertSame;
+import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyInt;
+import static org.mockito.ArgumentMatchers.anyLong;
+import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.doThrow;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
+import static org.mockito.Mockito.when;
+
 import com.example.shopupu.cart.entity.Cart;
 import com.example.shopupu.cart.entity.CartItem;
 import com.example.shopupu.cart.repository.CartItemRepository;
 import com.example.shopupu.cart.repository.CartRepository;
+import com.example.shopupu.catalog.entity.Brand;
 import com.example.shopupu.catalog.entity.Category;
 import com.example.shopupu.catalog.entity.Product;
+import com.example.shopupu.catalog.entity.ProductVariant;
 import com.example.shopupu.common.exception.BusinessRuleException;
-import com.example.shopupu.common.exception.ResourceNotFoundException;
+import com.example.shopupu.common.exception.OutOfStockException;
 import com.example.shopupu.common.security.AccessControlService;
+import com.example.shopupu.config.CheckoutProperties;
 import com.example.shopupu.identity.entity.User;
+import com.example.shopupu.inventory.service.InventoryService;
 import com.example.shopupu.orders.entity.Order;
+import com.example.shopupu.orders.entity.OrderItem;
 import com.example.shopupu.orders.entity.OrderStatus;
+import com.example.shopupu.orders.entity.OrderStatusHistory;
 import com.example.shopupu.orders.repository.OrderRepository;
+import com.example.shopupu.orders.repository.OrderStatusHistoryRepository;
+import java.math.BigDecimal;
+import java.time.Instant;
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.List;
+import java.util.Optional;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
-import java.math.BigDecimal;
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Optional;
-
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertSame;
-import static org.junit.jupiter.api.Assertions.assertThrows;
-import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.when;
-
-/**
- * describes the OrderServiceTest test class.
- */
 @ExtendWith(MockitoExtension.class)
 class OrderServiceTest {
 
@@ -40,194 +54,271 @@ class OrderServiceTest {
     private OrderRepository orderRepository;
 
     @Mock
+    private OrderStatusHistoryRepository statusHistoryRepository;
+
+    @Mock
     private CartItemRepository cartItemRepository;
+
+    @Mock
+    private CartRepository cartRepository;
 
     @Mock
     private AccessControlService accessControlService;
 
     @Mock
-    private CartRepository cartRepository;
+    private InventoryService inventoryService;
+
+    @Mock
+    private OrderNumberGenerator orderNumberGenerator;
+
+    @Mock
+    private com.example.shopupu.promo.service.PromoService promoService;
+
+    @Mock
+    private org.springframework.context.ApplicationEventPublisher eventPublisher;
 
     private OrderService orderService;
     private User user;
 
-    // handles setUp.
     @BeforeEach
     void setUp() {
-        orderService = new OrderService(orderRepository, cartItemRepository, accessControlService, cartRepository);
+        CheckoutProperties checkoutProperties = new CheckoutProperties();
+        orderService = new OrderService(
+                orderRepository,
+                statusHistoryRepository,
+                cartItemRepository,
+                cartRepository,
+                accessControlService,
+                inventoryService,
+                orderNumberGenerator,
+                checkoutProperties,
+                promoService,
+                eventPublisher
+        );
         user = User.builder().id(1L).email("user@example.com").build();
     }
 
-    // handles createOrderFromCart.
     @Test
-    void createOrderFromCartCreatesOrderReservesStockAndClearsCart() {
+    void checkoutReservesStockAndSnapshotsVariantData() {
         Cart cart = Cart.builder().id(10L).user(user).items(new ArrayList<>()).build();
-        Product product = product(100L, true, 5);
-        CartItem item = CartItem.builder().cart(cart).product(product).quantity(2).build();
+        ProductVariant variant = variant(100L, "SKU-M-BLK", "M", "black", new BigDecimal("25.00"));
+        CartItem item = CartItem.builder().cart(cart).variant(variant).quantity(2).build();
         when(cartRepository.findByUser(user)).thenReturn(Optional.of(cart));
         when(cartItemRepository.findByCart(cart)).thenReturn(List.of(item));
-        when(orderRepository.save(org.mockito.ArgumentMatchers.any(Order.class))).thenAnswer(invocation -> invocation.getArgument(0));
+        when(orderNumberGenerator.next()).thenReturn("ORD-20260706-TEST01");
+        when(orderRepository.save(any(Order.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
-        Order order = orderService.createOrderFromCart(user);
+        Order order = orderService.createOrderFromCart(user, null);
 
-        assertEquals(OrderStatus.NEW, order.getStatus());
-        assertEquals(new BigDecimal("20.00"), order.getSubtotalAmount());
-        assertEquals(new BigDecimal("20.00"), order.getPaymentAmount());
-        assertEquals(3, product.getStock());
+        assertEquals(OrderStatus.CREATED, order.getStatus());
+        assertEquals("ORD-20260706-TEST01", order.getOrderNumber());
+        assertEquals(new BigDecimal("50.00"), order.getSubtotalAmount());
+        assertEquals(new BigDecimal("50.00"), order.getPaymentAmount());
         assertEquals(1, order.getItems().size());
+
+        OrderItem orderItem = order.getItems().get(0);
+        assertEquals("SKU-M-BLK", orderItem.getSku());
+        assertEquals("M", orderItem.getSize());
+        assertEquals("black", orderItem.getColor());
+        assertEquals("TestBrand", orderItem.getBrand());
+        assertEquals("Hoodie", orderItem.getTitle());
+        assertEquals(new BigDecimal("25.00"), orderItem.getPrice());
+        assertEquals(100L, orderItem.getVariantId());
+
+        verify(inventoryService).reserve(eq(100L), eq(2), anyString());
         verify(cartItemRepository).deleteAll(List.of(item));
+        verify(statusHistoryRepository).save(any(OrderStatusHistory.class));
     }
 
-    // handles createOrderFromCart.
     @Test
-    void createOrderFromCartRejectsMissingCartEmptyCartDisabledProductAndInsufficientStock() {
-        when(cartRepository.findByUser(user)).thenReturn(Optional.empty());
-        assertThrows(ResourceNotFoundException.class, () -> orderService.createOrderFromCart(user));
+    void checkoutIsIdempotentPerKey() {
+        Order existing = order(5L, OrderStatus.CREATED);
+        when(orderRepository.findByUserAndIdempotencyKey(user, "key-1")).thenReturn(Optional.of(existing));
 
-        Cart cart = Cart.builder().id(10L).user(user).build();
+        Order result = orderService.createOrderFromCart(user, "key-1");
+
+        assertSame(existing, result);
+        verifyNoInteractions(inventoryService);
+        verify(orderRepository, never()).save(any());
+    }
+
+    @Test
+    void checkoutPropagatesOutOfStock() {
+        Cart cart = Cart.builder().id(10L).user(user).items(new ArrayList<>()).build();
+        ProductVariant variant = variant(100L, "SKU-M-BLK", "M", "black", new BigDecimal("25.00"));
+        CartItem item = CartItem.builder().cart(cart).variant(variant).quantity(2).build();
+        when(cartRepository.findByUser(user)).thenReturn(Optional.of(cart));
+        when(cartItemRepository.findByCart(cart)).thenReturn(List.of(item));
+        when(orderNumberGenerator.next()).thenReturn("ORD-20260706-TEST02");
+        doThrow(new OutOfStockException("Not enough stock for variant: 100"))
+                .when(inventoryService).reserve(eq(100L), eq(2), anyString());
+
+        assertThrows(OutOfStockException.class, () -> orderService.createOrderFromCart(user, null));
+        verify(orderRepository, never()).save(any());
+    }
+
+    @Test
+    void checkoutRejectsEmptyCart() {
+        Cart cart = Cart.builder().id(10L).user(user).items(new ArrayList<>()).build();
         when(cartRepository.findByUser(user)).thenReturn(Optional.of(cart));
         when(cartItemRepository.findByCart(cart)).thenReturn(List.of());
-        assertThrows(BusinessRuleException.class, () -> orderService.createOrderFromCart(user));
 
-        CartItem disabled = CartItem.builder().cart(cart).product(product(100L, false, 5)).quantity(1).build();
-        when(cartRepository.findByUser(user)).thenReturn(Optional.of(cart));
-        when(cartItemRepository.findByCart(cart)).thenReturn(List.of(disabled));
-        assertThrows(BusinessRuleException.class, () -> orderService.createOrderFromCart(user));
-
-        CartItem outOfStock = CartItem.builder().cart(cart).product(product(100L, true, 1)).quantity(2).build();
-        when(cartRepository.findByUser(user)).thenReturn(Optional.of(cart));
-        when(cartItemRepository.findByCart(cart)).thenReturn(List.of(outOfStock));
-        assertThrows(BusinessRuleException.class, () -> orderService.createOrderFromCart(user));
+        assertThrows(BusinessRuleException.class, () -> orderService.createOrderFromCart(user, null));
     }
 
-    // handles getOrdersForUser.
     @Test
-    void getOrdersForUserReturnsAllOrFilteredOrders() {
-        Order newOrder = order(1L, OrderStatus.NEW);
-        Order paidOrder = order(2L, OrderStatus.PAID);
-        when(orderRepository.findByUser(user)).thenReturn(List.of(newOrder, paidOrder));
+    void cancelFromCreatedReleasesReservation() {
+        Order order = orderWithItem(7L, OrderStatus.CREATED);
+        when(orderRepository.findWithItemsById(7L)).thenReturn(Optional.of(order));
+        when(orderRepository.save(any(Order.class))).thenAnswer(invocation -> invocation.getArgument(0));
+        when(accessControlService.currentEmail()).thenReturn("user@example.com");
 
-        assertEquals(2, orderService.getOrdersForUser(user, null).size());
-        assertEquals(List.of(paidOrder), orderService.getOrdersForUser(user, "paid"));
-    }
+        Order cancelled = orderService.cancelOrder(7L);
 
-    // handles getAllOrders.
-    @Test
-    void getAllOrdersRequiresAdminAndReturnsRepositoryOrders() {
-        Order order = order(1L, OrderStatus.NEW);
-        when(orderRepository.findAll()).thenReturn(List.of(order));
-
-        assertEquals(List.of(order), orderService.getAllOrders());
-        verify(accessControlService).requireAdmin();
-    }
-
-    // handles getOrder.
-    @Test
-    void getOrderReturnsOrderOrThrowsWhenMissing() {
-        Order order = order(1L, OrderStatus.NEW);
-        when(orderRepository.findWithItemsById(1L)).thenReturn(Optional.of(order));
-        when(orderRepository.findWithItemsById(2L)).thenReturn(Optional.empty());
-
-        assertSame(order, orderService.getOrder(1L));
-        assertThrows(ResourceNotFoundException.class, () -> orderService.getOrder(2L));
-    }
-
-    // handles getOrderForCurrentUser.
-    @Test
-    void getOrderForCurrentUserChecksAccess() {
-        Order order = order(1L, OrderStatus.NEW);
-        when(orderRepository.findWithItemsById(1L)).thenReturn(Optional.of(order));
-
-        assertSame(order, orderService.getOrderForCurrentUser(1L));
+        assertEquals(OrderStatus.CANCELLED, cancelled.getStatus());
         verify(accessControlService).requireOrderOwnerOrAdmin(order);
+        verify(inventoryService).release(eq(100L), eq(2), anyString());
+        verify(statusHistoryRepository).save(any(OrderStatusHistory.class));
     }
 
-    // handles updateStatus.
     @Test
-    void updateStatusRequiresAdminAndAppliesAllowedTransition() {
-        Order order = order(1L, OrderStatus.NEW);
-        when(orderRepository.findWithItemsById(1L)).thenReturn(Optional.of(order));
-        when(orderRepository.save(order)).thenReturn(order);
+    void cancelRejectedOncePaid() {
+        Order order = orderWithItem(7L, OrderStatus.PAID);
+        when(orderRepository.findWithItemsById(7L)).thenReturn(Optional.of(order));
 
-        Order updated = orderService.updateStatus(1L, "paid");
+        assertThrows(BusinessRuleException.class, () -> orderService.cancelOrder(7L));
+        verify(inventoryService, never()).release(anyLong(), anyInt(), anyString());
+    }
 
-        assertEquals(OrderStatus.PAID, updated.getStatus());
+    @Test
+    void markPaidCommitsSale() {
+        Order order = orderWithItem(7L, OrderStatus.PENDING_PAYMENT);
+        when(orderRepository.findWithItemsById(7L)).thenReturn(Optional.of(order));
+        when(orderRepository.save(any(Order.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        Order paid = orderService.markPaidFromPayment(7L);
+
+        assertEquals(OrderStatus.PAID, paid.getStatus());
+        verify(inventoryService).commitSale(eq(100L), eq(2), anyString());
+    }
+
+    @Test
+    void markRefundedRestocksItems() {
+        Order order = orderWithItem(7L, OrderStatus.PAID);
+        when(orderRepository.findWithItemsById(7L)).thenReturn(Optional.of(order));
+        when(orderRepository.save(any(Order.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        Order refunded = orderService.markRefunded(7L, "admin@example.com");
+
+        assertEquals(OrderStatus.REFUNDED, refunded.getStatus());
+        verify(inventoryService).restock(eq(100L), eq(2), anyString());
+
+        ArgumentCaptor<OrderStatusHistory> historyCaptor = ArgumentCaptor.forClass(OrderStatusHistory.class);
+        verify(statusHistoryRepository).save(historyCaptor.capture());
+        assertEquals("admin@example.com", historyCaptor.getValue().getChangedBy());
+        assertEquals(OrderStatus.PAID, historyCaptor.getValue().getFromStatus());
+        assertEquals(OrderStatus.REFUNDED, historyCaptor.getValue().getToStatus());
+    }
+
+    @Test
+    void illegalTransitionRejected() {
+        Order order = orderWithItem(7L, OrderStatus.CREATED);
+        when(orderRepository.findWithItemsById(7L)).thenReturn(Optional.of(order));
+
+        assertThrows(BusinessRuleException.class,
+                () -> orderService.updateStatus(7L, OrderStatus.SHIPPED));
+        verify(orderRepository, never()).save(any());
+    }
+
+    @Test
+    void adminStatusUpdateRecordsActor() {
+        Order order = orderWithItem(7L, OrderStatus.PAID);
+        when(orderRepository.findWithItemsById(7L)).thenReturn(Optional.of(order));
+        when(orderRepository.save(any(Order.class))).thenAnswer(invocation -> invocation.getArgument(0));
+        when(accessControlService.currentEmail()).thenReturn("admin@example.com");
+
+        Order updated = orderService.updateStatus(7L, OrderStatus.PROCESSING);
+
+        assertEquals(OrderStatus.PROCESSING, updated.getStatus());
         verify(accessControlService).requireAdmin();
+
+        ArgumentCaptor<OrderStatusHistory> historyCaptor = ArgumentCaptor.forClass(OrderStatusHistory.class);
+        verify(statusHistoryRepository).save(historyCaptor.capture());
+        assertEquals("admin@example.com", historyCaptor.getValue().getChangedBy());
     }
 
-    // handles updateStatus.
     @Test
-    void updateStatusRejectsInvalidStatusAndInvalidTransition() {
-        Order order = order(1L, OrderStatus.CANCELED);
-        when(orderRepository.findWithItemsById(1L)).thenReturn(Optional.of(order));
-        assertThrows(BusinessRuleException.class, () -> orderService.updateStatus(1L, "paid"));
+    void updateShippingAmountOnlyBeforePayment() {
+        Order created = orderWithItem(7L, OrderStatus.CREATED);
+        created.setSubtotalAmount(new BigDecimal("50.00"));
+        when(orderRepository.findWithItemsById(7L)).thenReturn(Optional.of(created));
+        when(orderRepository.save(any(Order.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
-        assertThrows(BusinessRuleException.class, () -> orderService.updateStatus(1L, "unknown"));
+        Order updated = orderService.updateShippingAmount(7L, new BigDecimal("4.99"));
+        assertEquals(new BigDecimal("54.99"), updated.getPaymentAmount());
+
+        Order paid = orderWithItem(8L, OrderStatus.PAID);
+        when(orderRepository.findWithItemsById(8L)).thenReturn(Optional.of(paid));
+        assertThrows(BusinessRuleException.class,
+                () -> orderService.updateShippingAmount(8L, new BigDecimal("4.99")));
     }
 
-    // handles cancelOrder.
     @Test
-    void cancelOrderChecksAccessAndCancelsNewOrder() {
-        Order order = order(1L, OrderStatus.NEW);
-        when(orderRepository.findWithItemsById(1L)).thenReturn(Optional.of(order));
-        when(orderRepository.save(order)).thenReturn(order);
+    void expireStaleOrdersCancelsAndReleases() {
+        Order stale = orderWithItem(9L, OrderStatus.PENDING_PAYMENT);
+        when(orderRepository.findTop100ByStatusInAndCreatedAtBefore(any(Collection.class), any(Instant.class)))
+                .thenReturn(List.of(stale));
+        when(orderRepository.save(any(Order.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
-        Order canceled = orderService.cancelOrder(1L);
+        int expired = orderService.expireStaleOrders();
 
-        assertEquals(OrderStatus.CANCELED, canceled.getStatus());
-        verify(accessControlService).requireOrderOwnerOrAdmin(order);
+        assertEquals(1, expired);
+        assertEquals(OrderStatus.CANCELLED, stale.getStatus());
+        verify(inventoryService).release(eq(100L), eq(2), anyString());
     }
 
-    // handles markPaidFromPayment.
-    @Test
-    void markPaidFromPaymentMarksNewOrderAsPaid() {
-        Order order = order(1L, OrderStatus.NEW);
-        when(orderRepository.findWithItemsById(1L)).thenReturn(Optional.of(order));
-        when(orderRepository.save(order)).thenReturn(order);
-
-        assertEquals(OrderStatus.PAID, orderService.markPaidFromPayment(1L).getStatus());
-    }
-
-    // handles updateShippingAmount.
-    @Test
-    void updateShippingAmountUpdatesPaymentAmountForNewOrder() {
-        Order order = order(1L, OrderStatus.NEW);
-        order.setSubtotalAmount(new BigDecimal("20.00"));
-        when(orderRepository.findWithItemsById(1L)).thenReturn(Optional.of(order));
-        when(orderRepository.save(order)).thenReturn(order);
-
-        Order updated = orderService.updateShippingAmount(1L, new BigDecimal("4.99"));
-
-        assertEquals(new BigDecimal("4.99"), updated.getShippingAmount());
-        assertEquals(new BigDecimal("24.99"), updated.getPaymentAmount());
-    }
-
-    // handles updateShippingAmount.
-    @Test
-    void updateShippingAmountRejectsNonNewOrders() {
-        Order order = order(1L, OrderStatus.PAID);
-        when(orderRepository.findWithItemsById(1L)).thenReturn(Optional.of(order));
-
-        assertThrows(BusinessRuleException.class, () -> orderService.updateShippingAmount(1L, BigDecimal.ONE));
+    private ProductVariant variant(Long id, String sku, String size, String color, BigDecimal price) {
+        Category category = new Category("Hoodies", "hoodies", null, null);
+        Product product = new Product("Hoodie", "hoodie", "desc", price, category);
+        product.setId(50L);
+        product.setEnabled(true);
+        Brand brand = new Brand("TestBrand", "testbrand");
+        product.setBrand(brand);
+        return ProductVariant.builder()
+                .id(id)
+                .product(product)
+                .sku(sku)
+                .size(size)
+                .color(color)
+                .price(price)
+                .enabled(true)
+                .build();
     }
 
     private Order order(Long id, OrderStatus status) {
-        Order order = new Order();
-        order.setId(id);
-        order.setUser(user);
-        order.setStatus(status);
-        order.setSubtotalAmount(BigDecimal.ZERO);
-        order.setShippingAmount(BigDecimal.ZERO);
-        order.setPaymentAmount(BigDecimal.ZERO);
-        return order;
+        return Order.builder()
+                .id(id)
+                .orderNumber("ORD-20260706-EX" + id)
+                .user(user)
+                .status(status)
+                .build();
     }
 
-    private Product product(Long id, boolean enabled, int stock) {
-        Category category = new Category("Phones", "phones", null, null);
-        category.setId(1L);
-        Product product = new Product("Phone", "desc", new BigDecimal("10.00"), "sku-" + id, stock, category);
-        product.setId(id);
-        product.setEnabled(enabled);
-        return product;
+    private Order orderWithItem(Long id, OrderStatus status) {
+        Order order = order(id, status);
+        OrderItem item = OrderItem.builder()
+                .order(order)
+                .productId(50L)
+                .variantId(100L)
+                .title("Hoodie")
+                .sku("SKU-M-BLK")
+                .size("M")
+                .color("black")
+                .price(new BigDecimal("25.00"))
+                .quantity(2)
+                .lineTotal(new BigDecimal("50.00"))
+                .build();
+        order.getItems().add(item);
+        return order;
     }
 }

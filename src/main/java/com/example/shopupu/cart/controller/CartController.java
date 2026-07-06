@@ -14,65 +14,41 @@ import org.springframework.web.bind.annotation.*;
 @RestController
 @RequestMapping("/api/cart")
 @RequiredArgsConstructor
-/**
- * describes the CartController class.
- */
 public class CartController {
 
     private final CartService cartService;
 
-
-
     @GetMapping
     @PreAuthorize("isAuthenticated()")
-    // handles getCart.
     public ResponseEntity<CartResponse> getCart(Authentication auth) {
-        String email = auth.getName();
-        return ResponseEntity.ok(cartService.getCart(email));
+        return ResponseEntity.ok(cartService.getCart(auth.getName()));
     }
-
-
 
     @PostMapping("/items")
     @PreAuthorize("isAuthenticated()")
-    // handles addItem.
     public ResponseEntity<CartResponse> addItem(Authentication auth,
                                                 @Valid @RequestBody AddOrUpdateItemRequest req) {
-        String email = auth.getName();
-        return ResponseEntity.ok(cartService.addItem(email, req.productId(), req.quantity()));
+        return ResponseEntity.ok(cartService.addItem(auth.getName(), req.variantId(), req.quantity()));
     }
 
-
-
-    @PutMapping("/items/{productId}")
+    @PutMapping("/items/{variantId}")
     @PreAuthorize("isAuthenticated()")
-    // handles setQuantity.
     public ResponseEntity<CartResponse> setQuantity(Authentication auth,
-                                                    @PathVariable Long productId,
+                                                    @PathVariable Long variantId,
                                                     @Valid @RequestBody AddOrUpdateItemRequest req) {
-        String email = auth.getName();
-        return ResponseEntity.ok(cartService.setQuantity(email, productId, req.quantity()));
+        return ResponseEntity.ok(cartService.setQuantity(auth.getName(), variantId, req.quantity()));
     }
 
-
-
-    @DeleteMapping("/items/{productId}")
+    @DeleteMapping("/items/{variantId}")
     @PreAuthorize("isAuthenticated()")
-    // handles removeItem.
     public ResponseEntity<CartResponse> removeItem(Authentication auth,
-                                                   @PathVariable Long productId) {
-        String email = auth.getName();
-        return ResponseEntity.ok(cartService.removeItem(email, productId));
+                                                   @PathVariable Long variantId) {
+        return ResponseEntity.ok(cartService.removeItem(auth.getName(), variantId));
     }
-
-
 
     @DeleteMapping
     @PreAuthorize("isAuthenticated()")
-    // handles clear.
     public ResponseEntity<CartResponse> clear(Authentication auth) {
-        String email = auth.getName();
-        return ResponseEntity.ok(cartService.clear(email));
+        return ResponseEntity.ok(cartService.clear(auth.getName()));
     }
-
 }

@@ -3,7 +3,6 @@ package com.example.shopupu.shipping.dto;
 import com.example.shopupu.orders.entity.OrderStatus;
 import com.example.shopupu.shipping.entity.ShippingMethod;
 import com.example.shopupu.shipping.entity.ShippingStatus;
-
 import java.math.BigDecimal;
 import java.time.Instant;
 

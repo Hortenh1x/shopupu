@@ -7,6 +7,7 @@ import com.example.shopupu.payments.service.PaymentService;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
@@ -24,15 +25,7 @@ public class PaymentController {
             @Valid @RequestBody CreatePaymentRequest request
     ) {
         PaymentResponse payment = paymentService.createPayment(request.orderId());
-        return ResponseEntity.ok(payment);
-    }
-
-    @PostMapping("/create")
-    public ResponseEntity<PaymentResponse> createPaymentLegacy(
-            @RequestParam Long orderId
-    ) {
-        PaymentResponse payment = paymentService.createPayment(orderId);
-        return ResponseEntity.ok(payment);
+        return ResponseEntity.status(HttpStatus.CREATED).body(payment);
     }
 
     @GetMapping("/{id}")
@@ -41,12 +34,12 @@ public class PaymentController {
     }
 
     @PostMapping("/callback")
-    public ResponseEntity<String> handleCallback(
+    public ResponseEntity<Void> handleCallback(
             @RequestBody String rawPayload,
             @RequestHeader(value = "X-Payment-Signature", required = false) String signature
-    ) throws Exception {
+    ) throws com.fasterxml.jackson.core.JacksonException {
         PaymentCallbackRequest request = objectMapper.readValue(rawPayload, PaymentCallbackRequest.class);
         paymentService.handleCallback(request, rawPayload, signature);
-        return ResponseEntity.ok("Payment callback received");
+        return ResponseEntity.noContent().build();
     }
 }

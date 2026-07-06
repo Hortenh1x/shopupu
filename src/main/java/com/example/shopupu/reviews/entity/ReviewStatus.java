@@ -1,10 +1,9 @@
 package com.example.shopupu.reviews.entity;
 
-/**
- * describes the ReviewStatus enum.
- */
+/** Moderation lifecycle (REV-02): new reviews wait for approval. */
 public enum ReviewStatus {
-    PUBLISHED,
-    HIDDEN,
+    PENDING,
+    APPROVED,
+    REJECTED,
     DELETED
 }

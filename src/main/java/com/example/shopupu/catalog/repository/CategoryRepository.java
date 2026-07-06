@@ -1,9 +1,8 @@
 package com.example.shopupu.catalog.repository;
 
 import com.example.shopupu.catalog.entity.Category;
-import org.springframework.data.jpa.repository.JpaRepository;
-
 import java.util.Optional;
+import org.springframework.data.jpa.repository.JpaRepository;
 
 /**
  * describes the CategoryRepository interface.

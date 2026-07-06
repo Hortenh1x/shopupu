@@ -3,13 +3,12 @@ package com.example.shopupu.config;
 import com.example.shopupu.identity.entity.User;
 import com.example.shopupu.identity.repository.RoleRepository;
 import com.example.shopupu.identity.repository.UserRepository;
+import java.util.Set;
 import lombok.RequiredArgsConstructor;
 import org.springframework.boot.ApplicationArguments;
 import org.springframework.boot.ApplicationRunner;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Component;
-
-import java.util.Set;
 
 @Component
 @RequiredArgsConstructor

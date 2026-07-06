@@ -17,17 +17,18 @@ import com.example.shopupu.payments.entity.PaymentStatus;
 import com.example.shopupu.payments.gateway.PaymentCallbackVerifier;
 import com.example.shopupu.payments.gateway.PaymentGatewayClient;
 import com.example.shopupu.payments.gateway.PaymentGatewayCreateRequest;
+import com.example.shopupu.payments.gateway.PaymentGatewayCreateResponse;
+import com.example.shopupu.payments.mapper.PaymentMapper;
 import com.example.shopupu.payments.repository.PaymentEventRepository;
 import com.example.shopupu.payments.repository.PaymentRepository;
-import com.example.shopupu.payments.mapper.PaymentMapper;
 import com.example.shopupu.shipping.repository.ShipmentRepository;
+import java.util.Optional;
+import java.util.UUID;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-
-import java.util.Optional;
-import java.util.UUID;
+import org.springframework.transaction.support.TransactionTemplate;
 
 
 @Service
@@ -45,48 +46,78 @@ public class PaymentService {
     private final ShipmentRepository shipmentRepository;
     private final OrderService orderService;
     private final AccessControlService accessControlService;
+    private final TransactionTemplate transactionTemplate;
 
-
-    @Transactional
+    /**
+     * Deliberately NOT one big transaction (ARCH-10/DB-04): the local payment row
+     * is committed first, then the gateway HTTP call happens without holding a DB
+     * connection, then the result is applied in a second short transaction.
+     */
     public PaymentResponse createPayment(Long orderId) {
+        Payment payment = transactionTemplate.execute(tx -> preparePayment(orderId));
+
+        PaymentGatewayCreateResponse gatewayResponse;
+        try {
+            gatewayResponse = paymentGatewayClient.createPayment(new PaymentGatewayCreateRequest(
+                    payment.getOrder().getId(),
+                    payment.getId(),
+                    payment.getAmount(),
+                    payment.getCurrency()
+            ));
+        } catch (Exception ex) {
+            log.warn("Payment gateway call failed for payment {}", payment.getId(), ex);
+            transactionTemplate.executeWithoutResult(tx -> markGatewayFailure(payment.getId()));
+            throw new BusinessRuleException("Payment provider is unavailable, please try again");
+        }
+
+        return transactionTemplate.execute(tx -> applyGatewayResult(payment.getId(), gatewayResponse));
+    }
+
+    private Payment preparePayment(Long orderId) {
         Order order = findOrder(orderId);
         accessControlService.requireOrderOwnerOrAdmin(order);
 
         validateOrderCanBePaid(order);
         validatePaymentAttemptAllowed(order);
 
-        String idempotencyKey = UUID.randomUUID().toString();
-
         Payment payment = Payment.builder()
                 .order(order)
                 .amount(order.getPaymentAmount())
                 .provider(paymentProperties.getDefaultProvider())
                 .status(PaymentStatus.CREATED)
-                .idempotencyKey(idempotencyKey)
+                .idempotencyKey(UUID.randomUUID().toString())
                 .currency(paymentProperties.getCurrency())
                 .build();
         paymentRepository.save(payment);
+        recordEvent(payment, null, payment.getStatus(), "SYSTEM", "Payment created");
+        return payment;
+    }
 
-        var gatewayResponse = paymentGatewayClient.createPayment(new PaymentGatewayCreateRequest(
-                order.getId(),
-                payment.getId(),
-                payment.getAmount(),
-                payment.getCurrency()
-        ));
+    private void markGatewayFailure(Long paymentId) {
+        paymentRepository.findById(paymentId).ifPresent(payment -> {
+            payment.setStatus(PaymentStatus.FAILED);
+            paymentRepository.save(payment);
+            recordEvent(payment, null, PaymentStatus.FAILED, "SYSTEM", "Gateway call failed");
+        });
+    }
+
+    private PaymentResponse applyGatewayResult(Long paymentId, PaymentGatewayCreateResponse gatewayResponse) {
+        Payment payment = paymentRepository.findById(paymentId)
+                .orElseThrow(() -> new ResourceNotFoundException("Payment not found"));
 
         payment.setStatus(gatewayResponse.status());
         payment.setProvider(gatewayResponse.provider());
         payment.setExternalId(gatewayResponse.externalPaymentId());
         payment.setPaymentUrl(gatewayResponse.paymentUrl());
         payment.setClientToken(gatewayResponse.clientToken());
-
         paymentRepository.save(payment);
 
-        recordEvent(payment, null, payment.getStatus(), "SYSTEM", "Payment created");
+        recordEvent(payment, null, payment.getStatus(), "SYSTEM", "Payment registered at provider");
+
+        orderService.markPendingPayment(payment.getOrder().getId());
 
         return paymentMapper.toResponse(payment);
     }
-
 
     @Transactional
     public void handleCallback(PaymentCallbackRequest callback, String rawPayload, String signature) {
@@ -108,19 +139,61 @@ public class PaymentService {
             return;
         }
 
+        if (!payment.getStatus().canTransitionTo(newStatus)) {
+            recordEvent(payment, callback.externalEventId(), payment.getStatus(), "PAYMENT_CALLBACK",
+                    "Rejected illegal transition " + payment.getStatus() + " -> " + newStatus);
+            log.warn("Rejected illegal payment status transition {} -> {} for payment {}",
+                    payment.getStatus(), newStatus, payment.getId());
+            return;
+        }
+
         payment.setStatus(newStatus);
         paymentRepository.save(payment);
 
         recordEvent(payment, callback.externalEventId(), newStatus, "PAYMENT_CALLBACK", callback.details());
 
+        Long orderId = payment.getOrder().getId();
         if (newStatus == PaymentStatus.SUCCEEDED) {
-            orderService.markPaidFromPayment(payment.getOrder().getId());
-            log.info("Order {} marked as PAID", payment.getOrder().getId());
+            orderService.markPaidFromPayment(orderId);
+            log.info("Order {} marked as PAID", orderId);
+        } else if (newStatus == PaymentStatus.FAILED
+                || newStatus == PaymentStatus.CANCELED
+                || newStatus == PaymentStatus.EXPIRED) {
+            orderService.onPaymentFailed(orderId);
         }
     }
 
     public void handleCallback(PaymentCallbackRequest callback, String signature) {
         handleCallback(callback, "", signature);
+    }
+
+    /** Full refund (PAY-05/ORD-07): provider first, then local payment + order + stock. */
+    @Transactional
+    public PaymentResponse refundPayment(Long paymentId) {
+        accessControlService.requireAdmin();
+        Payment payment = paymentRepository.findById(paymentId)
+                .orElseThrow(() -> new ResourceNotFoundException("Payment not found"));
+
+        if (payment.getStatus() != PaymentStatus.SUCCEEDED) {
+            throw new BusinessRuleException("Only succeeded payments can be refunded");
+        }
+
+        boolean accepted;
+        try {
+            accepted = paymentGatewayClient.refundPayment(payment.getExternalId());
+        } catch (UnsupportedOperationException ex) {
+            throw new BusinessRuleException("Refunds are not supported by the current payment provider");
+        }
+        if (!accepted) {
+            throw new BusinessRuleException("Payment provider rejected the refund");
+        }
+
+        payment.setStatus(PaymentStatus.REFUNDED);
+        paymentRepository.save(payment);
+        recordEvent(payment, null, PaymentStatus.REFUNDED, "ADMIN", "Refund executed");
+
+        orderService.markRefunded(payment.getOrder().getId(), accessControlService.currentEmail());
+        return paymentMapper.toResponse(payment);
     }
 
     private void recordEvent(Payment payment, String externalEventId, PaymentStatus status, String source, String details) {
@@ -134,7 +207,6 @@ public class PaymentService {
         paymentEventRepository.save(event);
     }
 
-
     @Transactional(readOnly = true)
     public PaymentResponse getPaymentForCurrentUser(Long id) {
         Payment payment = paymentRepository.findById(id)
@@ -147,8 +219,8 @@ public class PaymentService {
         if (order.getStatus() == OrderStatus.PAID) {
             throw new BusinessRuleException("Order is already paid");
         }
-        if (order.getStatus() != OrderStatus.NEW) {
-            throw new BusinessRuleException("Only NEW orders can be paid");
+        if (order.getStatus() != OrderStatus.CREATED && order.getStatus() != OrderStatus.PENDING_PAYMENT) {
+            throw new BusinessRuleException("Only unpaid orders can be paid");
         }
         if (shipmentRepository.findByOrder(order).isEmpty()) {
             throw new BusinessRuleException("Shipping must be selected before payment");

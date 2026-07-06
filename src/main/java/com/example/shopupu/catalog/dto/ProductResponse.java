@@ -1,30 +1,34 @@
 package com.example.shopupu.catalog.dto;
 
+import com.example.shopupu.catalog.entity.Gender;
 import java.math.BigDecimal;
 import java.time.Instant;
 import java.util.List;
 
 
-/**
- * describes the ProductResponse record.
- */
 public record ProductResponse(
         Long id,
         String title,
+        String slug,
         String description,
         BigDecimal price,
-        String sku,
-        Integer stock,
+        BigDecimal oldPrice,
         Boolean enabled,
+        Gender gender,
+        String season,
+        String material,
+        String careInstructions,
+        String metaTitle,
+        String metaDescription,
+        Long brandId,
+        String brandName,
         Instant createdAt,
         Long categoryId,
         String categoryName,
         String categorySlug,
-        List<ProductResponseImage> images
+        List<ProductResponseImage> images,
+        List<VariantResponse> variants
 ) {
-    /**
-     * describes the ProductResponseImage record.
-     */
     public record ProductResponseImage(
             Long id,
             String url,

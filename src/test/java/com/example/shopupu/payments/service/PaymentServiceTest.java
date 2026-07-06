@@ -1,5 +1,14 @@
 package com.example.shopupu.payments.service;
 
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.lenient;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
+
 import com.example.shopupu.common.exception.BusinessRuleException;
 import com.example.shopupu.common.exception.ForbiddenOperationException;
 import com.example.shopupu.common.exception.ResourceNotFoundException;
@@ -23,25 +32,17 @@ import com.example.shopupu.payments.repository.PaymentEventRepository;
 import com.example.shopupu.payments.repository.PaymentRepository;
 import com.example.shopupu.shipping.entity.Shipment;
 import com.example.shopupu.shipping.repository.ShipmentRepository;
+import java.math.BigDecimal;
+import java.util.Optional;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.transaction.PlatformTransactionManager;
+import org.springframework.transaction.support.SimpleTransactionStatus;
+import org.springframework.transaction.support.TransactionTemplate;
 
-import java.math.BigDecimal;
-import java.util.Optional;
-
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertThrows;
-import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.Mockito.never;
-import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.when;
-
-/**
- * describes the PaymentServiceTest test class.
- */
 @ExtendWith(MockitoExtension.class)
 class PaymentServiceTest {
 
@@ -72,12 +73,16 @@ class PaymentServiceTest {
     private PaymentService paymentService;
     private Order order;
 
-    // handles setUp.
     @BeforeEach
     void setUp() {
         PaymentProperties properties = new PaymentProperties();
         properties.setDefaultProvider("stub");
         properties.setCurrency("EUR");
+
+        PlatformTransactionManager ptm = mock(PlatformTransactionManager.class);
+        lenient().when(ptm.getTransaction(any())).thenReturn(new SimpleTransactionStatus());
+        TransactionTemplate transactionTemplate = new TransactionTemplate(ptm);
+
         paymentService = new PaymentService(
                 paymentRepository,
                 paymentEventRepository,
@@ -88,14 +93,14 @@ class PaymentServiceTest {
                 properties,
                 shipmentRepository,
                 orderService,
-                accessControlService
+                accessControlService,
+                transactionTemplate
         );
-        order = order(1L, OrderStatus.NEW, new BigDecimal("24.99"));
+        order = order(1L, OrderStatus.CREATED, new BigDecimal("24.99"));
     }
 
-    // handles createPayment.
     @Test
-    void createPaymentCreatesLocalPaymentAndGatewayPayment() {
+    void createPaymentCallsGatewayAndMarksOrderPendingPayment() {
         when(orderRepository.findById(1L)).thenReturn(Optional.of(order));
         when(shipmentRepository.findByOrder(order)).thenReturn(Optional.of(new Shipment()));
         when(paymentRepository.findTopByOrderOrderByCreatedAtDesc(order)).thenReturn(Optional.empty());
@@ -106,19 +111,46 @@ class PaymentServiceTest {
             }
             return payment;
         });
+        when(paymentRepository.findById(10L)).thenAnswer(invocation ->
+                Optional.of(Payment.builder().id(10L).order(order)
+                        .amount(order.getPaymentAmount()).currency("EUR")
+                        .provider("stub").status(PaymentStatus.CREATED)
+                        .idempotencyKey("key").build()));
         when(paymentGatewayClient.createPayment(any(PaymentGatewayCreateRequest.class)))
                 .thenReturn(new PaymentGatewayCreateResponse("ext-1", "stub", PaymentStatus.PENDING, "/pay/ext-1", "token"));
 
         var response = paymentService.createPayment(1L);
 
-        assertEquals(10L, response.id());
         assertEquals("ext-1", response.externalPaymentId());
         assertEquals(PaymentStatus.PENDING, response.status());
         verify(accessControlService).requireOrderOwnerOrAdmin(order);
-        verify(paymentEventRepository).save(any(PaymentEvent.class));
+        verify(orderService).markPendingPayment(1L);
     }
 
-    // handles createPayment.
+    @Test
+    void createPaymentMarksFailureWhenGatewayThrows() {
+        when(orderRepository.findById(1L)).thenReturn(Optional.of(order));
+        when(shipmentRepository.findByOrder(order)).thenReturn(Optional.of(new Shipment()));
+        when(paymentRepository.findTopByOrderOrderByCreatedAtDesc(order)).thenReturn(Optional.empty());
+        Payment stored = Payment.builder().order(order).amount(order.getPaymentAmount())
+                .currency("EUR").provider("stub").status(PaymentStatus.CREATED).idempotencyKey("key").build();
+        when(paymentRepository.save(any(Payment.class))).thenAnswer(invocation -> {
+            Payment payment = invocation.getArgument(0);
+            if (payment.getId() == null) {
+                payment.setId(10L);
+            }
+            return payment;
+        });
+        when(paymentRepository.findById(10L)).thenReturn(Optional.of(stored));
+        when(paymentGatewayClient.createPayment(any(PaymentGatewayCreateRequest.class)))
+                .thenThrow(new IllegalStateException("gateway down"));
+
+        assertThrows(BusinessRuleException.class, () -> paymentService.createPayment(1L));
+
+        assertEquals(PaymentStatus.FAILED, stored.getStatus());
+        verify(orderService, never()).markPendingPayment(any());
+    }
+
     @Test
     void createPaymentRejectsMissingOrderMissingShippingPaidOrderAndPendingAttempt() {
         when(orderRepository.findById(404L)).thenReturn(Optional.empty());
@@ -132,7 +164,11 @@ class PaymentServiceTest {
         when(orderRepository.findById(2L)).thenReturn(Optional.of(paid));
         assertThrows(BusinessRuleException.class, () -> paymentService.createPayment(2L));
 
-        Order withPendingPayment = order(3L, OrderStatus.NEW, new BigDecimal("10.00"));
+        Order shipped = order(4L, OrderStatus.SHIPPED, new BigDecimal("10.00"));
+        when(orderRepository.findById(4L)).thenReturn(Optional.of(shipped));
+        assertThrows(BusinessRuleException.class, () -> paymentService.createPayment(4L));
+
+        Order withPendingPayment = order(3L, OrderStatus.CREATED, new BigDecimal("10.00"));
         Payment pending = payment(withPendingPayment, PaymentStatus.PENDING, "ext-pending");
         when(orderRepository.findById(3L)).thenReturn(Optional.of(withPendingPayment));
         when(shipmentRepository.findByOrder(withPendingPayment)).thenReturn(Optional.of(new Shipment()));
@@ -140,7 +176,6 @@ class PaymentServiceTest {
         assertThrows(BusinessRuleException.class, () -> paymentService.createPayment(3L));
     }
 
-    // handles handleCallback.
     @Test
     void handleCallbackRejectsInvalidSignature() {
         PaymentCallbackRequest request = new PaymentCallbackRequest("event-1", "ext-1", PaymentStatus.SUCCEEDED, "ok");
@@ -149,7 +184,6 @@ class PaymentServiceTest {
         assertThrows(ForbiddenOperationException.class, () -> paymentService.handleCallback(request, "payload", "bad"));
     }
 
-    // handles handleCallback.
     @Test
     void handleCallbackIgnoresDuplicateExternalEventId() {
         PaymentCallbackRequest request = new PaymentCallbackRequest("event-1", "ext-1", PaymentStatus.SUCCEEDED, "ok");
@@ -161,7 +195,6 @@ class PaymentServiceTest {
         verify(paymentRepository, never()).findByExternalId("ext-1");
     }
 
-    // handles handleCallback.
     @Test
     void handleCallbackUpdatesPaymentAndMarksOrderPaidOnSuccess() {
         Payment payment = payment(order, PaymentStatus.PENDING, "ext-1");
@@ -178,7 +211,37 @@ class PaymentServiceTest {
         verify(orderService).markPaidFromPayment(1L);
     }
 
-    // handles handleCallback.
+    @Test
+    void handleCallbackMarksOrderRetryableOnFailure() {
+        Payment payment = payment(order, PaymentStatus.PENDING, "ext-1");
+        PaymentCallbackRequest request = new PaymentCallbackRequest("event-1", "ext-1", PaymentStatus.FAILED, "declined");
+        when(paymentCallbackVerifier.isValid("payload", "secret")).thenReturn(true);
+        when(paymentEventRepository.findByExternalEventId("event-1")).thenReturn(Optional.empty());
+        when(paymentRepository.findByExternalId("ext-1")).thenReturn(Optional.of(payment));
+
+        paymentService.handleCallback(request, "payload", "secret");
+
+        assertEquals(PaymentStatus.FAILED, payment.getStatus());
+        verify(orderService).onPaymentFailed(1L);
+        verify(orderService, never()).markPaidFromPayment(any());
+    }
+
+    @Test
+    void handleCallbackIgnoresIllegalTransition() {
+        Payment payment = payment(order, PaymentStatus.SUCCEEDED, "ext-1");
+        PaymentCallbackRequest request = new PaymentCallbackRequest("event-1", "ext-1", PaymentStatus.FAILED, "late failure");
+        when(paymentCallbackVerifier.isValid("payload", "secret")).thenReturn(true);
+        when(paymentEventRepository.findByExternalEventId("event-1")).thenReturn(Optional.empty());
+        when(paymentRepository.findByExternalId("ext-1")).thenReturn(Optional.of(payment));
+
+        paymentService.handleCallback(request, "payload", "secret");
+
+        assertEquals(PaymentStatus.SUCCEEDED, payment.getStatus());
+        verify(paymentRepository, never()).save(payment);
+        verify(paymentEventRepository).save(any(PaymentEvent.class));
+        verify(orderService, never()).onPaymentFailed(any());
+    }
+
     @Test
     void handleCallbackRecordsDuplicateStatusWithoutSavingPayment() {
         Payment payment = payment(order, PaymentStatus.PENDING, "ext-1");
@@ -193,7 +256,29 @@ class PaymentServiceTest {
         verify(paymentEventRepository).save(any(PaymentEvent.class));
     }
 
-    // handles getPaymentForCurrentUser.
+    @Test
+    void refundPaymentRefundsAndSyncsOrder() {
+        Payment payment = payment(order, PaymentStatus.SUCCEEDED, "ext-1");
+        when(paymentRepository.findById(10L)).thenReturn(Optional.of(payment));
+        when(paymentGatewayClient.refundPayment("ext-1")).thenReturn(true);
+        when(accessControlService.currentEmail()).thenReturn("admin@example.com");
+
+        var response = paymentService.refundPayment(10L);
+
+        assertEquals(PaymentStatus.REFUNDED, response.status());
+        verify(accessControlService).requireAdmin();
+        verify(orderService).markRefunded(1L, "admin@example.com");
+    }
+
+    @Test
+    void refundPaymentRejectsNonSucceededPayment() {
+        Payment payment = payment(order, PaymentStatus.PENDING, "ext-1");
+        when(paymentRepository.findById(10L)).thenReturn(Optional.of(payment));
+
+        assertThrows(BusinessRuleException.class, () -> paymentService.refundPayment(10L));
+        verify(orderService, never()).markRefunded(any(), any());
+    }
+
     @Test
     void getPaymentForCurrentUserChecksAccessAndMapsPayment() {
         Payment payment = payment(order, PaymentStatus.PENDING, "ext-1");
@@ -209,6 +294,7 @@ class PaymentServiceTest {
     private Order order(Long id, OrderStatus status, BigDecimal paymentAmount) {
         Order order = new Order();
         order.setId(id);
+        order.setOrderNumber("ORD-20260706-P" + id);
         order.setUser(User.builder().id(1L).email("user@example.com").build());
         order.setStatus(status);
         order.setPaymentAmount(paymentAmount);

@@ -1,0 +1,26 @@
+# Production profile: everything sensitive must come from the environment.
+spring:
+  jpa:
+    show-sql: false
+  flyway:
+    # Migrations are expected to run from the deployment pipeline; keep enabled
+    # as a safety net but never baseline silently in prod.
+    baseline-on-migrate: false
+
+server:
+  forward-headers-strategy: framework
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,prometheus
+  endpoint:
+    health:
+      show-details: never
+
+logging:
+  level:
+    root: INFO
+    com.example.shopupu: INFO
+    org.hibernate.SQL: WARN

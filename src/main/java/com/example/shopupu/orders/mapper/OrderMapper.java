@@ -2,20 +2,17 @@ package com.example.shopupu.orders.mapper;
 
 import com.example.shopupu.orders.dto.OrderDto;
 import com.example.shopupu.orders.dto.OrderItemDto;
+import com.example.shopupu.orders.dto.OrderStatusHistoryDto;
 import com.example.shopupu.orders.entity.Order;
 import com.example.shopupu.orders.entity.OrderItem;
-import org.springframework.stereotype.Component;
-
+import com.example.shopupu.orders.entity.OrderStatusHistory;
 import java.util.List;
+import org.springframework.stereotype.Component;
 
 
 @Component
-/**
- * describes the OrderMapper class.
- */
 public class OrderMapper {
 
-    // handles toDto.
     public OrderDto toDto(Order order) {
         List<OrderItemDto> itemDtos = order.getItems().stream()
                 .map(this::toDto)
@@ -23,8 +20,11 @@ public class OrderMapper {
 
         return new OrderDto(
                 order.getId(),
+                order.getOrderNumber(),
                 order.getSubtotalAmount(),
                 order.getShippingAmount(),
+                order.getDiscountAmount(),
+                order.getPromoCode(),
                 order.getPaymentAmount(),
                 order.getStatus(),
                 order.getCreatedAt(),
@@ -33,15 +33,28 @@ public class OrderMapper {
         );
     }
 
-    // handles toDto.
     public OrderItemDto toDto(OrderItem item) {
         return new OrderItemDto(
                 item.getId(),
                 item.getProductId(),
+                item.getVariantId(),
                 item.getTitle(),
+                item.getSku(),
+                item.getSize(),
+                item.getColor(),
+                item.getBrand(),
                 item.getPrice(),
                 item.getQuantity(),
                 item.getLineTotal()
+        );
+    }
+
+    public OrderStatusHistoryDto toDto(OrderStatusHistory history) {
+        return new OrderStatusHistoryDto(
+                history.getFromStatus(),
+                history.getToStatus(),
+                history.getChangedBy(),
+                history.getCreatedAt()
         );
     }
 }

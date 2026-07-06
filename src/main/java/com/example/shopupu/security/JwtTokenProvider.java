@@ -1,37 +1,34 @@
 package com.example.shopupu.security;
 
+import com.example.shopupu.config.JwtProperties;
 import io.jsonwebtoken.Claims;
 import io.jsonwebtoken.ExpiredJwtException;
 import io.jsonwebtoken.Jwts;
 import io.jsonwebtoken.security.Keys;
-import org.springframework.beans.factory.annotation.Value;
-import org.springframework.security.core.userdetails.UserDetails;
-import org.springframework.stereotype.Component;
-
-import javax.crypto.SecretKey;
 import java.nio.charset.StandardCharsets;
 import java.util.Date;
 import java.util.function.Function;
+import javax.crypto.SecretKey;
+import org.springframework.security.core.userdetails.UserDetails;
+import org.springframework.stereotype.Component;
 
 @Component
 public class JwtTokenProvider {
 
     private final SecretKey key;
     private final long jwtExpiration;
-    private final long refreshExpiration;
+    private final String issuer;
+    private final String audience;
 
-    public JwtTokenProvider(
-            @Value("${jwt.secret}") String secret,
-            @Value("${jwt.access-token-ttl-min}") long jwtExpirationMin,
-            @Value("${jwt.refresh-token-ttl-days}") long refreshExpirationDays
-    ) {
-        byte[] secretBytes = secret.getBytes(StandardCharsets.UTF_8);
+    public JwtTokenProvider(JwtProperties properties) {
+        byte[] secretBytes = properties.getSecret().getBytes(StandardCharsets.UTF_8);
         if (secretBytes.length < 32) {
             throw new IllegalArgumentException("JWT secret must be at least 32 bytes for HS256");
         }
         this.key = Keys.hmacShaKeyFor(secretBytes);
-        this.jwtExpiration = jwtExpirationMin * 60 * 1000;
-        this.refreshExpiration = refreshExpirationDays * 24 * 60 * 60 * 1000;
+        this.jwtExpiration = properties.getAccessTokenTtlMin() * 60 * 1000;
+        this.issuer = properties.getIssuer();
+        this.audience = properties.getAudience();
     }
 
     public String extractUsername(String token) {
@@ -50,6 +47,8 @@ public class JwtTokenProvider {
     private Claims extractAllClaims(String token) {
         return Jwts.parser()
                 .verifyWith(key)
+                .requireIssuer(issuer)
+                .requireAudience(audience)
                 .build()
                 .parseSignedClaims(token)
                 .getPayload();
@@ -59,15 +58,13 @@ public class JwtTokenProvider {
         return generateTokenWithExpiration(userDetails, jwtExpiration);
     }
 
-    public String generateRefreshToken(UserDetails userDetails) {
-        return generateTokenWithExpiration(userDetails, refreshExpiration);
-    }
-
     private String generateTokenWithExpiration(UserDetails userDetails, long expirationMs) {
         Date now = new Date(System.currentTimeMillis());
 
         return Jwts.builder()
                 .subject(userDetails.getUsername())
+                .issuer(issuer)
+                .audience().add(audience).and()
                 .issuedAt(now)
                 .expiration(new Date(now.getTime() + expirationMs))
                 .signWith(key)

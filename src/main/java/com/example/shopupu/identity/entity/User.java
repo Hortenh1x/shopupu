@@ -1,9 +1,9 @@
 package com.example.shopupu.identity.entity;
 
 import jakarta.persistence.*;
-import lombok.*;
 import java.util.HashSet;
 import java.util.Set;
+import lombok.*;
 
 @Entity
 @Table(name = "users")

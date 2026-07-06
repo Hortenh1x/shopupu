@@ -1,29 +1,51 @@
 package com.example.shopupu.catalog.service;
 
-import com.example.shopupu.catalog.entity.Category;
-import com.example.shopupu.catalog.entity.Product;
-import com.example.shopupu.catalog.repository.CategoryRepository;
-import com.example.shopupu.catalog.repository.ProductRepository;
-import com.example.shopupu.common.exception.BusinessRuleException;
-import com.example.shopupu.common.exception.ConflictException;
-import com.example.shopupu.common.exception.ResourceNotFoundException;
-import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.extension.ExtendWith;
-import org.mockito.InjectMocks;
-import org.mockito.Mock;
-import org.mockito.junit.jupiter.MockitoExtension;
-
-import java.math.BigDecimal;
-import java.util.List;
-import java.util.Optional;
-
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyInt;
+import static org.mockito.ArgumentMatchers.anyLong;
+import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
+
+import com.example.shopupu.catalog.dto.ProductRequest;
+import com.example.shopupu.catalog.dto.VariantRequest;
+import com.example.shopupu.catalog.entity.Brand;
+import com.example.shopupu.catalog.entity.Category;
+import com.example.shopupu.catalog.entity.Gender;
+import com.example.shopupu.catalog.entity.Product;
+import com.example.shopupu.catalog.entity.ProductVariant;
+import com.example.shopupu.catalog.repository.BrandRepository;
+import com.example.shopupu.catalog.repository.CategoryRepository;
+import com.example.shopupu.catalog.repository.ProductImageRepository;
+import com.example.shopupu.catalog.repository.ProductRepository;
+import com.example.shopupu.catalog.repository.ProductVariantRepository;
+import com.example.shopupu.common.exception.BusinessRuleException;
+import com.example.shopupu.common.exception.ConflictException;
+import com.example.shopupu.common.exception.ResourceNotFoundException;
+import com.example.shopupu.common.storage.FileStorageService;
+import com.example.shopupu.inventory.service.InventoryService;
+import java.math.BigDecimal;
+import java.time.Instant;
+import java.util.List;
+import java.util.Optional;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.ArgumentCaptor;
+import org.mockito.InjectMocks;
+import org.mockito.Mock;
+import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageImpl;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
 
 /**
  * describes the CatalogServiceTest test class.
@@ -37,8 +59,25 @@ class CatalogServiceTest {
     @Mock
     private ProductRepository productRepository;
 
+    @Mock
+    private ProductImageRepository productImageRepository;
+
+    @Mock
+    private ProductVariantRepository variantRepository;
+
+    @Mock
+    private BrandRepository brandRepository;
+
+    @Mock
+    private InventoryService inventoryService;
+
+    @Mock
+    private FileStorageService fileStorageService;
+
     @InjectMocks
     private CatalogService catalogService;
+
+    // === Categories =========================================================
 
     // handles createCategory.
     @Test
@@ -99,71 +138,6 @@ class CatalogServiceTest {
         assertThrows(BusinessRuleException.class, () -> catalogService.updateCategory(1L, "Cycle", "cycle", null, 3L));
     }
 
-    // handles createProduct.
-    @Test
-    void createProductSavesProductWithCategory() {
-        Category category = category(1L, "Phones", "phones", null);
-        when(categoryRepository.findById(1L)).thenReturn(Optional.of(category));
-        when(productRepository.findBySku("sku-1")).thenReturn(Optional.empty());
-        when(productRepository.save(any(Product.class))).thenAnswer(invocation -> invocation.getArgument(0));
-
-        Product product = catalogService.createProduct(1L, "Phone", "desc", new BigDecimal("10.00"), "sku-1", 5, false);
-
-        assertEquals("Phone", product.getTitle());
-        assertEquals(false, product.getEnabled());
-        assertSame(category, product.getCategory());
-    }
-
-    // handles createProduct.
-    @Test
-    void createProductRejectsMissingCategoryAndDuplicateSku() {
-        when(categoryRepository.findById(1L)).thenReturn(Optional.empty());
-        assertThrows(ResourceNotFoundException.class, () -> catalogService.createProduct(1L, "Phone", null, BigDecimal.ONE, "sku", 1, true));
-
-        Category category = category(1L, "Phones", "phones", null);
-        Product existing = product(2L, category);
-        when(categoryRepository.findById(2L)).thenReturn(Optional.of(category));
-        when(productRepository.findBySku("sku")).thenReturn(Optional.of(existing));
-        assertThrows(ConflictException.class, () -> catalogService.createProduct(2L, "Phone", null, BigDecimal.ONE, "sku", 1, true));
-    }
-
-    // handles updateProduct.
-    @Test
-    void updateProductChangesFields() {
-        Category oldCategory = category(1L, "Old", "old", null);
-        Category newCategory = category(2L, "New", "new", null);
-        Product product = product(10L, oldCategory);
-        when(productRepository.findById(10L)).thenReturn(Optional.of(product));
-        when(categoryRepository.findById(2L)).thenReturn(Optional.of(newCategory));
-        when(productRepository.findBySku("new-sku")).thenReturn(Optional.empty());
-        when(productRepository.save(product)).thenReturn(product);
-
-        Product updated = catalogService.updateProduct(10L, 2L, "Updated", "desc", new BigDecimal("20.00"), "new-sku", 8, false);
-
-        assertEquals("Updated", updated.getTitle());
-        assertEquals("new-sku", updated.getSku());
-        assertEquals(8, updated.getStock());
-        assertSame(newCategory, updated.getCategory());
-    }
-
-    // handles getAllProducts.
-    @Test
-    void getAllProductsReturnsOnlyEnabledProducts() {
-        Product product = product(1L, category(1L, "Phones", "phones", null));
-        when(productRepository.findByEnabledIsTrue()).thenReturn(List.of(product));
-
-        assertEquals(List.of(product), catalogService.getAllProducts());
-    }
-
-    // handles getProductsByCategory.
-    @Test
-    void getProductsByCategoryReturnsOnlyEnabledCategoryProducts() {
-        Product product = product(1L, category(1L, "Phones", "phones", null));
-        when(productRepository.findByCategory_SlugAndEnabledIsTrue("phones")).thenReturn(List.of(product));
-
-        assertEquals(List.of(product), catalogService.getProductsByCategory("phones"));
-    }
-
     // handles deleteCategory.
     @Test
     void deleteCategoryDeletesExistingCategory() {
@@ -175,16 +149,234 @@ class CatalogServiceTest {
         verify(categoryRepository).delete(category);
     }
 
+    // === Products ===========================================================
+
+    // handles createProduct.
+    @Test
+    void createProductSavesProductWithCategory() {
+        Category category = category(1L, "Phones", "phones", null);
+        when(categoryRepository.findById(1L)).thenReturn(Optional.of(category));
+        when(productRepository.findBySlug("phone-x")).thenReturn(Optional.empty());
+        when(productRepository.save(any(Product.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        ProductRequest request = new ProductRequest(1L, "Phone X", "phone-x", "desc",
+                new BigDecimal("10.00"), null, null, null, null, null, null, null, null, false);
+
+        Product product = catalogService.createProduct(request);
+
+        assertEquals("Phone X", product.getTitle());
+        assertEquals("phone-x", product.getSlug());
+        assertEquals(new BigDecimal("10.00"), product.getPrice());
+        assertEquals(false, product.getEnabled());
+        assertEquals(Gender.UNISEX, product.getGender());
+        assertNull(product.getBrand());
+        assertSame(category, product.getCategory());
+    }
+
+    // handles createProduct.
+    @Test
+    void createProductGeneratesSlugFromTitleAndCreatesMissingBrand() {
+        Category category = category(1L, "Hoodies", "hoodies", null);
+        when(categoryRepository.findById(1L)).thenReturn(Optional.of(category));
+        when(brandRepository.findByNameIgnoreCase("Nike")).thenReturn(Optional.empty());
+        when(brandRepository.existsBySlug("nike")).thenReturn(false);
+        when(brandRepository.save(any(Brand.class))).thenAnswer(invocation -> invocation.getArgument(0));
+        when(productRepository.findBySlug("cool-hoodie")).thenReturn(Optional.empty());
+        when(productRepository.save(any(Product.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        ProductRequest request = new ProductRequest(1L, "Cool Hoodie", null, "desc",
+                new BigDecimal("59.99"), null, "Nike", Gender.MEN, null, null, null, null, null, true);
+
+        Product product = catalogService.createProduct(request);
+
+        assertEquals("cool-hoodie", product.getSlug());
+        assertEquals(Gender.MEN, product.getGender());
+        assertNotNull(product.getBrand());
+        assertEquals("Nike", product.getBrand().getName());
+        assertEquals("nike", product.getBrand().getSlug());
+
+        ArgumentCaptor<Brand> brandCaptor = ArgumentCaptor.forClass(Brand.class);
+        verify(brandRepository).save(brandCaptor.capture());
+        assertEquals("Nike", brandCaptor.getValue().getName());
+    }
+
+    // handles createProduct.
+    @Test
+    void createProductReusesExistingBrand() {
+        Category category = category(1L, "Hoodies", "hoodies", null);
+        Brand existing = new Brand("Nike", "nike");
+        when(categoryRepository.findById(1L)).thenReturn(Optional.of(category));
+        when(brandRepository.findByNameIgnoreCase("Nike")).thenReturn(Optional.of(existing));
+        when(productRepository.findBySlug("cool-hoodie")).thenReturn(Optional.empty());
+        when(productRepository.save(any(Product.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        ProductRequest request = new ProductRequest(1L, "Cool Hoodie", null, null,
+                new BigDecimal("59.99"), null, "Nike", null, null, null, null, null, null, true);
+
+        Product product = catalogService.createProduct(request);
+
+        assertSame(existing, product.getBrand());
+        verify(brandRepository, never()).save(any(Brand.class));
+    }
+
+    // handles createProduct.
+    @Test
+    void createProductRejectsMissingCategory() {
+        when(categoryRepository.findById(1L)).thenReturn(Optional.empty());
+
+        ProductRequest request = new ProductRequest(1L, "Phone", null, null,
+                BigDecimal.ONE, null, null, null, null, null, null, null, null, true);
+
+        assertThrows(ResourceNotFoundException.class, () -> catalogService.createProduct(request));
+        verify(productRepository, never()).save(any(Product.class));
+    }
+
+    // handles updateProduct.
+    @Test
+    void updateProductChangesFields() {
+        Category oldCategory = category(1L, "Old", "old", null);
+        Category newCategory = category(2L, "New", "new", null);
+        Product product = product(10L, oldCategory);
+        when(productRepository.findById(10L)).thenReturn(Optional.of(product));
+        when(categoryRepository.findById(2L)).thenReturn(Optional.of(newCategory));
+        when(productRepository.save(product)).thenReturn(product);
+
+        ProductRequest request = new ProductRequest(2L, "Updated", null, "new desc",
+                new BigDecimal("20.00"), new BigDecimal("25.00"), null, Gender.WOMEN,
+                "summer", "cotton", "wash cold", "meta", "meta desc", false);
+
+        Product updated = catalogService.updateProduct(10L, request);
+
+        assertEquals("Updated", updated.getTitle());
+        assertEquals(new BigDecimal("20.00"), updated.getPrice());
+        assertEquals(new BigDecimal("25.00"), updated.getOldPrice());
+        assertEquals(Gender.WOMEN, updated.getGender());
+        assertEquals("summer", updated.getSeason());
+        assertEquals("cotton", updated.getMaterial());
+        assertEquals(false, updated.getEnabled());
+        // slug is not touched when the request does not provide one
+        assertEquals("phone", updated.getSlug());
+        assertSame(newCategory, updated.getCategory());
+    }
+
+    // handles getAllProducts.
+    @Test
+    void getAllProductsReturnsOnlyEnabledNotDeletedProducts() {
+        Pageable pageable = PageRequest.of(0, 10);
+        Product product = product(1L, category(1L, "Phones", "phones", null));
+        Page<Product> page = new PageImpl<>(List.of(product), pageable, 1);
+        when(productRepository.findByEnabledIsTrueAndDeletedAtIsNull(pageable)).thenReturn(page);
+
+        assertEquals(page, catalogService.getAllProducts(pageable));
+    }
+
+    // handles getProductsByCategory.
+    @Test
+    void getProductsByCategoryReturnsOnlyEnabledNotDeletedCategoryProducts() {
+        Pageable pageable = PageRequest.of(0, 10);
+        Product product = product(1L, category(1L, "Phones", "phones", null));
+        Page<Product> page = new PageImpl<>(List.of(product), pageable, 1);
+        when(productRepository.findByCategory_SlugAndEnabledIsTrueAndDeletedAtIsNull("phones", pageable)).thenReturn(page);
+
+        assertEquals(page, catalogService.getProductsByCategory("phones", pageable));
+    }
+
+    // handles getProduct.
+    @Test
+    void getProductThrowsNotFoundForDeletedOrDisabledProduct() {
+        Product deleted = product(5L, category(1L, "Phones", "phones", null));
+        deleted.setDeletedAt(Instant.now());
+        when(productRepository.findById(5L)).thenReturn(Optional.of(deleted));
+        assertThrows(ResourceNotFoundException.class, () -> catalogService.getProduct(5L));
+
+        Product disabled = product(6L, category(1L, "Phones", "phones", null));
+        disabled.setEnabled(false);
+        when(productRepository.findById(6L)).thenReturn(Optional.of(disabled));
+        assertThrows(ResourceNotFoundException.class, () -> catalogService.getProduct(6L));
+
+        Product visible = product(7L, category(1L, "Phones", "phones", null));
+        when(productRepository.findById(7L)).thenReturn(Optional.of(visible));
+        assertSame(visible, catalogService.getProduct(7L));
+    }
+
     // handles deleteProduct.
     @Test
-    void deleteProductDeletesExistingProduct() {
+    void deleteProductSoftDeletesInsteadOfRemovingRow() {
         Product product = product(1L, category(1L, "Phones", "phones", null));
         when(productRepository.findById(1L)).thenReturn(Optional.of(product));
 
         catalogService.deleteProduct(1L);
 
-        verify(productRepository).delete(product);
+        assertNotNull(product.getDeletedAt());
+        assertTrue(product.isDeleted());
+        assertFalse(product.getEnabled());
+        verify(productRepository).save(product);
+        verify(productRepository, never()).delete(any(Product.class));
     }
+
+    // === Variants ===========================================================
+
+    // handles addVariant.
+    @Test
+    void addVariantSavesVariantAndInitializesStock() {
+        Product product = product(1L, category(1L, "Phones", "phones", null));
+        when(productRepository.findById(1L)).thenReturn(Optional.of(product));
+        when(variantRepository.existsBySku("SKU-1")).thenReturn(false);
+        when(variantRepository.save(any(ProductVariant.class))).thenAnswer(invocation -> {
+            ProductVariant variant = invocation.getArgument(0);
+            variant.setId(77L);
+            return variant;
+        });
+
+        VariantRequest request = new VariantRequest("SKU-1", "M", "  Black  ", null, null, 5, null);
+
+        ProductVariant saved = catalogService.addVariant(1L, request);
+
+        assertEquals(77L, saved.getId());
+        assertEquals("SKU-1", saved.getSku());
+        assertEquals("M", saved.getSize());
+        assertEquals("Black", saved.getColor());
+        // falls back to the product base price when the request has none
+        assertEquals(new BigDecimal("10.00"), saved.getPrice());
+        assertEquals(true, saved.getEnabled());
+        assertSame(product, saved.getProduct());
+        verify(inventoryService).setStock(77L, 5, "admin:variant-created");
+    }
+
+    // handles addVariant.
+    @Test
+    void addVariantRejectsDuplicateSku() {
+        Product product = product(1L, category(1L, "Phones", "phones", null));
+        when(productRepository.findById(1L)).thenReturn(Optional.of(product));
+        when(variantRepository.existsBySku("SKU-1")).thenReturn(true);
+
+        VariantRequest request = new VariantRequest("SKU-1", "M", null, null, null, 5, null);
+
+        assertThrows(ConflictException.class, () -> catalogService.addVariant(1L, request));
+        verify(variantRepository, never()).save(any(ProductVariant.class));
+        verify(inventoryService, never()).setStock(anyLong(), anyInt(), anyString());
+    }
+
+    // handles deleteVariant.
+    @Test
+    void deleteVariantDisablesInsteadOfRemovingRow() {
+        ProductVariant variant = ProductVariant.builder()
+                .id(3L)
+                .sku("SKU-1")
+                .size("M")
+                .price(new BigDecimal("10.00"))
+                .enabled(true)
+                .build();
+        when(variantRepository.findById(3L)).thenReturn(Optional.of(variant));
+
+        catalogService.deleteVariant(3L);
+
+        assertFalse(variant.getEnabled());
+        verify(variantRepository).save(variant);
+        verify(variantRepository, never()).delete(any(ProductVariant.class));
+    }
+
+    // === Helpers ============================================================
 
     private Category category(Long id, String name, String slug, Category parent) {
         Category category = new Category(name, slug, null, parent);
@@ -193,7 +385,7 @@ class CatalogServiceTest {
     }
 
     private Product product(Long id, Category category) {
-        Product product = new Product("Phone", "desc", new BigDecimal("10.00"), "sku", 5, category);
+        Product product = new Product("Phone", "phone", "desc", new BigDecimal("10.00"), category);
         product.setId(id);
         return product;
     }

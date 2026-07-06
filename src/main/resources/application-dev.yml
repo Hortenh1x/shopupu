@@ -1,9 +1,17 @@
+# Local development only. Never use these values outside a developer machine.
 spring:
+  datasource:
+    username: ${DB_USERNAME:postgres}
   jpa:
     show-sql: false
   flyway:
     enabled: true
 
+jwt:
+  # Dev-only signing key; production must set JWT_SECRET via environment.
+  secret: ${JWT_SECRET:dev-only-secret-key-change-me-0123456789abcdef}
+
 logging:
   level:
     org.hibernate.SQL: INFO
+    com.example.shopupu: DEBUG

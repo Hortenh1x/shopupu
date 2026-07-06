@@ -1,17 +1,21 @@
 package com.example.shopupu.catalog.mapper;
 
+import com.example.shopupu.catalog.dto.BrandResponse;
 import com.example.shopupu.catalog.dto.CategoryResponse;
 import com.example.shopupu.catalog.dto.ProductImageResponse;
 import com.example.shopupu.catalog.dto.ProductListItem;
 import com.example.shopupu.catalog.dto.ProductResponse;
+import com.example.shopupu.catalog.dto.VariantResponse;
+import com.example.shopupu.catalog.entity.Brand;
 import com.example.shopupu.catalog.entity.Category;
 import com.example.shopupu.catalog.entity.Product;
 import com.example.shopupu.catalog.entity.ProductImage;
-import org.springframework.stereotype.Component;
-
+import com.example.shopupu.catalog.entity.ProductVariant;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
+import java.util.Map;
+import org.springframework.stereotype.Component;
 
 @Component
 public class CatalogMapper {
@@ -31,27 +35,68 @@ public class CatalogMapper {
         );
     }
 
-    public ProductResponse toProductResponse(Product product) {
+    public BrandResponse toBrandResponse(Brand brand) {
+        if (brand == null) {
+            return null;
+        }
+        return new BrandResponse(brand.getId(), brand.getName(), brand.getSlug());
+    }
+
+    public VariantResponse toVariantResponse(ProductVariant variant, Integer available) {
+        return new VariantResponse(
+                variant.getId(),
+                variant.getSku(),
+                variant.getSize(),
+                variant.getColor(),
+                variant.getPrice(),
+                variant.getOldPrice(),
+                variant.getEnabled(),
+                available
+        );
+    }
+
+    /** availableByVariantId: variant id -> (stock - reserved), batch-loaded by the caller. */
+    public ProductResponse toProductResponse(Product product, Map<Long, Integer> availableByVariantId) {
         if (product == null) {
             return null;
         }
 
         Category category = product.getCategory();
+        Brand brand = product.getBrand();
         List<ProductResponse.ProductResponseImage> images = toProductImages(product);
+
+        List<VariantResponse> variants = new ArrayList<>();
+        if (product.getVariants() != null) {
+            for (ProductVariant variant : product.getVariants()) {
+                variants.add(toVariantResponse(variant,
+                        availableByVariantId.getOrDefault(variant.getId(), 0)));
+            }
+            variants.sort(Comparator.comparing(VariantResponse::size,
+                    Comparator.nullsLast(String::compareTo)));
+        }
 
         return new ProductResponse(
                 product.getId(),
                 product.getTitle(),
+                product.getSlug(),
                 product.getDescription(),
                 product.getPrice(),
-                product.getSku(),
-                product.getStock(),
+                product.getOldPrice(),
                 product.getEnabled(),
+                product.getGender(),
+                product.getSeason(),
+                product.getMaterial(),
+                product.getCareInstructions(),
+                product.getMetaTitle(),
+                product.getMetaDescription(),
+                brand != null ? brand.getId() : null,
+                brand != null ? brand.getName() : null,
                 product.getCreatedAt(),
                 category != null ? category.getId() : null,
                 category != null ? category.getName() : null,
                 category != null ? category.getSlug() : null,
-                images
+                images,
+                variants
         );
     }
 
@@ -61,11 +106,16 @@ public class CatalogMapper {
         }
 
         Category category = product.getCategory();
+        Brand brand = product.getBrand();
         ProductImage previewImage = firstProductImage(product);
         return new ProductListItem(
                 product.getId(),
                 product.getTitle(),
+                product.getSlug(),
                 product.getPrice(),
+                product.getOldPrice(),
+                brand != null ? brand.getName() : null,
+                product.getGender(),
                 product.getEnabled(),
                 product.getCreatedAt(),
                 category != null ? category.getId() : null,

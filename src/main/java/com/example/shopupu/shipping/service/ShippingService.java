@@ -1,10 +1,10 @@
 package com.example.shopupu.shipping.service;
 
-import com.example.shopupu.config.ShippingProperties;
 import com.example.shopupu.common.exception.BadRequestException;
 import com.example.shopupu.common.exception.BusinessRuleException;
 import com.example.shopupu.common.exception.ResourceNotFoundException;
 import com.example.shopupu.common.security.AccessControlService;
+import com.example.shopupu.config.ShippingProperties;
 import com.example.shopupu.orders.entity.Order;
 import com.example.shopupu.orders.entity.OrderStatus;
 import com.example.shopupu.orders.repository.OrderRepository;
@@ -16,11 +16,10 @@ import com.example.shopupu.shipping.entity.*;
 import com.example.shopupu.shipping.mapper.ShippingMapper;
 import com.example.shopupu.shipping.repository.ShipmentRepository;
 import com.example.shopupu.shipping.repository.ShippingAddressRepository;
+import java.math.BigDecimal;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-
-import java.math.BigDecimal;
 
 @Service
 @RequiredArgsConstructor
@@ -53,8 +52,14 @@ public class ShippingService {
         addressRepository.save(address);
 
         Shipment shipment = findOrCreateShipment(order);
+        ShippingAddress previous = shipment.getAddress();
         shipment.setAddress(address);
+        shipment.setAddressSnapshot(snapshotOf(address));
         shipmentRepository.save(shipment);
+        if (previous != null) {
+            // replaced addresses are per-order rows; drop them instead of orphaning
+            addressRepository.delete(previous);
+        }
 
         orderService.updateShippingAmount(order.getId(), shipment.getCost());
 
@@ -73,7 +78,7 @@ public class ShippingService {
 
         Shipment shipment = findOrCreateShipment(order);
         shipment.setMethod(req.method());
-        shipment.setCost(rateFor(req.method()));
+        shipment.setCost(rateFor(req.method(), order.getSubtotalAmount()));
         shipmentRepository.save(shipment);
 
         orderService.updateShippingAmount(order.getId(), shipment.getCost());
@@ -107,7 +112,14 @@ public class ShippingService {
         return mapper.toDto(shipment, order);
     }
 
-    private BigDecimal rateFor(ShippingMethod method) {
+    /** Flat method rates with a free-shipping threshold on the order subtotal (SHIP-05). */
+    private BigDecimal rateFor(ShippingMethod method, BigDecimal orderSubtotal) {
+        if (orderSubtotal != null
+                && shippingProperties.getFreeShippingThreshold() != null
+                && shippingProperties.getFreeShippingThreshold().signum() > 0
+                && orderSubtotal.compareTo(shippingProperties.getFreeShippingThreshold()) >= 0) {
+            return BigDecimal.ZERO;
+        }
         if (method == ShippingMethod.DHL) {
             return shippingProperties.getRates().getDhl();
         }
@@ -118,6 +130,19 @@ public class ShippingService {
             return shippingProperties.getRates().getLocalPickup();
         }
         return shippingProperties.getRates().getDefaultRate();
+    }
+
+    private String snapshotOf(ShippingAddress a) {
+        StringBuilder sb = new StringBuilder();
+        sb.append(a.getFullName()).append(", ").append(a.getLine1());
+        if (a.getLine2() != null && !a.getLine2().isBlank()) {
+            sb.append(", ").append(a.getLine2());
+        }
+        sb.append(", ").append(a.getCity())
+                .append(", ").append(a.getState())
+                .append(" ").append(a.getPostalCode())
+                .append(", ").append(a.getCountry());
+        return sb.toString();
     }
 
     private void validateAddress(SetShippingAddressRequest req) {
@@ -154,8 +179,8 @@ public class ShippingService {
     }
 
     private void ensureOrderCanChangeShipping(Order order) {
-        if (order.getStatus() != OrderStatus.NEW) {
-            throw new BusinessRuleException("Shipping can only be changed for NEW orders");
+        if (order.getStatus() != OrderStatus.CREATED) {
+            throw new BusinessRuleException("Shipping can only be changed for orders awaiting payment setup");
         }
     }
 
@@ -170,7 +195,7 @@ public class ShippingService {
                         .order(order)
                         .method(ShippingMethod.STANDARD_POST)
                         .status(ShippingStatus.PENDING)
-                        .cost(rateFor(ShippingMethod.STANDARD_POST))
+                        .cost(rateFor(ShippingMethod.STANDARD_POST, order.getSubtotalAmount()))
                         .currency(shippingProperties.getCurrency())
                         .build());
     }

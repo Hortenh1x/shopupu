@@ -7,15 +7,12 @@ import com.example.shopupu.reviews.entity.Review;
 import org.springframework.stereotype.Component;
 
 @Component
-/**
- * describes the ReviewMapper class.
- */
 public class ReviewMapper {
 
-    // handles toResponse.
     public ReviewResponse toResponse(Review review) {
         User user = review.getUser();
-        String displayName = user.getUsername() != null ? user.getUsername() : user.getEmail();
+        // never expose the email publicly (PII)
+        String displayName = user.getUsername() != null ? user.getUsername() : "Customer";
         return new ReviewResponse(
                 review.getId(),
                 review.getProduct().getId(),
@@ -30,7 +27,6 @@ public class ReviewMapper {
         );
     }
 
-    // handles toAdminResponse.
     public AdminReviewResponse toAdminResponse(Review review) {
         User user = review.getUser();
         return new AdminReviewResponse(

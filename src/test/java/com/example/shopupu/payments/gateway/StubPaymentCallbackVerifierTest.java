@@ -1,29 +1,28 @@
 package com.example.shopupu.payments.gateway;
 
-import org.junit.jupiter.api.Test;
-
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-/**
- * describes the StubPaymentCallbackVerifierTest test class.
- */
+import org.junit.jupiter.api.Test;
+
 class StubPaymentCallbackVerifierTest {
 
-    // handles isValid.
     @Test
-    void isValidAcceptsCallbacksWhenSecretIsBlank() {
+    void isValidRejectsEverythingWhenSecretIsBlank() {
         var verifier = new StubPaymentCallbackVerifier("");
 
-        assertTrue(verifier.isValid("payload", null));
+        assertFalse(verifier.isValid("payload", null));
+        assertFalse(verifier.isValid("payload", "anything"));
     }
 
-    // handles isValid.
     @Test
-    void isValidRequiresMatchingSecretWhenConfigured() {
+    void isValidRequiresMatchingHmacWhenConfigured() {
         var verifier = new StubPaymentCallbackVerifier("secret");
 
-        assertTrue(verifier.isValid("payload", "secret"));
+        String goodSignature = HmacSignature.sign("secret", "payload");
+        assertTrue(verifier.isValid("payload", goodSignature));
         assertFalse(verifier.isValid("payload", "wrong"));
+        assertFalse(verifier.isValid("payload", null));
+        assertFalse(verifier.isValid("tampered", goodSignature));
     }
 }

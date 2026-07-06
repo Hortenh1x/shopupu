@@ -1,8 +1,8 @@
 package com.example.shopupu.shipping.controller;
 
-import com.example.shopupu.shipping.dto.ShipmentDto;
 import com.example.shopupu.shipping.dto.SetShippingAddressRequest;
 import com.example.shopupu.shipping.dto.SetShippingMethodRequest;
+import com.example.shopupu.shipping.dto.ShipmentDto;
 import com.example.shopupu.shipping.service.ShippingService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;

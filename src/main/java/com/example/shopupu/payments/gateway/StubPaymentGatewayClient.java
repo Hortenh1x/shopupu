@@ -1,10 +1,9 @@
 package com.example.shopupu.payments.gateway;
 
 import com.example.shopupu.payments.entity.PaymentStatus;
+import java.util.UUID;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Component;
-
-import java.util.UUID;
 
 @Component
 @ConditionalOnProperty(name = "payments.default-provider", havingValue = "stub", matchIfMissing = true)
@@ -24,5 +23,11 @@ public class StubPaymentGatewayClient implements PaymentGatewayClient {
                 "/payments/stub/" + externalId,
                 UUID.randomUUID().toString()
         );
+    }
+
+    @Override
+    // stub provider accepts every refund so the flow is testable locally
+    public boolean refundPayment(String externalPaymentId) {
+        return true;
     }
 }

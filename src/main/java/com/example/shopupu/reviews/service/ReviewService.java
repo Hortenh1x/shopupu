@@ -9,24 +9,33 @@ import com.example.shopupu.common.exception.ResourceNotFoundException;
 import com.example.shopupu.common.security.AccessControlService;
 import com.example.shopupu.identity.entity.User;
 import com.example.shopupu.orders.entity.Order;
+import com.example.shopupu.orders.entity.OrderStatus;
 import com.example.shopupu.orders.repository.OrderRepository;
 import com.example.shopupu.reviews.dto.ProductRatingSummaryResponse;
 import com.example.shopupu.reviews.entity.Review;
 import com.example.shopupu.reviews.entity.ReviewStatus;
 import com.example.shopupu.reviews.repository.ReviewRepository;
+import java.math.BigDecimal;
+import java.math.RoundingMode;
+import java.util.EnumSet;
+import java.util.Set;
 import lombok.RequiredArgsConstructor;
+import org.jsoup.Jsoup;
+import org.jsoup.safety.Safelist;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.math.BigDecimal;
-import java.math.RoundingMode;
-
 @Service
 @RequiredArgsConstructor
 @Transactional
 public class ReviewService {
+
+    /** Order states that prove the user actually bought the product (REV-01). */
+    private static final Set<OrderStatus> PURCHASED_STATES = EnumSet.of(
+            OrderStatus.PAID, OrderStatus.PROCESSING, OrderStatus.SHIPPED,
+            OrderStatus.DELIVERED, OrderStatus.COMPLETED);
 
     private final ReviewRepository reviewRepository;
     private final ProductRepository productRepository;
@@ -36,9 +45,10 @@ public class ReviewService {
     @Transactional(readOnly = true)
     public Page<Review> getPublishedReviews(Long productId, Pageable pageable) {
         requireProduct(productId);
-        return reviewRepository.findByProductIdAndStatus(productId, ReviewStatus.PUBLISHED, pageable);
+        return reviewRepository.findByProductIdAndStatus(productId, ReviewStatus.APPROVED, pageable);
     }
 
+    @org.springframework.cache.annotation.Cacheable(cacheNames = "productRating", key = "#productId")
     @Transactional(readOnly = true)
     public ProductRatingSummaryResponse getRatingSummary(Long productId) {
         requireProduct(productId);
@@ -53,20 +63,21 @@ public class ReviewService {
         User user = accessControlService.currentUser();
         Product product = requireProduct(productId);
         ensureUserCanCreateReview(user, productId);
-
-        Order order = findOrderForReview(orderId, user);
+        ensureVerifiedPurchase(user, productId, orderId);
 
         Review review = new Review();
         review.setUser(user);
         review.setProduct(product);
-        review.setOrder(order);
+        review.setOrder(orderId == null ? null : orderRepository.findById(orderId).orElse(null));
         review.setRating(rating);
-        review.setTitle(title);
-        review.setBody(body);
-        review.setStatus(ReviewStatus.PUBLISHED);
+        review.setTitle(sanitize(title));
+        review.setBody(sanitize(body));
+        // moderation first: reviews appear publicly only after approval (REV-02)
+        review.setStatus(ReviewStatus.PENDING);
         return reviewRepository.save(review);
     }
 
+    @org.springframework.cache.annotation.CacheEvict(cacheNames = "productRating", allEntries = true)
     public Review updateReview(Long reviewId, Integer rating, String title, String body) {
         Review review = requireReview(reviewId);
         requireReviewOwner(review);
@@ -74,12 +85,14 @@ public class ReviewService {
             throw new BusinessRuleException("Deleted review cannot be updated");
         }
         review.setRating(rating);
-        review.setTitle(title);
-        review.setBody(body);
-        review.setStatus(ReviewStatus.PUBLISHED);
+        review.setTitle(sanitize(title));
+        review.setBody(sanitize(body));
+        // edits go back through moderation instead of self-publishing
+        review.setStatus(ReviewStatus.PENDING);
         return reviewRepository.save(review);
     }
 
+    @org.springframework.cache.annotation.CacheEvict(cacheNames = "productRating", allEntries = true)
     public void deleteOwnReview(Long reviewId) {
         Review review = requireReview(reviewId);
         requireReviewOwner(review);
@@ -98,6 +111,7 @@ public class ReviewService {
         return reviewRepository.findAll(pageable);
     }
 
+    @org.springframework.cache.annotation.CacheEvict(cacheNames = "productRating", allEntries = true)
     public Review updateStatus(Long reviewId, ReviewStatus status) {
         if (status == ReviewStatus.DELETED) {
             throw new BusinessRuleException("Use DELETE to delete a review");
@@ -107,10 +121,40 @@ public class ReviewService {
         return reviewRepository.save(review);
     }
 
+    @org.springframework.cache.annotation.CacheEvict(cacheNames = "productRating", allEntries = true)
     public void deleteAdminReview(Long reviewId) {
         Review review = requireReview(reviewId);
         review.setStatus(ReviewStatus.DELETED);
         reviewRepository.save(review);
+    }
+
+    /** Strips all HTML from user content (REV-03/SEC-07). */
+    private String sanitize(String input) {
+        if (input == null) {
+            return null;
+        }
+        return Jsoup.clean(input, Safelist.none()).trim();
+    }
+
+    private void ensureVerifiedPurchase(User user, Long productId, Long orderId) {
+        if (orderId != null) {
+            Order order = orderRepository.findById(orderId)
+                    .orElseThrow(() -> new ResourceNotFoundException("Order with id " + orderId + " not found"));
+            if (order.getUser() == null || !order.getUser().getId().equals(user.getId())) {
+                throw new ForbiddenOperationException("Access denied to this order");
+            }
+            boolean containsProduct = order.getItems().stream()
+                    .anyMatch(item -> productId.equals(item.getProductId()));
+            if (!containsProduct || !PURCHASED_STATES.contains(order.getStatus())) {
+                throw new BusinessRuleException("Review requires a paid order containing this product");
+            }
+            return;
+        }
+        boolean purchased = orderRepository.existsByUserAndStatusInAndItems_ProductId(
+                user, PURCHASED_STATES, productId);
+        if (!purchased) {
+            throw new BusinessRuleException("Only verified buyers can review this product");
+        }
     }
 
     private Product requireProduct(Long productId) {
@@ -134,18 +178,5 @@ public class ReviewService {
         if (reviewRepository.findByUserIdAndProductId(user.getId(), productId).isPresent()) {
             throw new ConflictException("You already reviewed this product");
         }
-    }
-
-    private Order findOrderForReview(Long orderId, User user) {
-        if (orderId == null) {
-            return null;
-        }
-
-        Order order = orderRepository.findById(orderId)
-                .orElseThrow(() -> new ResourceNotFoundException("Order with id " + orderId + " not found"));
-        if (order.getUser() == null || !order.getUser().getId().equals(user.getId())) {
-            throw new ForbiddenOperationException("Access denied to this order");
-        }
-        return order;
     }
 }

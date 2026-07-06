@@ -2,9 +2,8 @@ package com.example.shopupu.auth.entity;
 
 import com.example.shopupu.identity.entity.User;
 import jakarta.persistence.*;
-import lombok.*;
-
 import java.time.Instant;
+import lombok.*;
 
 @Entity
 @Table(name = "refresh_tokens")

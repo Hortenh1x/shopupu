@@ -4,18 +4,29 @@ spring:
 
   datasource:
     url: ${DB_URL:jdbc:postgresql://localhost:5432/shopupu}
-    username: ${DB_USERNAME:postgres}
+    username: ${DB_USERNAME:shopupu}
     password: ${DB_PASSWORD:}
     driver-class-name: org.postgresql.Driver
+    hikari:
+      maximum-pool-size: ${DB_POOL_SIZE:10}
+      minimum-idle: 2
+      connection-timeout: 3000
+      validation-timeout: 2000
+      max-lifetime: 1800000
+      leak-detection-threshold: 30000
 
   jpa:
     hibernate:
       ddl-auto: validate
+    open-in-view: false
     properties:
       hibernate:
         format_sql: true
         jdbc:
           time_zone: UTC
+          batch_size: 50
+        order_inserts: true
+        order_updates: true
     show-sql: false
 
   flyway:
@@ -23,10 +34,47 @@ spring:
     enabled: true
     locations: classpath:db/migration
 
+  servlet:
+    multipart:
+      max-file-size: 5MB
+      max-request-size: 25MB
+
+  lifecycle:
+    timeout-per-shutdown-phase: 20s
+
+  cache:
+    type: caffeine
+    caffeine:
+      spec: maximumSize=2000,expireAfterWrite=10m
+
+server:
+  port: ${SERVER_PORT:8080}
+  shutdown: graceful
+  compression:
+    enabled: true
+    mime-types: application/json,text/plain
+    min-response-size: 1024
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics,prometheus
+  endpoint:
+    health:
+      probes:
+        enabled: true
+      show-details: when_authorized
+      roles: ADMIN
+
 jwt:
-  secret: ${JWT_SECRET:6A94C1D9F8A263B9E1A0C4F233B0D8226A9C1E7B5F2A1D4B9E5A7C3D2F1B8E9C6A94C1D9F8A263B9E1A0C4F233B0D822}
-  access-token-ttl-min: 15
-  refresh-token-ttl-days: 7
+  # No default on purpose: the application must fail to start without a real secret.
+  # Dev profile supplies a local-only value in application-dev.yml.
+  secret: ${JWT_SECRET:}
+  access-token-ttl-min: ${JWT_ACCESS_TTL_MIN:15}
+  refresh-token-ttl-days: ${JWT_REFRESH_TTL_DAYS:7}
+  issuer: ${JWT_ISSUER:shopupu}
+  audience: ${JWT_AUDIENCE:shopupu-api}
 
 logging:
   level:
@@ -41,9 +89,13 @@ payments:
   callback-secret: ${PAYMENT_CALLBACK_SECRET:}
   callback-url: ${PAYMENT_CALLBACK_URL:http://localhost:8080/api/payments/callback}
   request-timeout-seconds: ${PAYMENT_REQUEST_TIMEOUT_SECONDS:10}
-
-server:
-  port: ${SERVER_PORT:8080}
+  monobank:
+    api-base-url: ${MONOBANK_API_BASE_URL:https://api.monobank.ua}
+    token: ${MONOBANK_TOKEN:}
+  fondy:
+    api-base-url: ${FONDY_API_BASE_URL:https://pay.fondy.eu/api}
+    merchant-id: ${FONDY_MERCHANT_ID:}
+    secret: ${FONDY_SECRET:}
 
 app:
   cors:
@@ -53,11 +105,20 @@ app:
     public-base-url: ${PUBLIC_UPLOADS_BASE_URL:http://localhost:8080/uploads}
   bootstrap-admin:
     enabled: ${BOOTSTRAP_ADMIN_ENABLED:false}
-    email: ${BOOTSTRAP_ADMIN_EMAIL:dmytro.bolibok@gmail.com}
+    email: ${BOOTSTRAP_ADMIN_EMAIL:}
     password: ${BOOTSTRAP_ADMIN_PASSWORD:}
+  checkout:
+    pending-payment-ttl-min: ${CHECKOUT_PENDING_TTL_MIN:30}
+  rate-limit:
+    enabled: ${RATE_LIMIT_ENABLED:true}
+    auth-capacity: 10
+    auth-refill-per-minute: 10
+    checkout-capacity: 30
+    checkout-refill-per-minute: 30
 
 shipping:
-  currency: EUR
+  currency: ${SHIPPING_CURRENCY:EUR}
+  free-shipping-threshold: ${FREE_SHIPPING_THRESHOLD:100.00}
   rates:
     dhl: 9.99
     standardPost: 4.99

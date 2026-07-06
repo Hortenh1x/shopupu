@@ -7,19 +7,21 @@ import com.example.shopupu.cart.entity.CartItem;
 import com.example.shopupu.cart.repository.CartItemRepository;
 import com.example.shopupu.cart.repository.CartRepository;
 import com.example.shopupu.catalog.entity.Product;
-import com.example.shopupu.catalog.repository.ProductRepository;
+import com.example.shopupu.catalog.entity.ProductVariant;
+import com.example.shopupu.catalog.repository.ProductVariantRepository;
 import com.example.shopupu.common.exception.BusinessRuleException;
+import com.example.shopupu.common.exception.OutOfStockException;
 import com.example.shopupu.common.exception.ResourceNotFoundException;
 import com.example.shopupu.identity.entity.User;
 import com.example.shopupu.identity.repository.UserRepository;
-import jakarta.transaction.Transactional;
-import lombok.RequiredArgsConstructor;
-import org.springframework.stereotype.Service;
-
+import com.example.shopupu.inventory.service.InventoryService;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.util.ArrayList;
 import java.util.List;
+import lombok.RequiredArgsConstructor;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 
 @Service
@@ -28,7 +30,8 @@ public class CartService {
 
     private final CartRepository cartRepository;
     private final CartItemRepository cartItemRepository;
-    private final ProductRepository productRepository;
+    private final ProductVariantRepository variantRepository;
+    private final InventoryService inventoryService;
     private final UserRepository userRepository;
 
     @Transactional
@@ -43,25 +46,25 @@ public class CartService {
     }
 
     @Transactional
-    public CartResponse addItem(String userEmail, Long productId, Integer quantity) {
+    public CartResponse addItem(String userEmail, Long variantId, Integer quantity) {
         if (quantity == null || quantity <= 0) {
             throw new BusinessRuleException("Quantity must be more than 0");
         }
 
         Cart cart = getOrCreateCart(userEmail);
-        Product product = findProduct(productId);
-        validateProductCanBeAdded(product, quantity);
+        ProductVariant variant = findVariant(variantId);
+        validateVariantCanBeAdded(variant, quantity);
 
-        CartItem cartItem = cartItemRepository.findByCart_IdAndProduct_Id(cart.getId(), productId)
+        CartItem cartItem = cartItemRepository.findByCart_IdAndVariant_Id(cart.getId(), variantId)
                 .orElse(null);
         if (cartItem == null) {
             cartItem = CartItem.builder()
                     .cart(cart)
-                    .product(product)
+                    .variant(variant)
                     .quantity(quantity)
                     .build();
         } else {
-            validateProductCanBeAdded(product, cartItem.getQuantity() + quantity);
+            validateVariantCanBeAdded(variant, cartItem.getQuantity() + quantity);
             cartItem.setQuantity(cartItem.getQuantity() + quantity);
         }
 
@@ -70,19 +73,19 @@ public class CartService {
     }
 
     @Transactional
-    public CartResponse setQuantity(String userEmail, Long productId, Integer quantity) {
+    public CartResponse setQuantity(String userEmail, Long variantId, Integer quantity) {
         if (quantity == null || quantity < 0) {
             throw new BusinessRuleException("Quantity must be 0 or more");
         }
 
         Cart cart = getOrCreateCart(userEmail);
-        CartItem cartItem = cartItemRepository.findByCart_IdAndProduct_Id(cart.getId(), productId)
-                .orElseThrow(() -> new ResourceNotFoundException("Item not in cart: product " + productId));
+        CartItem cartItem = cartItemRepository.findByCart_IdAndVariant_Id(cart.getId(), variantId)
+                .orElseThrow(() -> new ResourceNotFoundException("Item not in cart: variant " + variantId));
 
         if (quantity == 0) {
             cartItemRepository.delete(cartItem);
         } else {
-            validateProductCanBeAdded(cartItem.getProduct(), quantity);
+            validateVariantCanBeAdded(cartItem.getVariant(), quantity);
             cartItem.setQuantity(quantity);
             cartItemRepository.save(cartItem);
         }
@@ -91,9 +94,9 @@ public class CartService {
     }
 
     @Transactional
-    public CartResponse removeItem(String userEmail, Long productId) {
+    public CartResponse removeItem(String userEmail, Long variantId) {
         Cart cart = getOrCreateCart(userEmail);
-        cartItemRepository.deleteByCart_IdAndProduct_Id(cart.getId(), productId);
+        cartItemRepository.deleteByCart_IdAndVariant_Id(cart.getId(), variantId);
         return reloadCartResponse(userEmail);
     }
 
@@ -117,16 +120,22 @@ public class CartService {
         int totalItems = 0;
 
         for (CartItem cartItem : cart.getItems()) {
-            BigDecimal price = cartItem.getProduct().getPrice();
+            ProductVariant variant = cartItem.getVariant();
+            BigDecimal price = variant.getPrice();
             BigDecimal lineTotal = price.multiply(BigDecimal.valueOf(cartItem.getQuantity()))
                     .setScale(2, RoundingMode.HALF_UP);
 
             subtotal = subtotal.add(lineTotal).setScale(2, RoundingMode.HALF_UP);
             totalItems += cartItem.getQuantity();
 
+            Product product = variant.getProduct();
             items.add(new CartItemDto(
-                    cartItem.getProduct().getId(),
-                    cartItem.getProduct().getTitle(),
+                    variant.getId(),
+                    product.getId(),
+                    product.getTitle(),
+                    variant.getSku(),
+                    variant.getSize(),
+                    variant.getColor(),
                     price,
                     cartItem.getQuantity(),
                     lineTotal
@@ -136,18 +145,21 @@ public class CartService {
         return new CartResponse(items, totalItems, subtotal);
     }
 
-    private void validateProductCanBeAdded(Product product, int requestedQuantity) {
-        if (!Boolean.TRUE.equals(product.getEnabled())) {
-            throw new BusinessRuleException("Product is disabled: " + product.getId());
+    private void validateVariantCanBeAdded(ProductVariant variant, int requestedQuantity) {
+        Product product = variant.getProduct();
+        if (!Boolean.TRUE.equals(variant.getEnabled()) || !Boolean.TRUE.equals(product.getEnabled())
+                || product.isDeleted()) {
+            throw new BusinessRuleException("Product is not available: " + product.getId());
         }
-        if (product.getStock() == null || product.getStock() < requestedQuantity) {
-            throw new BusinessRuleException("Not enough stock for product: " + product.getId());
+        int available = inventoryService.availableFor(variant.getId());
+        if (available < requestedQuantity) {
+            throw new OutOfStockException("Not enough stock for variant: " + variant.getId());
         }
     }
 
-    private Product findProduct(Long productId) {
-        return productRepository.findById(productId)
-                .orElseThrow(() -> new ResourceNotFoundException("Product: " + productId + " not found"));
+    private ProductVariant findVariant(Long variantId) {
+        return variantRepository.findWithProductById(variantId)
+                .orElseThrow(() -> new ResourceNotFoundException("Variant: " + variantId + " not found"));
     }
 
     private CartResponse reloadCartResponse(String userEmail) {

@@ -1,11 +1,10 @@
 package com.example.shopupu.payments.repository;
 
-import com.example.shopupu.payments.entity.Payment;
 import com.example.shopupu.orders.entity.Order;
-import org.springframework.data.jpa.repository.JpaRepository;
-
-import java.util.Optional;
+import com.example.shopupu.payments.entity.Payment;
 import java.util.List;
+import java.util.Optional;
+import org.springframework.data.jpa.repository.JpaRepository;
 
 
 /**

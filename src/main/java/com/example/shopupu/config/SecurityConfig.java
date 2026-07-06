@@ -1,9 +1,11 @@
 package com.example.shopupu.config;
 
 import com.example.shopupu.security.JwtAuthFilter;
+import com.example.shopupu.security.RateLimitFilter;
 import lombok.RequiredArgsConstructor;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.http.HttpMethod;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.config.annotation.authentication.configuration.AuthenticationConfiguration;
 import org.springframework.security.config.annotation.method.configuration.EnableMethodSecurity;
@@ -13,51 +15,74 @@ import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
-import org.springframework.http.HttpMethod;
+import org.springframework.security.web.header.writers.ReferrerPolicyHeaderWriter;
 
 @Configuration
 @EnableMethodSecurity
 @RequiredArgsConstructor
-/**
- * describes the SecurityConfig class.
- */
 public class SecurityConfig {
 
     private final JwtAuthFilter jwtAuthFilter;
+    private final RateLimitFilter rateLimitFilter;
 
     @Bean
-    // handles securityFilterChain.
     public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
         return http
+                // CSRF is intentionally disabled: stateless JWT API, tokens travel in the
+                // Authorization header only, no cookie-based sessions (SEC-03).
                 .csrf(csrf -> csrf.disable())
                 .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
-                .authorizeHttpRequests(auth -> auth
-                        .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
-                        .requestMatchers("/uploads/**").permitAll()
-                        .requestMatchers(HttpMethod.POST, "/api/payments/callback").permitAll()
-                        .requestMatchers(HttpMethod.POST, "/api/products/*/reviews").authenticated()
-                        .requestMatchers(HttpMethod.PUT, "/api/reviews/*").authenticated()
-                        .requestMatchers(HttpMethod.DELETE, "/api/reviews/*").authenticated()
-                        .requestMatchers("/api/admin/**").hasRole("ADMIN")
-                        .requestMatchers("/api/auth/me").authenticated()
-                        .requestMatchers("/api/cart/**").authenticated()
-                        .requestMatchers("/api/orders/**").authenticated()
-                        .requestMatchers("/api/payments/**").authenticated()
-                        .requestMatchers("/api/shipping/**").authenticated()
-                        .anyRequest().permitAll()
+                .headers(headers -> headers
+                        .contentSecurityPolicy(csp -> csp.policyDirectives(
+                                "default-src 'none'; frame-ancestors 'none'; base-uri 'none'"))
+                        .referrerPolicy(rp -> rp.policy(ReferrerPolicyHeaderWriter.ReferrerPolicy.NO_REFERRER))
+                        .httpStrictTransportSecurity(hsts -> hsts
+                                .includeSubDomains(true)
+                                .maxAgeInSeconds(31536000))
                 )
+                .authorizeHttpRequests(auth -> auth
+                        // deny-by-default: everything below is an explicit whitelist,
+                        // anything not listed requires authentication
+                        .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
+                        .requestMatchers(HttpMethod.GET, "/uploads/**").permitAll()
+                        .requestMatchers(HttpMethod.POST,
+                                "/api/auth/register", "/api/auth/login", "/api/auth/refresh").permitAll()
+                        .requestMatchers(HttpMethod.GET, "/api/catalog/**").permitAll()
+                        // payment callbacks are authenticated by provider signature, not JWT
+                        .requestMatchers(HttpMethod.POST, "/api/payments/callback").permitAll()
+                        .requestMatchers("/swagger", "/swagger-ui/**", "/v3/api-docs/**").permitAll()
+                        .requestMatchers("/actuator/health/**", "/actuator/health").permitAll()
+                        .requestMatchers("/actuator/**").hasRole("ADMIN")
+                        .requestMatchers("/api/admin/users/**").hasRole("ADMIN")
+                        .requestMatchers("/api/admin/**").hasAnyRole("ADMIN", "MANAGER")
+                        .anyRequest().authenticated()
+                )
+                .exceptionHandling(ex -> ex
+                        .authenticationEntryPoint((request, response, e) ->
+                                writeProblem(response, 401, "Authentication required"))
+                        .accessDeniedHandler((request, response, e) ->
+                                writeProblem(response, 403, "Access denied")))
                 .addFilterBefore(jwtAuthFilter, UsernamePasswordAuthenticationFilter.class)
+                .addFilterBefore(rateLimitFilter, JwtAuthFilter.class)
                 .build();
     }
 
-    @Bean
-    // handles passwordEncoder.
-    public PasswordEncoder passwordEncoder() {
-        return new BCryptPasswordEncoder();
+    private static void writeProblem(jakarta.servlet.http.HttpServletResponse response, int status, String detail)
+            throws java.io.IOException {
+        response.setStatus(status);
+        response.setContentType("application/problem+json");
+        response.getWriter().write("{\"type\":\"urn:shopupu:error:"
+                + (status == 401 ? "unauthorized" : "forbidden")
+                + "\",\"title\":\"" + (status == 401 ? "unauthorized" : "forbidden")
+                + "\",\"status\":" + status + ",\"detail\":\"" + detail + "\"}");
     }
 
     @Bean
-    // handles authenticationManager.
+    public PasswordEncoder passwordEncoder() {
+        return new BCryptPasswordEncoder(12);
+    }
+
+    @Bean
     public AuthenticationManager authenticationManager(AuthenticationConfiguration config) throws Exception {
         return config.getAuthenticationManager();
     }

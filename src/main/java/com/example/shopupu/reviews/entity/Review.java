@@ -4,12 +4,11 @@ import com.example.shopupu.catalog.entity.Product;
 import com.example.shopupu.identity.entity.User;
 import com.example.shopupu.orders.entity.Order;
 import jakarta.persistence.*;
+import java.time.Instant;
 import lombok.Getter;
 import lombok.Setter;
 import org.hibernate.annotations.CreationTimestamp;
 import org.hibernate.annotations.UpdateTimestamp;
-
-import java.time.Instant;
 
 @Getter
 @Setter
@@ -50,7 +49,7 @@ public class Review {
 
     @Enumerated(EnumType.STRING)
     @Column(nullable = false, length = 32)
-    private ReviewStatus status = ReviewStatus.PUBLISHED;
+    private ReviewStatus status = ReviewStatus.PENDING;
 
     @CreationTimestamp
     @Column(name = "created_at", nullable = false, updatable = false)

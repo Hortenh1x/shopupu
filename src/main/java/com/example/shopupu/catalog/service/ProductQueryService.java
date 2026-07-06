@@ -12,19 +12,12 @@ import org.springframework.transaction.annotation.Transactional;
 
 @Service
 @RequiredArgsConstructor
-/**
- * describes the ProductQueryService class.
- */
 public class ProductQueryService {
 
     private final ProductRepository productRepository;
 
     @Transactional(readOnly = true)
-    // handles findProducts.
     public Page<Product> findProducts(ProductFilter f, Pageable pageable) {
-        var spec = ProductSpecifications.build(
-                f.q, f.categoryId, f.minPrice, f.maxPrice, f.enabled
-        );
-        return productRepository.findAll(spec, pageable);
+        return productRepository.findAll(ProductSpecifications.build(f), pageable);
     }
 }

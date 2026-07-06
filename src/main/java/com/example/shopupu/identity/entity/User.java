@@ -42,6 +42,11 @@ public class User {
     @Column(name = "deleted_at")
     private Instant deletedAt;
 
+    /** Confirmed via a one-time emailed token (AUTH-06). */
+    @Builder.Default
+    @Column(name = "email_verified", nullable = false)
+    private boolean emailVerified = false;
+
     @Builder.Default
     private boolean enabled = true;
 

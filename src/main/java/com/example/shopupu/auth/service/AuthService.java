@@ -24,6 +24,8 @@ public class AuthService {
     private final UserService userService;
     private final com.example.shopupu.common.audit.AuditService auditService;
     private final com.example.shopupu.cart.service.CartService cartService;
+    private final OneTimeTokenService oneTimeTokenService;
+    private final com.example.shopupu.notifications.NotificationService notificationService;
 
     public record TokenPair(String accessToken, String refreshToken) {}
 
@@ -74,6 +76,50 @@ public class AuthService {
     @Transactional
     public void adoptGuestCart(String guestCartToken, String email) {
         cartService.mergeGuestCart(guestCartToken, email);
+    }
+
+    /** Issues and sends an email-verification token (AUTH-06). */
+    @Transactional
+    public void sendEmailVerification(User user) {
+        String token = oneTimeTokenService.mint(user,
+                com.example.shopupu.auth.entity.OneTimeToken.Purpose.EMAIL_VERIFICATION);
+        notificationService.sendEmailVerification(user.getEmail(), token);
+    }
+
+    /** Confirms the email behind a one-time token. */
+    @Transactional
+    public void verifyEmail(String token) {
+        User user = oneTimeTokenService.consume(token,
+                com.example.shopupu.auth.entity.OneTimeToken.Purpose.EMAIL_VERIFICATION);
+        userService.markEmailVerified(user);
+        auditService.record(user.getEmail(), "EMAIL_VERIFIED", "user",
+                String.valueOf(user.getId()), null);
+    }
+
+    /**
+     * Starts a password reset (AUTH-07). Always silent about whether the
+     * account exists (SEC-16): unknown emails produce no observable difference.
+     */
+    @Transactional
+    public void forgotPassword(String email) {
+        userService.getByEmail(email).ifPresent(user -> {
+            String token = oneTimeTokenService.mint(user,
+                    com.example.shopupu.auth.entity.OneTimeToken.Purpose.PASSWORD_RESET);
+            notificationService.sendPasswordReset(user.getEmail(), token);
+            auditService.record(email, "PASSWORD_RESET_REQUESTED", "user",
+                    String.valueOf(user.getId()), null);
+        });
+    }
+
+    /** Completes a password reset: one-shot token, all sessions revoked. */
+    @Transactional
+    public void resetPassword(String token, String newPassword) {
+        User user = oneTimeTokenService.consume(token,
+                com.example.shopupu.auth.entity.OneTimeToken.Purpose.PASSWORD_RESET);
+        userService.setPassword(user, newPassword);
+        refreshTokenService.revokeAll(user);
+        auditService.record(user.getEmail(), "PASSWORD_RESET_COMPLETED", "user",
+                String.valueOf(user.getId()), "All sessions revoked");
     }
 
     @Transactional

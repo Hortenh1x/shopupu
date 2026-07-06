@@ -16,4 +16,17 @@ public class LoggingNotificationService implements NotificationService {
         log.info("Notification: order {} status changed to {} (recipient hash={})",
                 orderNumber, newStatus, Integer.toHexString(email == null ? 0 : email.hashCode()));
     }
+
+    @Override
+    public void sendPasswordReset(String email, String token) {
+        // tokens are secrets: never log them, even in the dev sender
+        log.info("Notification: password reset requested (recipient hash={})",
+                Integer.toHexString(email == null ? 0 : email.hashCode()));
+    }
+
+    @Override
+    public void sendEmailVerification(String email, String token) {
+        log.info("Notification: email verification issued (recipient hash={})",
+                Integer.toHexString(email == null ? 0 : email.hashCode()));
+    }
 }

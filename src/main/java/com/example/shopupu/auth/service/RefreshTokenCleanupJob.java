@@ -16,13 +16,16 @@ import org.springframework.transaction.annotation.Transactional;
 public class RefreshTokenCleanupJob {
 
     private final RefreshTokenRepository refreshTokenRepository;
+    private final com.example.shopupu.auth.repository.OneTimeTokenRepository oneTimeTokenRepository;
 
     @Transactional
     @Scheduled(cron = "0 30 3 * * *")
     public void purgeExpiredTokens() {
-        int removed = refreshTokenRepository.deleteAllExpiredBefore(Instant.now().minus(1, ChronoUnit.DAYS));
-        if (removed > 0) {
-            log.info("Purged {} expired refresh tokens", removed);
+        Instant cutoff = Instant.now().minus(1, ChronoUnit.DAYS);
+        int removed = refreshTokenRepository.deleteAllExpiredBefore(cutoff);
+        int removedOneTime = oneTimeTokenRepository.deleteAllExpiredBefore(cutoff);
+        if (removed > 0 || removedOneTime > 0) {
+            log.info("Purged {} expired refresh tokens and {} one-time tokens", removed, removedOneTime);
         }
     }
 }

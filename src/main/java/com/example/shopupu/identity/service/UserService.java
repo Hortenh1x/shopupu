@@ -36,6 +36,17 @@ public class UserService {
     }
 
 
+    // one-time token flows own the checks; these two are storage-only helpers
+    public void markEmailVerified(User user) {
+        user.setEmailVerified(true);
+        userRepository.save(user);
+    }
+
+    public void setPassword(User user, String rawPassword) {
+        user.setPasswordHash(passwordEncoder.encode(rawPassword));
+        userRepository.save(user);
+    }
+
     // updates profile fields only - roles/enabled are never client-writable (SEC-10)
     public User updateProfile(String email, com.example.shopupu.identity.dto.UpdateProfileRequest request) {
         User user = userRepository.findByEmail(email)

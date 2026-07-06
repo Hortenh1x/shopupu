@@ -84,7 +84,9 @@ Inventory correctness: резервирование/списание — ато�
 
 Точная спецификация — в Swagger. Ключевые ручки:
 
-- `POST /api/v1/auth/register|login|refresh|logout|change-password`, `GET /api/v1/auth/me`
+- `POST /api/v1/auth/register|login|refresh|logout|change-password`, `GET /api/v1/auth/me`;
+  `forgot-password`/`reset-password` и `verify-email`/`resend-verification` —
+  одноразовые токены по почте (без раскрытия существования аккаунта)
 - `GET /api/v1/catalog/products` (страницы), `GET /api/v1/catalog/products/search`
   (фильтры: `q, categoryId, brandId, gender, size, color, minPrice, maxPrice, inStock`),
   `GET /api/v1/catalog/products/{id}` (с вариантами и остатками), `GET /api/v1/catalog/brands`

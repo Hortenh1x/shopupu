@@ -45,6 +45,12 @@ class AuthServiceTest {
     @Mock
     private com.example.shopupu.cart.service.CartService cartService;
 
+    @Mock
+    private OneTimeTokenService oneTimeTokenService;
+
+    @Mock
+    private com.example.shopupu.notifications.NotificationService notificationService;
+
     @InjectMocks
     private AuthService authService;
 
@@ -100,6 +106,39 @@ class AuthServiceTest {
         var ex = assertThrows(UnauthorizedException.class,
                 () -> authService.login("user@example.com", "wrong"));
         assertEquals("Wrong login or password", ex.getMessage());
+    }
+
+    @Test
+    void forgotPasswordIsSilentForUnknownEmail() {
+        when(userService.getByEmail("ghost@example.com")).thenReturn(Optional.empty());
+
+        authService.forgotPassword("ghost@example.com");
+
+        org.mockito.Mockito.verifyNoInteractions(oneTimeTokenService, notificationService);
+    }
+
+    @Test
+    void forgotPasswordSendsTokenForKnownEmail() {
+        User user = user();
+        when(userService.getByEmail("user@example.com")).thenReturn(Optional.of(user));
+        when(oneTimeTokenService.mint(user, com.example.shopupu.auth.entity.OneTimeToken.Purpose.PASSWORD_RESET))
+                .thenReturn("raw-token");
+
+        authService.forgotPassword("user@example.com");
+
+        verify(notificationService).sendPasswordReset("user@example.com", "raw-token");
+    }
+
+    @Test
+    void resetPasswordConsumesTokenAndRevokesSessions() {
+        User user = user();
+        when(oneTimeTokenService.consume("raw-token",
+                com.example.shopupu.auth.entity.OneTimeToken.Purpose.PASSWORD_RESET)).thenReturn(user);
+
+        authService.resetPassword("raw-token", "newPassword1");
+
+        verify(userService).setPassword(user, "newPassword1");
+        verify(refreshTokenService).revokeAll(user);
     }
 
     @Test

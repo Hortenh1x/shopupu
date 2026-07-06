@@ -7,4 +7,10 @@ package com.example.shopupu.notifications;
 public interface NotificationService {
 
     void sendOrderStatusUpdate(String email, String orderNumber, String newStatus);
+
+    /** One-time reset token; the frontend embeds it into its reset page link. */
+    void sendPasswordReset(String email, String token);
+
+    /** One-time verification token for a freshly registered address. */
+    void sendEmailVerification(String email, String token);
 }

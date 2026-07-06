@@ -24,14 +24,31 @@ public class SmtpNotificationService implements NotificationService {
 
     @Override
     public void sendOrderStatusUpdate(String email, String orderNumber, String newStatus) {
+        send(email, "notification.order-status.subject", new Object[]{orderNumber},
+                "notification.order-status.body", new Object[]{orderNumber, newStatus});
+        log.info("Sent order status email for {}", orderNumber);
+    }
+
+    @Override
+    public void sendPasswordReset(String email, String token) {
+        send(email, "notification.password-reset.subject", new Object[]{},
+                "notification.password-reset.body", new Object[]{token});
+        log.info("Sent password reset email");
+    }
+
+    @Override
+    public void sendEmailVerification(String email, String token) {
+        send(email, "notification.email-verification.subject", new Object[]{},
+                "notification.email-verification.body", new Object[]{token});
+        log.info("Sent email verification email");
+    }
+
+    private void send(String to, String subjectKey, Object[] subjectArgs, String bodyKey, Object[] bodyArgs) {
         var locale = LocaleContextHolder.getLocale();
         SimpleMailMessage message = new SimpleMailMessage();
-        message.setTo(email);
-        message.setSubject(messageSource.getMessage(
-                "notification.order-status.subject", new Object[]{orderNumber}, locale));
-        message.setText(messageSource.getMessage(
-                "notification.order-status.body", new Object[]{orderNumber, newStatus}, locale));
+        message.setTo(to);
+        message.setSubject(messageSource.getMessage(subjectKey, subjectArgs, locale));
+        message.setText(messageSource.getMessage(bodyKey, bodyArgs, locale));
         mailSender.send(message);
-        log.info("Sent order status email for {}", orderNumber);
     }
 }

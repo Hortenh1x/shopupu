@@ -38,8 +38,37 @@ public class AuthController {
         User user = userService.registerUser(req.email(), req.password());
         var pair = authService.issueTokens(user);
         authService.adoptGuestCart(guestCartToken, user.getEmail());
+        authService.sendEmailVerification(user);
         return ResponseEntity.status(HttpStatus.CREATED)
                 .body(new TokenPairResponse(pair.accessToken(), pair.refreshToken()));
+    }
+
+    @PostMapping("/verify-email")
+    public ResponseEntity<Void> verifyEmail(@Valid @RequestBody com.example.shopupu.auth.dto.VerifyEmailRequest req) {
+        authService.verifyEmail(req.token());
+        return ResponseEntity.noContent().build();
+    }
+
+    @PostMapping("/resend-verification")
+    @PreAuthorize("isAuthenticated()")
+    public ResponseEntity<Void> resendVerification(Authentication authentication) {
+        var user = userService.getByEmail(authentication.getName())
+                .orElseThrow(() -> new ResourceNotFoundException("User not found"));
+        authService.sendEmailVerification(user);
+        return ResponseEntity.noContent().build();
+    }
+
+    @PostMapping("/forgot-password")
+    public ResponseEntity<Void> forgotPassword(@Valid @RequestBody com.example.shopupu.auth.dto.ForgotPasswordRequest req) {
+        authService.forgotPassword(req.email());
+        // identical response whether the account exists or not (SEC-16)
+        return ResponseEntity.noContent().build();
+    }
+
+    @PostMapping("/reset-password")
+    public ResponseEntity<Void> resetPassword(@Valid @RequestBody com.example.shopupu.auth.dto.ResetPasswordRequest req) {
+        authService.resetPassword(req.token(), req.newPassword());
+        return ResponseEntity.noContent().build();
     }
 
     @PostMapping("/login")

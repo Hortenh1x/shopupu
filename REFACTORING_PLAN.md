@@ -137,6 +137,8 @@ Review (PENDING→APPROVED/REJECTED, verified purchase)
 - [x] USER-06/COMPL-05: журнал согласий с версией политики (append-only, V13), `GET/PUT /api/v1/users/me/consents`
 - [x] CACHE-03: ETag/304 для публичного каталога и статики (ShallowEtagHeaderFilter)
 - [x] DOC-03/04/05: ADR (auth, inventory, payments), ER-диаграмма (mermaid), runbook — в `docs/`
+- [x] AUTH-07/SEC-16: восстановление пароля через одноразовый токен (хэш в БД, TTL 30 мин, one-shot, отзыв всех сессий); `forgot-password` отвечает одинаково для существующих и несуществующих email
+- [x] AUTH-06: верификация email при регистрации (одноразовый токен, TTL 24 ч, `verify-email`/`resend-verification`, флаг `emailVerified` в профиле)
 - [ ] ARCH-03: MapStruct (зависимости подключены, мапперы пока ручные)
 
 ### Фаза 5 — Поэтапно [M]

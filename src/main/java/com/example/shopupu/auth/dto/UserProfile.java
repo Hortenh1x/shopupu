@@ -11,6 +11,7 @@ public record UserProfile(
         String phone,
         String preferredSize,
         boolean enabled,
+        boolean emailVerified,
         List<String> roles
 ) {
     public static UserProfile from(User user) {
@@ -22,6 +23,7 @@ public record UserProfile(
                 user.getPhone(),
                 user.getPreferredSize(),
                 user.isEnabled(),
+                user.isEmailVerified(),
                 user.getRoles().stream().map(role -> role.getName()).toList()
         );
     }

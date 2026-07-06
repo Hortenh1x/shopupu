@@ -35,7 +35,7 @@ public class AdminOrderController {
     public ResponseEntity<Page<OrderDto>> getOrders(
             @RequestParam(required = false) OrderStatus status,
             @PageableDefault(size = 20) Pageable pageable) {
-        return ResponseEntity.ok(orderService.getAllOrders(status, pageable).map(orderMapper::toDto));
+        return ResponseEntity.ok(orderService.getAllOrders(status, pageable));
     }
 
     @GetMapping("/{id}")

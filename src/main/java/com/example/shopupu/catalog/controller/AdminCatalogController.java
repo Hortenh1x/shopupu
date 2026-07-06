@@ -7,7 +7,6 @@ import com.example.shopupu.catalog.dto.ProductRequest;
 import com.example.shopupu.catalog.dto.ProductResponse;
 import com.example.shopupu.catalog.dto.VariantRequest;
 import com.example.shopupu.catalog.dto.VariantResponse;
-import com.example.shopupu.catalog.entity.Product;
 import com.example.shopupu.catalog.entity.ProductVariant;
 import com.example.shopupu.catalog.mapper.CatalogMapper;
 import com.example.shopupu.catalog.service.CatalogService;
@@ -67,20 +66,17 @@ public class AdminCatalogController {
     @PostMapping("/products")
     public ResponseEntity<ProductResponse> createProduct(@Valid @RequestBody ProductRequest request) {
         var created = catalogService.createProduct(request);
-        return ResponseEntity.status(HttpStatus.CREATED)
-                .body(catalogMapper.toProductResponse(created, Map.of()));
+        return ResponseEntity.status(HttpStatus.CREATED).body(created);
     }
 
     @GetMapping("/products")
     public ResponseEntity<Page<ProductResponse>> getProducts(@PageableDefault(size = 20) Pageable pageable) {
-        return ResponseEntity.ok(catalogService.getAllProductsForAdmin(pageable)
-                .map(product -> catalogMapper.toProductResponse(product, availability(product))));
+        return ResponseEntity.ok(catalogService.getAllProductsForAdmin(pageable));
     }
 
     @GetMapping("/products/{id}")
     public ResponseEntity<ProductResponse> getProduct(@PathVariable Long id) {
-        Product product = catalogService.getProductForAdmin(id);
-        return ResponseEntity.ok(catalogMapper.toProductResponse(product, availability(product)));
+        return ResponseEntity.ok(catalogService.getProductForAdmin(id));
     }
 
     @PutMapping("/products/{id}")
@@ -88,8 +84,7 @@ public class AdminCatalogController {
             @PathVariable Long id,
             @Valid @RequestBody ProductRequest request
     ) {
-        var updated = catalogService.updateProduct(id, request);
-        return ResponseEntity.ok(catalogMapper.toProductResponse(updated, availability(updated)));
+        return ResponseEntity.ok(catalogService.updateProduct(id, request));
     }
 
     @DeleteMapping("/products/{id}")
@@ -158,11 +153,4 @@ public class AdminCatalogController {
         return ResponseEntity.noContent().build();
     }
 
-    private Map<Long, Integer> availability(Product product) {
-        if (product.getVariants() == null || product.getVariants().isEmpty()) {
-            return Map.of();
-        }
-        return inventoryService.availabilityFor(
-                product.getVariants().stream().map(ProductVariant::getId).toList());
-    }
 }

@@ -40,9 +40,7 @@ public class OrderController {
             @PageableDefault(size = 20) Pageable pageable
     ) {
         User user = accessControlService.currentUser();
-        Page<OrderDto> page = orderService.getOrdersForUser(user, status, pageable)
-                .map(orderMapper::toDto);
-        return ResponseEntity.ok(page);
+        return ResponseEntity.ok(orderService.getOrdersForUser(user, status, pageable));
     }
 
     @GetMapping("/{id}")

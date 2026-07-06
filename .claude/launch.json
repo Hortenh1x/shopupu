@@ -1,0 +1,11 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "shopupu-web",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": ["--prefix", "/home/horten/Idea Projects/shopupu-web", "run", "start"],
+      "port": 3000
+    }
+  ]
+}

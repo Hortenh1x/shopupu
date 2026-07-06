@@ -11,6 +11,12 @@ import org.springframework.data.jpa.repository.Query;
 
 public interface ReviewRepository extends JpaRepository<Review, Long> {
 
+    // to-one graph is safe with pagination; needed because admin mapping
+    // happens in the controller and OSIV is off
+    @Override
+    @EntityGraph(attributePaths = {"user", "product"})
+    Page<Review> findAll(Pageable pageable);
+
     @EntityGraph(attributePaths = {"user", "product"})
     Page<Review> findByProductIdAndStatus(Long productId, ReviewStatus status, Pageable pageable);
 

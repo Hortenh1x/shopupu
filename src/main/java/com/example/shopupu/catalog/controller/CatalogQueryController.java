@@ -46,7 +46,6 @@ public class CatalogQueryController {
         // the public search never exposes disabled products
         filter.enabled = Boolean.TRUE;
 
-        return productQueryService.findProducts(filter, pageable)
-                .map(catalogMapper::toProductListItem);
+        return productQueryService.findProducts(filter, pageable);
     }
 }

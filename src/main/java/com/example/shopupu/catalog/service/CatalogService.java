@@ -39,6 +39,7 @@ public class CatalogService {
     private final BrandRepository brandRepository;
     private final InventoryService inventoryService;
     private final FileStorageService fileStorageService;
+    private final com.example.shopupu.catalog.mapper.CatalogMapper catalogMapper;
 
     // === Categories =========================================================
 
@@ -113,23 +114,23 @@ public class CatalogService {
 
     // === Products ===========================================================
 
-    public Product createProduct(ProductRequest request) {
+    public com.example.shopupu.catalog.dto.ProductResponse createProduct(ProductRequest request) {
         Category category = findCategory(request.categoryId());
 
         Product product = new Product();
         applyProductFields(product, request, category);
         product.setSlug(resolveProductSlug(request.slug(), request.title(), null));
-        return productRepository.save(product);
+        return toResponse(productRepository.save(product));
     }
 
-    public Product updateProduct(Long id, ProductRequest request) {
+    public com.example.shopupu.catalog.dto.ProductResponse updateProduct(Long id, ProductRequest request) {
         Product product = findProductForAdmin(id);
         Category category = findCategory(request.categoryId());
         applyProductFields(product, request, category);
         if (request.slug() != null && !request.slug().isBlank()) {
             product.setSlug(resolveProductSlug(request.slug(), request.title(), id));
         }
-        return productRepository.save(product);
+        return toResponse(productRepository.save(product));
     }
 
     private void applyProductFields(Product product, ProductRequest request, Category category) {
@@ -168,33 +169,43 @@ public class CatalogService {
         }
     }
 
+    // DTO mapping stays inside the transaction: OSIV is off, so lazy
+    // images/variants must be walked while the session is open (DB-07).
+
     @Transactional(readOnly = true)
-    public Page<Product> getAllProducts(Pageable pageable) {
-        return productRepository.findByEnabledIsTrueAndDeletedAtIsNull(pageable);
+    public Page<com.example.shopupu.catalog.dto.ProductListItem> getAllProducts(Pageable pageable) {
+        return productRepository.findByEnabledIsTrueAndDeletedAtIsNull(pageable)
+                .map(catalogMapper::toProductListItem);
     }
 
     @Transactional(readOnly = true)
-    public Page<Product> getAllProductsForAdmin(Pageable pageable) {
-        return productRepository.findAll(pageable);
+    public Page<com.example.shopupu.catalog.dto.ProductResponse> getAllProductsForAdmin(Pageable pageable) {
+        return productRepository.findAll(pageable).map(this::toResponse);
     }
 
     @Transactional(readOnly = true)
-    public Product getProduct(Long id) {
+    public com.example.shopupu.catalog.dto.ProductResponse getProduct(Long id) {
         Product product = findProductForAdmin(id);
         if (!Boolean.TRUE.equals(product.getEnabled()) || product.isDeleted()) {
             throw new ResourceNotFoundException("Product with id " + id + " not found");
         }
-        return product;
+        return toResponse(product);
     }
 
     @Transactional(readOnly = true)
-    public Product getProductForAdmin(Long id) {
-        return findProductForAdmin(id);
+    public com.example.shopupu.catalog.dto.ProductResponse getProductForAdmin(Long id) {
+        return toResponse(findProductForAdmin(id));
     }
 
     @Transactional(readOnly = true)
-    public Page<Product> getProductsByCategory(String slug, Pageable pageable) {
-        return productRepository.findByCategory_SlugAndEnabledIsTrueAndDeletedAtIsNull(slug, pageable);
+    public Page<com.example.shopupu.catalog.dto.ProductListItem> getProductsByCategory(String slug, Pageable pageable) {
+        return productRepository.findByCategory_SlugAndEnabledIsTrueAndDeletedAtIsNull(slug, pageable)
+                .map(catalogMapper::toProductListItem);
+    }
+
+    private com.example.shopupu.catalog.dto.ProductResponse toResponse(Product product) {
+        var variantIds = product.getVariants().stream().map(ProductVariant::getId).toList();
+        return catalogMapper.toProductResponse(product, inventoryService.availabilityFor(variantIds));
     }
 
     /** Soft delete (DB-11): keeps the row for order history, hides it everywhere. */

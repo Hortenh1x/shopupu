@@ -8,7 +8,8 @@ services:
     ports:
       - "5432:5432"
     volumes:
-      - shopupu-db:/var/lib/postgresql/data
+      # postgres:18 images keep PGDATA in a subdirectory of /var/lib/postgresql
+      - shopupu-db:/var/lib/postgresql
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U shopupu"]
       interval: 5s

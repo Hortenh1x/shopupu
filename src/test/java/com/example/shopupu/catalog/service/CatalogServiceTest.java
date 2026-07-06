@@ -74,6 +74,9 @@ class CatalogServiceTest {
     @Mock
     private FileStorageService fileStorageService;
 
+    @org.mockito.Spy
+    private com.example.shopupu.catalog.mapper.CatalogMapper catalogMapper = new com.example.shopupu.catalog.mapper.CatalogMapper();
+
     @InjectMocks
     private CatalogService catalogService;
 
@@ -162,15 +165,15 @@ class CatalogServiceTest {
         ProductRequest request = new ProductRequest(1L, "Phone X", "phone-x", "desc",
                 new BigDecimal("10.00"), null, null, null, null, null, null, null, null, false);
 
-        Product product = catalogService.createProduct(request);
+        var product = catalogService.createProduct(request);
 
-        assertEquals("Phone X", product.getTitle());
-        assertEquals("phone-x", product.getSlug());
-        assertEquals(new BigDecimal("10.00"), product.getPrice());
-        assertEquals(false, product.getEnabled());
-        assertEquals(Gender.UNISEX, product.getGender());
-        assertNull(product.getBrand());
-        assertSame(category, product.getCategory());
+        assertEquals("Phone X", product.title());
+        assertEquals("phone-x", product.slug());
+        assertEquals(new BigDecimal("10.00"), product.price());
+        assertEquals(false, product.enabled());
+        assertEquals(Gender.UNISEX, product.gender());
+        assertNull(product.brandName());
+        assertEquals(category.getId(), product.categoryId());
     }
 
     // handles createProduct.
@@ -187,17 +190,16 @@ class CatalogServiceTest {
         ProductRequest request = new ProductRequest(1L, "Cool Hoodie", null, "desc",
                 new BigDecimal("59.99"), null, "Nike", Gender.MEN, null, null, null, null, null, true);
 
-        Product product = catalogService.createProduct(request);
+        var product = catalogService.createProduct(request);
 
-        assertEquals("cool-hoodie", product.getSlug());
-        assertEquals(Gender.MEN, product.getGender());
-        assertNotNull(product.getBrand());
-        assertEquals("Nike", product.getBrand().getName());
-        assertEquals("nike", product.getBrand().getSlug());
+        assertEquals("cool-hoodie", product.slug());
+        assertEquals(Gender.MEN, product.gender());
+        assertEquals("Nike", product.brandName());
 
         ArgumentCaptor<Brand> brandCaptor = ArgumentCaptor.forClass(Brand.class);
         verify(brandRepository).save(brandCaptor.capture());
         assertEquals("Nike", brandCaptor.getValue().getName());
+        assertEquals("nike", brandCaptor.getValue().getSlug());
     }
 
     // handles createProduct.
@@ -213,9 +215,9 @@ class CatalogServiceTest {
         ProductRequest request = new ProductRequest(1L, "Cool Hoodie", null, null,
                 new BigDecimal("59.99"), null, "Nike", null, null, null, null, null, null, true);
 
-        Product product = catalogService.createProduct(request);
+        var product = catalogService.createProduct(request);
 
-        assertSame(existing, product.getBrand());
+        assertEquals("Nike", product.brandName());
         verify(brandRepository, never()).save(any(Brand.class));
     }
 
@@ -245,18 +247,18 @@ class CatalogServiceTest {
                 new BigDecimal("20.00"), new BigDecimal("25.00"), null, Gender.WOMEN,
                 "summer", "cotton", "wash cold", "meta", "meta desc", false);
 
-        Product updated = catalogService.updateProduct(10L, request);
+        var updated = catalogService.updateProduct(10L, request);
 
-        assertEquals("Updated", updated.getTitle());
-        assertEquals(new BigDecimal("20.00"), updated.getPrice());
-        assertEquals(new BigDecimal("25.00"), updated.getOldPrice());
-        assertEquals(Gender.WOMEN, updated.getGender());
-        assertEquals("summer", updated.getSeason());
-        assertEquals("cotton", updated.getMaterial());
-        assertEquals(false, updated.getEnabled());
+        assertEquals("Updated", updated.title());
+        assertEquals(new BigDecimal("20.00"), updated.price());
+        assertEquals(new BigDecimal("25.00"), updated.oldPrice());
+        assertEquals(Gender.WOMEN, updated.gender());
+        assertEquals("summer", updated.season());
+        assertEquals("cotton", updated.material());
+        assertEquals(false, updated.enabled());
         // slug is not touched when the request does not provide one
-        assertEquals("phone", updated.getSlug());
-        assertSame(newCategory, updated.getCategory());
+        assertEquals("phone", updated.slug());
+        assertEquals(newCategory.getId(), updated.categoryId());
     }
 
     // handles getAllProducts.
@@ -267,7 +269,9 @@ class CatalogServiceTest {
         Page<Product> page = new PageImpl<>(List.of(product), pageable, 1);
         when(productRepository.findByEnabledIsTrueAndDeletedAtIsNull(pageable)).thenReturn(page);
 
-        assertEquals(page, catalogService.getAllProducts(pageable));
+        var result = catalogService.getAllProducts(pageable);
+        assertEquals(1, result.getTotalElements());
+        assertEquals("Phone", result.getContent().get(0).title());
     }
 
     // handles getProductsByCategory.
@@ -278,7 +282,9 @@ class CatalogServiceTest {
         Page<Product> page = new PageImpl<>(List.of(product), pageable, 1);
         when(productRepository.findByCategory_SlugAndEnabledIsTrueAndDeletedAtIsNull("phones", pageable)).thenReturn(page);
 
-        assertEquals(page, catalogService.getProductsByCategory("phones", pageable));
+        var result = catalogService.getProductsByCategory("phones", pageable);
+        assertEquals(1, result.getTotalElements());
+        assertEquals("Phone", result.getContent().get(0).title());
     }
 
     // handles getProduct.
@@ -296,7 +302,7 @@ class CatalogServiceTest {
 
         Product visible = product(7L, category(1L, "Phones", "phones", null));
         when(productRepository.findById(7L)).thenReturn(Optional.of(visible));
-        assertSame(visible, catalogService.getProduct(7L));
+        assertEquals("Phone", catalogService.getProduct(7L).title());
     }
 
     // handles deleteProduct.

@@ -27,6 +27,9 @@ class ProductQueryServiceTest {
     @Mock
     private ProductRepository productRepository;
 
+    @org.mockito.Spy
+    private com.example.shopupu.catalog.mapper.CatalogMapper catalogMapper = new com.example.shopupu.catalog.mapper.CatalogMapper();
+
     @InjectMocks
     private ProductQueryService productQueryService;
 

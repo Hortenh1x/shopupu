@@ -54,6 +54,7 @@ public class OrderService {
     private final org.springframework.context.ApplicationEventPublisher eventPublisher;
     private final com.example.shopupu.common.audit.AuditService auditService;
     private final io.micrometer.core.instrument.MeterRegistry meterRegistry;
+    private final com.example.shopupu.orders.mapper.OrderMapper orderMapper;
 
     @Transactional
     public Order createOrderFromCart(User user, String idempotencyKey) {
@@ -152,21 +153,22 @@ public class OrderService {
         return savedOrder;
     }
 
+    // paged lists are mapped inside the transaction: items are lazy and OSIV is off
     @Transactional(readOnly = true)
-    public Page<Order> getOrdersForUser(User user, OrderStatus status, Pageable pageable) {
-        if (status == null) {
-            return orderRepository.findByUser(user, pageable);
-        }
-        return orderRepository.findByUserAndStatus(user, status, pageable);
+    public Page<com.example.shopupu.orders.dto.OrderDto> getOrdersForUser(User user, OrderStatus status, Pageable pageable) {
+        Page<Order> page = status == null
+                ? orderRepository.findByUser(user, pageable)
+                : orderRepository.findByUserAndStatus(user, status, pageable);
+        return page.map(orderMapper::toDto);
     }
 
     @Transactional(readOnly = true)
-    public Page<Order> getAllOrders(OrderStatus status, Pageable pageable) {
+    public Page<com.example.shopupu.orders.dto.OrderDto> getAllOrders(OrderStatus status, Pageable pageable) {
         accessControlService.requireAdmin();
-        if (status == null) {
-            return orderRepository.findAll(pageable);
-        }
-        return orderRepository.findByStatus(status, pageable);
+        Page<Order> page = status == null
+                ? orderRepository.findAll(pageable)
+                : orderRepository.findByStatus(status, pageable);
+        return page.map(orderMapper::toDto);
     }
 
     @Transactional(readOnly = true)

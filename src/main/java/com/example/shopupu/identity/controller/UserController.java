@@ -9,6 +9,7 @@ import com.example.shopupu.identity.dto.UserDataExport;
 import com.example.shopupu.identity.dto.WishlistEntryResponse;
 import com.example.shopupu.identity.entity.User;
 import com.example.shopupu.identity.service.AddressBookService;
+import com.example.shopupu.identity.service.ConsentService;
 import com.example.shopupu.identity.service.GdprService;
 import com.example.shopupu.identity.service.UserService;
 import com.example.shopupu.identity.service.WishlistService;
@@ -42,6 +43,7 @@ public class UserController {
     private final AddressBookService addressBookService;
     private final WishlistService wishlistService;
     private final GdprService gdprService;
+    private final ConsentService consentService;
     private final AccessControlService accessControlService;
 
     // === Profile ============================================================
@@ -113,6 +115,19 @@ public class UserController {
     public ResponseEntity<Void> removeFromWishlist(@PathVariable Long productId) {
         wishlistService.remove(accessControlService.currentUser(), productId);
         return ResponseEntity.noContent().build();
+    }
+
+    // === Consents (USER-06) =================================================
+
+    @GetMapping("/consents")
+    public ResponseEntity<List<com.example.shopupu.identity.dto.ConsentResponse>> getConsents() {
+        return ResponseEntity.ok(consentService.getCurrentConsents(accessControlService.currentUser()));
+    }
+
+    @PutMapping("/consents")
+    public ResponseEntity<com.example.shopupu.identity.dto.ConsentResponse> updateConsent(
+            @Valid @RequestBody com.example.shopupu.identity.dto.ConsentRequest request) {
+        return ResponseEntity.ok(consentService.recordConsent(accessControlService.currentUser(), request));
     }
 
     // === GDPR ===============================================================

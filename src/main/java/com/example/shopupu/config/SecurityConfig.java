@@ -48,6 +48,8 @@ public class SecurityConfig {
                         .requestMatchers(HttpMethod.POST,
                                 "/api/v1/auth/register", "/api/v1/auth/login", "/api/v1/auth/refresh").permitAll()
                         .requestMatchers(HttpMethod.GET, "/api/v1/catalog/**").permitAll()
+                        // guest carts are scoped by an opaque X-Cart-Token (CART-01)
+                        .requestMatchers("/api/v1/cart/**").permitAll()
                         // payment callbacks are authenticated by provider signature, not JWT
                         .requestMatchers(HttpMethod.POST, "/api/v1/payments/callback").permitAll()
                         .requestMatchers("/swagger", "/swagger-ui/**", "/v3/api-docs/**").permitAll()

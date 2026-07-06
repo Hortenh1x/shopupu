@@ -11,6 +11,9 @@ public interface CartRepository extends JpaRepository<Cart, Long> {
     @EntityGraph(attributePaths = {"items", "items.variant", "items.variant.product"})
     Optional<Cart> findByUser_Email(String email);
 
+    @EntityGraph(attributePaths = {"items", "items.variant", "items.variant.product"})
+    Optional<Cart> findByGuestToken(String guestToken);
+
     Optional<Cart> findByUser(User user);
 
     boolean existsByUser_Email(String email);

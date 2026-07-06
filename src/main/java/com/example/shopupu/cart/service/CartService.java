@@ -17,22 +17,43 @@ import com.example.shopupu.identity.repository.UserRepository;
 import com.example.shopupu.inventory.service.InventoryService;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
+import java.security.SecureRandom;
 import java.util.ArrayList;
+import java.util.Base64;
 import java.util.List;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 
+@Slf4j
 @Service
 @RequiredArgsConstructor
 public class CartService {
+
+    private static final SecureRandom RANDOM = new SecureRandom();
 
     private final CartRepository cartRepository;
     private final CartItemRepository cartItemRepository;
     private final ProductVariantRepository variantRepository;
     private final InventoryService inventoryService;
     private final UserRepository userRepository;
+
+    /** Cart owner: an authenticated user (email) or an anonymous guest (token). */
+    public record CartKey(String email, String guestToken) {
+        public static CartKey user(String email) {
+            return new CartKey(email, null);
+        }
+
+        public static CartKey guest(String token) {
+            return new CartKey(null, token);
+        }
+
+        public boolean isUser() {
+            return email != null;
+        }
+    }
 
     @Transactional
     public Cart getOrCreateCart(String userEmail) {
@@ -46,12 +67,24 @@ public class CartService {
     }
 
     @Transactional
-    public CartResponse addItem(String userEmail, Long variantId, Integer quantity) {
+    public Cart getOrCreateGuestCart(String guestToken) {
+        if (guestToken != null && !guestToken.isBlank()) {
+            var existing = cartRepository.findByGuestToken(guestToken);
+            if (existing.isPresent()) {
+                return existing.get();
+            }
+        }
+        Cart cart = Cart.builder().guestToken(newGuestToken()).build();
+        return cartRepository.save(cart);
+    }
+
+    @Transactional
+    public CartResponse addItem(CartKey key, Long variantId, Integer quantity) {
         if (quantity == null || quantity <= 0) {
             throw new BusinessRuleException("Quantity must be more than 0");
         }
 
-        Cart cart = getOrCreateCart(userEmail);
+        Cart cart = resolveCart(key, true);
         ProductVariant variant = findVariant(variantId);
         validateVariantCanBeAdded(variant, quantity);
 
@@ -69,16 +102,16 @@ public class CartService {
         }
 
         cartItemRepository.save(cartItem);
-        return reloadCartResponse(userEmail);
+        return reload(cart);
     }
 
     @Transactional
-    public CartResponse setQuantity(String userEmail, Long variantId, Integer quantity) {
+    public CartResponse setQuantity(CartKey key, Long variantId, Integer quantity) {
         if (quantity == null || quantity < 0) {
             throw new BusinessRuleException("Quantity must be 0 or more");
         }
 
-        Cart cart = getOrCreateCart(userEmail);
+        Cart cart = resolveCart(key, false);
         CartItem cartItem = cartItemRepository.findByCart_IdAndVariant_Id(cart.getId(), variantId)
                 .orElseThrow(() -> new ResourceNotFoundException("Item not in cart: variant " + variantId));
 
@@ -90,28 +123,88 @@ public class CartService {
             cartItemRepository.save(cartItem);
         }
 
-        return reloadCartResponse(userEmail);
+        return reload(cart);
     }
 
     @Transactional
-    public CartResponse removeItem(String userEmail, Long variantId) {
-        Cart cart = getOrCreateCart(userEmail);
+    public CartResponse removeItem(CartKey key, Long variantId) {
+        Cart cart = resolveCart(key, false);
         cartItemRepository.deleteByCart_IdAndVariant_Id(cart.getId(), variantId);
-        return reloadCartResponse(userEmail);
+        return reload(cart);
     }
 
     @Transactional
-    public CartResponse clear(String userEmail) {
-        Cart cart = getOrCreateCart(userEmail);
+    public CartResponse clear(CartKey key) {
+        Cart cart = resolveCart(key, false);
         cart.getItems().clear();
         cartRepository.save(cart);
-        return reloadCartResponse(userEmail);
+        return reload(cart);
     }
 
     @Transactional
+    public CartResponse getCart(CartKey key) {
+        if (!key.isUser() && (key.guestToken() == null || key.guestToken().isBlank())) {
+            // anonymous browsing without a cart yet: nothing to persist
+            return new CartResponse(List.of(), 0, BigDecimal.ZERO, null);
+        }
+        return toResponse(resolveCart(key, true));
+    }
+
+    /** Convenience for authenticated flows (promo validation, tests). */
+    @Transactional
     public CartResponse getCart(String userEmail) {
-        Cart cart = getOrCreateCart(userEmail);
-        return toResponse(cart);
+        return getCart(CartKey.user(userEmail));
+    }
+
+    /**
+     * Merges the guest cart into the user's cart at login (CART-02).
+     * Quantities are summed; items that no longer fit availability are dropped.
+     */
+    @Transactional
+    public void mergeGuestCart(String guestToken, String userEmail) {
+        if (guestToken == null || guestToken.isBlank()) {
+            return;
+        }
+        Cart guestCart = cartRepository.findByGuestToken(guestToken).orElse(null);
+        if (guestCart == null || guestCart.getItems().isEmpty()) {
+            if (guestCart != null) {
+                cartRepository.delete(guestCart);
+            }
+            return;
+        }
+
+        CartKey userKey = CartKey.user(userEmail);
+        for (CartItem item : List.copyOf(guestCart.getItems())) {
+            try {
+                addItem(userKey, item.getVariant().getId(), item.getQuantity());
+            } catch (BusinessRuleException e) {
+                log.info("Skipped merging cart item variant={} for {}: {}",
+                        item.getVariant().getId(), userEmail, e.getMessage());
+            }
+        }
+        cartRepository.delete(guestCart);
+    }
+
+    private Cart resolveCart(CartKey key, boolean createIfMissing) {
+        if (key.isUser()) {
+            return getOrCreateCart(key.email());
+        }
+        if (createIfMissing) {
+            return getOrCreateGuestCart(key.guestToken());
+        }
+        if (key.guestToken() == null || key.guestToken().isBlank()) {
+            throw new ResourceNotFoundException("Cart not found");
+        }
+        return cartRepository.findByGuestToken(key.guestToken())
+                .orElseThrow(() -> new ResourceNotFoundException("Cart not found"));
+    }
+
+    private CartResponse reload(Cart cart) {
+        // re-read through the owner lookup: it carries the items entity graph
+        Cart fresh = cart.getUser() != null
+                ? cartRepository.findByUser_Email(cart.getUser().getEmail()).orElse(cart)
+                : cartRepository.findByGuestToken(cart.getGuestToken()).orElse(cart);
+        return toResponse(fresh);
     }
 
     private CartResponse toResponse(Cart cart) {
@@ -142,7 +235,7 @@ public class CartService {
             ));
         }
 
-        return new CartResponse(items, totalItems, subtotal);
+        return new CartResponse(items, totalItems, subtotal, cart.getGuestToken());
     }
 
     private void validateVariantCanBeAdded(ProductVariant variant, int requestedQuantity) {
@@ -162,8 +255,9 @@ public class CartService {
                 .orElseThrow(() -> new ResourceNotFoundException("Variant: " + variantId + " not found"));
     }
 
-    private CartResponse reloadCartResponse(String userEmail) {
-        Cart cart = cartRepository.findByUser_Email(userEmail).orElseThrow();
-        return toResponse(cart);
+    private String newGuestToken() {
+        byte[] bytes = new byte[24];
+        RANDOM.nextBytes(bytes);
+        return Base64.getUrlEncoder().withoutPadding().encodeToString(bytes);
     }
 }

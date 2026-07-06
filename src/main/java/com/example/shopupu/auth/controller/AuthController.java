@@ -19,6 +19,7 @@ import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
@@ -31,16 +32,21 @@ public class AuthController {
     private final AuthService authService;
 
     @PostMapping("/register")
-    public ResponseEntity<TokenPairResponse> register(@Valid @RequestBody RegisterRequest req) {
+    public ResponseEntity<TokenPairResponse> register(
+            @RequestHeader(value = "X-Cart-Token", required = false) String guestCartToken,
+            @Valid @RequestBody RegisterRequest req) {
         User user = userService.registerUser(req.email(), req.password());
         var pair = authService.issueTokens(user);
+        authService.adoptGuestCart(guestCartToken, user.getEmail());
         return ResponseEntity.status(HttpStatus.CREATED)
                 .body(new TokenPairResponse(pair.accessToken(), pair.refreshToken()));
     }
 
     @PostMapping("/login")
-    public ResponseEntity<TokenPairResponse> login(@Valid @RequestBody LoginRequest req) {
-        var pair = authService.login(req.email(), req.password());
+    public ResponseEntity<TokenPairResponse> login(
+            @RequestHeader(value = "X-Cart-Token", required = false) String guestCartToken,
+            @Valid @RequestBody LoginRequest req) {
+        var pair = authService.login(req.email(), req.password(), guestCartToken);
         return ResponseEntity.ok(new TokenPairResponse(pair.accessToken(), pair.refreshToken()));
     }
 

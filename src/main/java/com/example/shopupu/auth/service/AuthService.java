@@ -23,11 +23,17 @@ public class AuthService {
     private final AuthenticationManager authenticationManager;
     private final UserService userService;
     private final com.example.shopupu.common.audit.AuditService auditService;
+    private final com.example.shopupu.cart.service.CartService cartService;
 
     public record TokenPair(String accessToken, String refreshToken) {}
 
     @Transactional
     public TokenPair login(String email, String password) {
+        return login(email, password, null);
+    }
+
+    @Transactional
+    public TokenPair login(String email, String password, String guestCartToken) {
         try {
             authenticationManager.authenticate(new UsernamePasswordAuthenticationToken(email, password));
         } catch (AuthenticationException e) {
@@ -38,6 +44,7 @@ public class AuthService {
         User user = userService.getByEmail(email)
                 .orElseThrow(() -> new UnauthorizedException("Wrong login or password"));
         auditService.record(email, "LOGIN_SUCCEEDED", "user", String.valueOf(user.getId()), null);
+        cartService.mergeGuestCart(guestCartToken, email);
         return issueTokens(user);
     }
 
@@ -61,6 +68,12 @@ public class AuthService {
 
         String newAccess = jwtTokenProvider.generateToken(principal);
         return new TokenPair(newAccess, newRt.rawToken());
+    }
+
+    /** Carries an anonymous cart over to a freshly registered account (CART-02). */
+    @Transactional
+    public void adoptGuestCart(String guestCartToken, String email) {
+        cartService.mergeGuestCart(guestCartToken, email);
     }
 
     @Transactional

@@ -112,7 +112,7 @@ class CartServiceTest {
             return item;
         });
 
-        var response = cartService.addItem("user@example.com", 100L, 2);
+        var response = cartService.addItem(CartService.CartKey.user("user@example.com"), 100L, 2);
 
         assertEquals(2, response.totalItems());
         assertEquals(new BigDecimal("20.00"), response.subtotal());
@@ -136,7 +136,7 @@ class CartServiceTest {
         when(cartItemRepository.findByCart_IdAndVariant_Id(10L, 100L)).thenReturn(Optional.of(existing));
         when(cartItemRepository.save(existing)).thenReturn(existing);
 
-        var response = cartService.addItem("user@example.com", 100L, 2);
+        var response = cartService.addItem(CartService.CartKey.user("user@example.com"), 100L, 2);
 
         assertEquals(3, existing.getQuantity());
         assertEquals(3, response.totalItems());
@@ -146,8 +146,8 @@ class CartServiceTest {
     // handles addItem.
     @Test
     void addItemRejectsInvalidQuantity() {
-        assertThrows(BusinessRuleException.class, () -> cartService.addItem("user@example.com", 100L, 0));
-        assertThrows(BusinessRuleException.class, () -> cartService.addItem("user@example.com", 100L, null));
+        assertThrows(BusinessRuleException.class, () -> cartService.addItem(CartService.CartKey.user("user@example.com"), 100L, 0));
+        assertThrows(BusinessRuleException.class, () -> cartService.addItem(CartService.CartKey.user("user@example.com"), 100L, null));
     }
 
     // handles addItem.
@@ -156,7 +156,7 @@ class CartServiceTest {
         when(cartRepository.findByUser_Email("user@example.com")).thenReturn(Optional.of(cart));
         when(variantRepository.findWithProductById(404L)).thenReturn(Optional.empty());
 
-        assertThrows(ResourceNotFoundException.class, () -> cartService.addItem("user@example.com", 404L, 1));
+        assertThrows(ResourceNotFoundException.class, () -> cartService.addItem(CartService.CartKey.user("user@example.com"), 404L, 1));
     }
 
     // handles addItem.
@@ -166,7 +166,7 @@ class CartServiceTest {
         when(cartRepository.findByUser_Email("user@example.com")).thenReturn(Optional.of(cart));
         when(variantRepository.findWithProductById(100L)).thenReturn(Optional.of(disabledVariant));
 
-        assertThrows(BusinessRuleException.class, () -> cartService.addItem("user@example.com", 100L, 1));
+        assertThrows(BusinessRuleException.class, () -> cartService.addItem(CartService.CartKey.user("user@example.com"), 100L, 1));
         verify(cartItemRepository, never()).save(any(CartItem.class));
     }
 
@@ -179,8 +179,8 @@ class CartServiceTest {
         when(variantRepository.findWithProductById(100L))
                 .thenReturn(Optional.of(variantOfDisabled), Optional.of(variantOfDeleted));
 
-        assertThrows(BusinessRuleException.class, () -> cartService.addItem("user@example.com", 100L, 1));
-        assertThrows(BusinessRuleException.class, () -> cartService.addItem("user@example.com", 100L, 1));
+        assertThrows(BusinessRuleException.class, () -> cartService.addItem(CartService.CartKey.user("user@example.com"), 100L, 1));
+        assertThrows(BusinessRuleException.class, () -> cartService.addItem(CartService.CartKey.user("user@example.com"), 100L, 1));
         verify(cartItemRepository, never()).save(any(CartItem.class));
     }
 
@@ -191,7 +191,7 @@ class CartServiceTest {
         when(variantRepository.findWithProductById(100L)).thenReturn(Optional.of(variant));
         when(inventoryService.availableFor(100L)).thenReturn(1);
 
-        assertThrows(OutOfStockException.class, () -> cartService.addItem("user@example.com", 100L, 2));
+        assertThrows(OutOfStockException.class, () -> cartService.addItem(CartService.CartKey.user("user@example.com"), 100L, 2));
         verify(cartItemRepository, never()).save(any(CartItem.class));
     }
 
@@ -204,10 +204,10 @@ class CartServiceTest {
         when(cartItemRepository.findByCart_IdAndVariant_Id(10L, 100L)).thenReturn(Optional.of(item));
         when(inventoryService.availableFor(100L)).thenReturn(10);
 
-        var updated = cartService.setQuantity("user@example.com", 100L, 3);
+        var updated = cartService.setQuantity(CartService.CartKey.user("user@example.com"), 100L, 3);
         assertEquals(3, updated.totalItems());
 
-        var removed = cartService.setQuantity("user@example.com", 100L, 0);
+        var removed = cartService.setQuantity(CartService.CartKey.user("user@example.com"), 100L, 0);
         verify(cartItemRepository).delete(item);
         assertEquals(3, removed.totalItems());
     }
@@ -215,11 +215,11 @@ class CartServiceTest {
     // handles setQuantity.
     @Test
     void setQuantityRejectsNegativeQuantityAndMissingItem() {
-        assertThrows(BusinessRuleException.class, () -> cartService.setQuantity("user@example.com", 100L, -1));
+        assertThrows(BusinessRuleException.class, () -> cartService.setQuantity(CartService.CartKey.user("user@example.com"), 100L, -1));
 
         when(cartRepository.findByUser_Email("user@example.com")).thenReturn(Optional.of(cart));
         when(cartItemRepository.findByCart_IdAndVariant_Id(10L, 100L)).thenReturn(Optional.empty());
-        assertThrows(ResourceNotFoundException.class, () -> cartService.setQuantity("user@example.com", 100L, 1));
+        assertThrows(ResourceNotFoundException.class, () -> cartService.setQuantity(CartService.CartKey.user("user@example.com"), 100L, 1));
     }
 
     // handles setQuantity.
@@ -231,7 +231,7 @@ class CartServiceTest {
         when(cartItemRepository.findByCart_IdAndVariant_Id(10L, 100L)).thenReturn(Optional.of(item));
         when(inventoryService.availableFor(100L)).thenReturn(2);
 
-        assertThrows(OutOfStockException.class, () -> cartService.setQuantity("user@example.com", 100L, 5));
+        assertThrows(OutOfStockException.class, () -> cartService.setQuantity(CartService.CartKey.user("user@example.com"), 100L, 5));
         verify(cartItemRepository, never()).save(any(CartItem.class));
     }
 
@@ -240,7 +240,7 @@ class CartServiceTest {
     void removeItemDeletesItemByCartAndVariant() {
         when(cartRepository.findByUser_Email("user@example.com")).thenReturn(Optional.of(cart));
 
-        cartService.removeItem("user@example.com", 100L);
+        cartService.removeItem(CartService.CartKey.user("user@example.com"), 100L);
 
         verify(cartItemRepository).deleteByCart_IdAndVariant_Id(10L, 100L);
     }
@@ -251,7 +251,7 @@ class CartServiceTest {
         cart.getItems().add(CartItem.builder().cart(cart).variant(variant).quantity(1).build());
         when(cartRepository.findByUser_Email("user@example.com")).thenReturn(Optional.of(cart));
 
-        var response = cartService.clear("user@example.com");
+        var response = cartService.clear(CartService.CartKey.user("user@example.com"));
 
         assertEquals(0, response.totalItems());
         verify(cartRepository).save(cart);
@@ -267,6 +267,53 @@ class CartServiceTest {
 
         assertEquals(2, response.totalItems());
         assertEquals(new BigDecimal("20.00"), response.subtotal());
+    }
+
+    // handles guest carts (CART-01).
+    @Test
+    void guestWithoutTokenGetsEmptyCartWithoutPersisting() {
+        var response = cartService.getCart(CartService.CartKey.guest(null));
+
+        assertEquals(0, response.totalItems());
+        verify(cartRepository, never()).save(any(Cart.class));
+    }
+
+    // handles guest carts (CART-01).
+    @Test
+    void guestAddItemCreatesCartWithToken() {
+        when(cartRepository.save(any(Cart.class))).thenAnswer(invocation -> invocation.getArgument(0));
+        when(cartRepository.findByGuestToken(org.mockito.ArgumentMatchers.anyString()))
+                .thenReturn(Optional.empty());
+        when(variantRepository.findWithProductById(100L)).thenReturn(Optional.of(variant));
+        when(inventoryService.availableFor(100L)).thenReturn(5);
+        when(cartItemRepository.findByCart_IdAndVariant_Id(org.mockito.ArgumentMatchers.isNull(),
+                org.mockito.ArgumentMatchers.eq(100L))).thenReturn(Optional.empty());
+        when(cartItemRepository.save(any(CartItem.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        var response = cartService.addItem(CartService.CartKey.guest(null), 100L, 1);
+
+        org.junit.jupiter.api.Assertions.assertNotNull(response.guestToken());
+    }
+
+    // handles guest cart merge (CART-02).
+    @Test
+    void mergeGuestCartMovesItemsAndDeletesGuestCart() {
+        Cart guestCart = Cart.builder().id(20L).guestToken("guest-token").items(new ArrayList<>()).build();
+        CartItem guestItem = CartItem.builder().id(30L).cart(guestCart).variant(variant).quantity(2).build();
+        guestCart.getItems().add(guestItem);
+
+        when(cartRepository.findByGuestToken("guest-token")).thenReturn(Optional.of(guestCart));
+        when(cartRepository.findByUser_Email("user@example.com")).thenReturn(Optional.of(cart));
+        when(variantRepository.findWithProductById(100L)).thenReturn(Optional.of(variant));
+        when(inventoryService.availableFor(100L)).thenReturn(5);
+        when(cartItemRepository.findByCart_IdAndVariant_Id(10L, 100L)).thenReturn(Optional.empty());
+        when(cartItemRepository.save(any(CartItem.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        cartService.mergeGuestCart("guest-token", "user@example.com");
+
+        verify(cartItemRepository).save(org.mockito.ArgumentMatchers.argThat(item ->
+                item.getCart() == cart && item.getQuantity() == 2));
+        verify(cartRepository).delete(guestCart);
     }
 
     private Product product(Long id, boolean enabled, boolean deleted) {

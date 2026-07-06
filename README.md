@@ -88,7 +88,9 @@ Inventory correctness: резервирование/списание — ато�
 - `GET /api/v1/catalog/products` (страницы), `GET /api/v1/catalog/products/search`
   (фильтры: `q, categoryId, brandId, gender, size, color, minPrice, maxPrice, inStock`),
   `GET /api/v1/catalog/products/{id}` (с вариантами и остатками), `GET /api/v1/catalog/brands`
-- `GET|POST|PUT|DELETE /api/v1/cart/items/{variantId}` — корзина по вариантам
+- `GET|POST|PUT|DELETE /api/v1/cart/items/{variantId}` — корзина по вариантам;
+  работает и для гостей: первый ответ выдаёт `X-Cart-Token`, при login/register
+  передайте его заголовком — корзина сольётся с пользовательской
 - `POST /api/v1/orders/checkout` — заголовок `Idempotency-Key`, опционально `{"promoCode": "..."}`
 - `POST /api/v1/promo/validate` — предварительная проверка кода по текущей корзине
 - `POST /api/v1/payments` → редирект на платёжную страницу; `POST /api/v1/payments/callback`
@@ -118,7 +120,11 @@ Inventory correctness: резервирование/списание — ато�
 Flyway — единственный источник схемы (`ddl-auto: validate`). `V1`–`V8` —
 исходная схема; `V9__clothing_domain.sql` — варианты/инвентарь/номера заказов/
 история статусов; `V10` — роль MANAGER + модерация отзывов; `V11` — промокоды;
-`V12` — профиль/адресная книга/wishlist + audit trail.
+`V12` — профиль/адресная книга/wishlist + audit trail; `V13` — гостевые
+корзины + журнал согласий.
+
+Архитектурные решения и эксплуатация: [docs/adr/](docs/adr),
+[docs/er-diagram.md](docs/er-diagram.md), [docs/runbook.md](docs/runbook.md).
 
 ## CI
 

@@ -133,6 +133,10 @@ Review (PENDING→APPROVED/REJECTED, verified purchase)
 - [x] OBS-01/03: structured JSON-логи (ECS) в prod-профиле; бизнес-метрики Micrometer (shopupu.orders, shopupu.payments)
 - [x] I18N-01 (частично): MessageSource + messages/messages_uk для уведомлений и базовых ошибок
 - [x] GDPR-гигиена: отключённый/анонимизированный аккаунт не аутентифицируется даже с живым access-токеном (проверка enabled в JwtAuthFilter)
+- [x] CART-01/02: гостевая корзина по opaque `X-Cart-Token` (V13) + merge в корзину пользователя при login/register
+- [x] USER-06/COMPL-05: журнал согласий с версией политики (append-only, V13), `GET/PUT /api/v1/users/me/consents`
+- [x] CACHE-03: ETag/304 для публичного каталога и статики (ShallowEtagHeaderFilter)
+- [x] DOC-03/04/05: ADR (auth, inventory, payments), ER-диаграмма (mermaid), runbook — в `docs/`
 - [ ] ARCH-03: MapStruct (зависимости подключены, мапперы пока ручные)
 
 ### Фаза 5 — Поэтапно [M]

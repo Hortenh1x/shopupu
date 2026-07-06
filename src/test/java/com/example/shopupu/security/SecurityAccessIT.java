@@ -68,8 +68,15 @@ class SecurityAccessIT extends PostgresContainerSupport {
         // deny-by-default: anything not whitelisted must not be public
         mockMvc.perform(get("/api/v1/orders"))
                 .andExpect(status().isUnauthorized());
-        mockMvc.perform(get("/api/v1/cart"))
+        mockMvc.perform(get("/api/v1/users/me/profile"))
                 .andExpect(status().isUnauthorized());
+    }
+
+    @Test
+    void guestCartIsAccessibleWithoutAuthentication() throws Exception {
+        // guest carts are public by design, scoped by an opaque token (CART-01)
+        mockMvc.perform(get("/api/v1/cart"))
+                .andExpect(status().isOk());
     }
 
     @Test

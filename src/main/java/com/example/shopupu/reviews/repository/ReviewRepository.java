@@ -22,6 +22,9 @@ public interface ReviewRepository extends JpaRepository<Review, Long> {
 
     Optional<Review> findByUserIdAndProductId(Long userId, Long productId);
 
+    @EntityGraph(attributePaths = {"product"})
+    java.util.List<Review> findByUserId(Long userId);
+
     @Query("""
             select count(r)
             from Review r

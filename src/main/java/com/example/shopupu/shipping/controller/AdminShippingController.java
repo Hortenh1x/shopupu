@@ -14,7 +14,7 @@ import org.springframework.web.bind.annotation.RestController;
 
 @RestController
 @RequiredArgsConstructor
-@RequestMapping("/api/admin/shipping")
+@RequestMapping("/api/v1/admin/shipping")
 @PreAuthorize("hasRole('ADMIN')")
 /**
  * describes the AdminShippingController class.

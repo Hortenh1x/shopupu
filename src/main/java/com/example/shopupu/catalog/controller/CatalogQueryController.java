@@ -14,7 +14,7 @@ import org.springframework.web.bind.annotation.*;
 
 @RestController
 @RequiredArgsConstructor
-@RequestMapping("/api/catalog")
+@RequestMapping("/api/v1/catalog")
 public class CatalogQueryController {
 
     private final ProductQueryService productQueryService;

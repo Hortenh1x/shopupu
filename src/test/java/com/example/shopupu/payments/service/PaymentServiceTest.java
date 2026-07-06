@@ -70,6 +70,9 @@ class PaymentServiceTest {
     @Mock
     private AccessControlService accessControlService;
 
+    @Mock
+    private com.example.shopupu.common.audit.AuditService auditService;
+
     private PaymentService paymentService;
     private Order order;
 
@@ -94,7 +97,9 @@ class PaymentServiceTest {
                 shipmentRepository,
                 orderService,
                 accessControlService,
-                transactionTemplate
+                transactionTemplate,
+                auditService,
+                new io.micrometer.core.instrument.simple.SimpleMeterRegistry()
         );
         order = order(1L, OrderStatus.CREATED, new BigDecimal("24.99"));
     }

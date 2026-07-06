@@ -47,14 +47,28 @@ public class PaymentService {
     private final OrderService orderService;
     private final AccessControlService accessControlService;
     private final TransactionTemplate transactionTemplate;
+    private final com.example.shopupu.common.audit.AuditService auditService;
+    private final io.micrometer.core.instrument.MeterRegistry meterRegistry;
+
+    public PaymentResponse createPayment(Long orderId) {
+        return createPayment(orderId, null);
+    }
 
     /**
      * Deliberately NOT one big transaction (ARCH-10/DB-04): the local payment row
      * is committed first, then the gateway HTTP call happens without holding a DB
      * connection, then the result is applied in a second short transaction.
+     * A client Idempotency-Key makes retries return the same payment (PAY-02).
      */
-    public PaymentResponse createPayment(Long orderId) {
-        Payment payment = transactionTemplate.execute(tx -> preparePayment(orderId));
+    public PaymentResponse createPayment(Long orderId, String clientIdempotencyKey) {
+        if (clientIdempotencyKey != null && !clientIdempotencyKey.isBlank()) {
+            var existing = paymentRepository.findByIdempotencyKey(clientIdempotencyKey);
+            if (existing.isPresent()) {
+                return paymentMapper.toResponse(existing.get());
+            }
+        }
+
+        Payment payment = transactionTemplate.execute(tx -> preparePayment(orderId, clientIdempotencyKey));
 
         PaymentGatewayCreateResponse gatewayResponse;
         try {
@@ -73,7 +87,7 @@ public class PaymentService {
         return transactionTemplate.execute(tx -> applyGatewayResult(payment.getId(), gatewayResponse));
     }
 
-    private Payment preparePayment(Long orderId) {
+    private Payment preparePayment(Long orderId, String clientIdempotencyKey) {
         Order order = findOrder(orderId);
         accessControlService.requireOrderOwnerOrAdmin(order);
 
@@ -85,7 +99,9 @@ public class PaymentService {
                 .amount(order.getPaymentAmount())
                 .provider(paymentProperties.getDefaultProvider())
                 .status(PaymentStatus.CREATED)
-                .idempotencyKey(UUID.randomUUID().toString())
+                .idempotencyKey(clientIdempotencyKey != null && !clientIdempotencyKey.isBlank()
+                        ? clientIdempotencyKey
+                        : UUID.randomUUID().toString())
                 .currency(paymentProperties.getCurrency())
                 .build();
         paymentRepository.save(payment);
@@ -154,13 +170,29 @@ public class PaymentService {
 
         Long orderId = payment.getOrder().getId();
         if (newStatus == PaymentStatus.SUCCEEDED) {
+            meterRegistry.counter("shopupu.payments", "result", "succeeded").increment();
             orderService.markPaidFromPayment(orderId);
             log.info("Order {} marked as PAID", orderId);
         } else if (newStatus == PaymentStatus.FAILED
                 || newStatus == PaymentStatus.CANCELED
                 || newStatus == PaymentStatus.EXPIRED) {
+            meterRegistry.counter("shopupu.payments", "result", "failed").increment();
             orderService.onPaymentFailed(orderId);
         }
+    }
+
+    /** Marks stale unfinished payments EXPIRED so late callbacks are rejected (PAY-04). */
+    @Transactional
+    public int expireStalePayments(java.time.Instant cutoff) {
+        var stale = paymentRepository.findTop100ByStatusInAndCreatedAtBefore(
+                java.util.EnumSet.of(PaymentStatus.CREATED, PaymentStatus.PENDING), cutoff);
+        for (Payment payment : stale) {
+            payment.setStatus(PaymentStatus.EXPIRED);
+            paymentRepository.save(payment);
+            recordEvent(payment, null, PaymentStatus.EXPIRED, "SYSTEM", "Payment expired by timeout");
+            orderService.onPaymentFailed(payment.getOrder().getId());
+        }
+        return stale.size();
     }
 
     public void handleCallback(PaymentCallbackRequest callback, String signature) {
@@ -193,6 +225,8 @@ public class PaymentService {
         recordEvent(payment, null, PaymentStatus.REFUNDED, "ADMIN", "Refund executed");
 
         orderService.markRefunded(payment.getOrder().getId(), accessControlService.currentEmail());
+        auditService.record(accessControlService.currentEmail(), "PAYMENT_REFUNDED",
+                "payment", String.valueOf(payment.getId()), "amount=" + payment.getAmount());
         return paymentMapper.toResponse(payment);
     }
 

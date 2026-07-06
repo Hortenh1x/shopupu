@@ -16,7 +16,7 @@ import org.springframework.web.bind.annotation.*;
 @RestController
 @RequiredArgsConstructor
 @PreAuthorize("hasRole('ADMIN')")
-@RequestMapping("/api/admin/reviews")
+@RequestMapping("/api/v1/admin/reviews")
 /**
  * describes the AdminReviewController class.
  */

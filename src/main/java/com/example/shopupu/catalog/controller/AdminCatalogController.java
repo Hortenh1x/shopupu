@@ -35,7 +35,7 @@ import org.springframework.web.multipart.MultipartFile;
 
 @RestController
 @RequiredArgsConstructor
-@RequestMapping("/api/admin/catalog")
+@RequestMapping("/api/v1/admin/catalog")
 @PreAuthorize("hasAnyRole('ADMIN','MANAGER')")
 public class AdminCatalogController {
 

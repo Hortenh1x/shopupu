@@ -12,7 +12,7 @@ import org.springframework.web.bind.annotation.RestController;
 
 @RestController
 @RequiredArgsConstructor
-@RequestMapping("/api/admin/payments")
+@RequestMapping("/api/v1/admin/payments")
 @PreAuthorize("hasRole('ADMIN')")
 public class AdminPaymentController {
 

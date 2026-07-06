@@ -22,7 +22,7 @@ import org.springframework.web.bind.annotation.RestController;
 
 @RestController
 @RequiredArgsConstructor
-@RequestMapping("/api/admin/promo")
+@RequestMapping("/api/v1/admin/promo")
 @PreAuthorize("hasAnyRole('ADMIN','MANAGER')")
 public class AdminPromoController {
 

@@ -13,7 +13,7 @@ import org.springframework.web.bind.annotation.*;
 
 
 @RestController
-@RequestMapping("/api/payments")
+@RequestMapping("/api/v1/payments")
 @RequiredArgsConstructor
 public class PaymentController {
 
@@ -22,9 +22,10 @@ public class PaymentController {
 
     @PostMapping
     public ResponseEntity<PaymentResponse> createPayment(
+            @RequestHeader(value = "Idempotency-Key", required = false) String idempotencyKey,
             @Valid @RequestBody CreatePaymentRequest request
     ) {
-        PaymentResponse payment = paymentService.createPayment(request.orderId());
+        PaymentResponse payment = paymentService.createPayment(request.orderId(), idempotencyKey);
         return ResponseEntity.status(HttpStatus.CREATED).body(payment);
     }
 

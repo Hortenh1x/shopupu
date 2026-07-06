@@ -36,6 +36,17 @@ public class UserService {
     }
 
 
+    // updates profile fields only - roles/enabled are never client-writable (SEC-10)
+    public User updateProfile(String email, com.example.shopupu.identity.dto.UpdateProfileRequest request) {
+        User user = userRepository.findByEmail(email)
+                .orElseThrow(() -> new ResourceNotFoundException("User not found"));
+        user.setFirstName(request.firstName());
+        user.setLastName(request.lastName());
+        user.setPhone(request.phone());
+        user.setPreferredSize(request.preferredSize());
+        return userRepository.save(user);
+    }
+
     // verifies the current password and stores the new hash; caller revokes sessions
     public User changePassword(String email, String currentPassword, String newPassword) {
         User user = userRepository.findByEmail(email)

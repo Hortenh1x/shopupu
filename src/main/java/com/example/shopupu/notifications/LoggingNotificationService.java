@@ -6,6 +6,8 @@ import org.springframework.stereotype.Service;
 /** Dev/no-op sender: keeps the notification pipeline testable without SMTP. */
 @Slf4j
 @Service
+@org.springframework.boot.autoconfigure.condition.ConditionalOnProperty(
+        name = "spring.mail.host", havingValue = "never-matches", matchIfMissing = true)
 public class LoggingNotificationService implements NotificationService {
 
     @Override

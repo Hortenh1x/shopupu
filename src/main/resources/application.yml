@@ -87,7 +87,7 @@ payments:
   service-client-id: ${PAYMENT_SERVICE_CLIENT_ID:shopupu}
   service-secret: ${PAYMENT_SERVICE_SECRET:}
   callback-secret: ${PAYMENT_CALLBACK_SECRET:}
-  callback-url: ${PAYMENT_CALLBACK_URL:http://localhost:8080/api/payments/callback}
+  callback-url: ${PAYMENT_CALLBACK_URL:http://localhost:8080/api/v1/payments/callback}
   request-timeout-seconds: ${PAYMENT_REQUEST_TIMEOUT_SECONDS:10}
   monobank:
     api-base-url: ${MONOBANK_API_BASE_URL:https://api.monobank.ua}

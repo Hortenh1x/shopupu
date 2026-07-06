@@ -41,6 +41,7 @@ public class ReviewService {
     private final ProductRepository productRepository;
     private final OrderRepository orderRepository;
     private final AccessControlService accessControlService;
+    private final com.example.shopupu.common.audit.AuditService auditService;
 
     @Transactional(readOnly = true)
     public Page<Review> getPublishedReviews(Long productId, Pageable pageable) {
@@ -118,7 +119,10 @@ public class ReviewService {
         }
         Review review = requireReview(reviewId);
         review.setStatus(status);
-        return reviewRepository.save(review);
+        Review saved = reviewRepository.save(review);
+        auditService.record(accessControlService.currentEmail(), "REVIEW_MODERATED",
+                "review", String.valueOf(reviewId), "-> " + status);
+        return saved;
     }
 
     @org.springframework.cache.annotation.CacheEvict(cacheNames = "productRating", allEntries = true)

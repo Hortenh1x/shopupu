@@ -84,16 +84,18 @@ Inventory correctness: резервирование/списание — ато�
 
 Точная спецификация — в Swagger. Ключевые ручки:
 
-- `POST /api/auth/register|login|refresh|logout|change-password`, `GET /api/auth/me`
-- `GET /api/catalog/products` (страницы), `GET /api/catalog/products/search`
+- `POST /api/v1/auth/register|login|refresh|logout|change-password`, `GET /api/v1/auth/me`
+- `GET /api/v1/catalog/products` (страницы), `GET /api/v1/catalog/products/search`
   (фильтры: `q, categoryId, brandId, gender, size, color, minPrice, maxPrice, inStock`),
-  `GET /api/catalog/products/{id}` (с вариантами и остатками), `GET /api/catalog/brands`
-- `GET|POST|PUT|DELETE /api/cart/items/{variantId}` — корзина по вариантам
-- `POST /api/orders/checkout` — заголовок `Idempotency-Key`, опционально `{"promoCode": "..."}`
-- `POST /api/promo/validate` — предварительная проверка кода по текущей корзине
-- `POST /api/payments` → редирект на платёжную страницу; `POST /api/payments/callback`
-  (подпись обязательна, fail-closed); `POST /api/admin/payments/{id}/refund`
-- `/api/admin/**` — ADMIN/MANAGER: каталог + варианты + остатки, заказы (+история),
+  `GET /api/v1/catalog/products/{id}` (с вариантами и остатками), `GET /api/v1/catalog/brands`
+- `GET|POST|PUT|DELETE /api/v1/cart/items/{variantId}` — корзина по вариантам
+- `POST /api/v1/orders/checkout` — заголовок `Idempotency-Key`, опционально `{"promoCode": "..."}`
+- `POST /api/v1/promo/validate` — предварительная проверка кода по текущей корзине
+- `POST /api/v1/payments` → редирект на платёжную страницу; `POST /api/v1/payments/callback`
+  (подпись обязательна, fail-closed); `POST /api/v1/admin/payments/{id}/refund`
+- `/api/v1/users/me/**` — профиль, адресная книга (default-адрес), wishlist,
+  GDPR: `GET /export` (выгрузка данных) и `DELETE /api/v1/users/me` (анонимизация)
+- `/api/v1/admin/**` — ADMIN/MANAGER: каталог + варианты + остатки, заказы (+история),
   отзывы (модерация), промокоды, пользователи (только ADMIN)
 
 Ошибки — RFC 9457 Problem Details c `code` и `requestId` (сквозной
@@ -115,7 +117,8 @@ Inventory correctness: резервирование/списание — ато�
 
 Flyway — единственный источник схемы (`ddl-auto: validate`). `V1`–`V8` —
 исходная схема; `V9__clothing_domain.sql` — варианты/инвентарь/номера заказов/
-история статусов; `V10` — роль MANAGER + модерация отзывов; `V11` — промокоды.
+история статусов; `V10` — роль MANAGER + модерация отзывов; `V11` — промокоды;
+`V12` — профиль/адресная книга/wishlist + audit trail.
 
 ## CI
 

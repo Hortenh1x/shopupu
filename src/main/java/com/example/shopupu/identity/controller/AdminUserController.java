@@ -14,7 +14,7 @@ import org.springframework.web.bind.annotation.RestController;
 
 @RestController
 @RequiredArgsConstructor
-@RequestMapping("/api/admin/users")
+@RequestMapping("/api/v1/admin/users")
 @PreAuthorize("hasRole('ADMIN')")
 public class AdminUserController {
 
@@ -22,12 +22,6 @@ public class AdminUserController {
 
     @GetMapping
     public ResponseEntity<Page<UserProfile>> getUsers(@PageableDefault(size = 20) Pageable pageable) {
-        return ResponseEntity.ok(userService.getUsers(pageable)
-                .map(user -> new UserProfile(
-                        user.getId(),
-                        user.getEmail(),
-                        user.isEnabled(),
-                        user.getRoles().stream().map(role -> role.getName()).toList()
-                )));
+        return ResponseEntity.ok(userService.getUsers(pageable).map(UserProfile::from));
     }
 }

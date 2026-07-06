@@ -125,13 +125,15 @@ Review (PENDING→APPROVED/REJECTED, verified purchase)
 - [x] TEST-02/03/09: интеграционные тесты (Testcontainers PostgreSQL): конкурентный oversell-тест, security-тест (deny-by-default, роли, IDOR), 116 тестов зелёные
 - [x] DEVOPS-01/02: multi-stage Dockerfile (non-root), docker-compose для БД, GitHub Actions (build→verify→coverage), Dependabot (SEC-13)
 - [x] DB-11: soft delete товаров; DB-10 частично (@EnableJpaAuditing включён, createdBy/updatedBy не внедрены)
-- [ ] USER-01/02/05: профиль, адресная книга, GDPR export/delete
-- [ ] API-02: /api/v1 (сознательно отложено — ломает текущий фронт; вводить вместе с фронтом)
+- [x] USER-01/02/03/05: профиль (имя/телефон/размер), адресная книга с default (V12), wishlist, GDPR export + right-to-be-forgotten (анонимизация: заказы сохраняются, PII стирается, сессии отзываются, отзывы удаляются) — `/api/v1/users/me/**`
+- [x] API-02: версионирование `/api/v1/...` по всему API (фронт будет переделан)
+- [x] SEC-14/AUTHZ-05/COMPL-04: audit trail (audit_events): входы (успех/провал), смена пароля, GDPR-erasure, смена статуса заказа админом, refund, модерация отзывов
+- [x] PAY-02: клиентский `Idempotency-Key` для `POST /api/v1/payments`; PAY-04: job истечения зависших платежей (EXPIRED + возврат заказа в CREATED)
+- [x] NOTIF-01/02: SmtpNotificationService (активен при spring.mail.host) с локализованными шаблонами из messages*.properties; без SMTP — логирующий fallback
+- [x] OBS-01/03: structured JSON-логи (ECS) в prod-профиле; бизнес-метрики Micrometer (shopupu.orders, shopupu.payments)
+- [x] I18N-01 (частично): MessageSource + messages/messages_uk для уведомлений и базовых ошибок
+- [x] GDPR-гигиена: отключённый/анонимизированный аккаунт не аутентифицируется даже с живым access-токеном (проверка enabled в JwtAuthFilter)
 - [ ] ARCH-03: MapStruct (зависимости подключены, мапперы пока ручные)
-- [ ] NOTIF-01/02: реальные email-шаблоны и SMTP-провайдер
-- [ ] OBS-01/03: JSON-логи, бизнес-метрики Micrometer
-- [ ] SEC-14/AUTHZ-05: audit log админ-действий
-- [ ] I18N-01: MessageSource
 
 ### Фаза 5 — Поэтапно [M]
 Гостевая корзина + merge, полнотекстовый поиск (PG FTS), Redis-кэш, outbox + брокер, 2FA/OAuth2, wishlist, мультисклад, курсорная пагинация, ADR/ER-диаграмма, reconciliation-джоба, HIBP, консенты, retention-джобы.

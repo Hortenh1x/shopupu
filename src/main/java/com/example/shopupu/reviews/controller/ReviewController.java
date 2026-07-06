@@ -23,20 +23,20 @@ public class ReviewController {
     private final ReviewService reviewService;
     private final ReviewMapper reviewMapper;
 
-    @GetMapping("/api/catalog/products/{productId}/reviews")
+    @GetMapping("/api/v1/catalog/products/{productId}/reviews")
     // handles getProductReviews.
     public Page<ReviewResponse> getProductReviews(@PathVariable Long productId, Pageable pageable) {
         return reviewService.getPublishedReviews(productId, pageable)
                 .map(reviewMapper::toResponse);
     }
 
-    @GetMapping("/api/catalog/products/{productId}/rating")
+    @GetMapping("/api/v1/catalog/products/{productId}/rating")
     // handles getProductRating.
     public ProductRatingSummaryResponse getProductRating(@PathVariable Long productId) {
         return reviewService.getRatingSummary(productId);
     }
 
-    @PostMapping("/api/products/{productId}/reviews")
+    @PostMapping("/api/v1/products/{productId}/reviews")
     // handles createReview.
     public ReviewResponse createReview(
             @PathVariable Long productId,
@@ -46,7 +46,7 @@ public class ReviewController {
         return reviewMapper.toResponse(review);
     }
 
-    @PutMapping("/api/reviews/{reviewId}")
+    @PutMapping("/api/v1/reviews/{reviewId}")
     // handles updateReview.
     public ReviewResponse updateReview(
             @PathVariable Long reviewId,
@@ -56,7 +56,7 @@ public class ReviewController {
         return reviewMapper.toResponse(review);
     }
 
-    @DeleteMapping("/api/reviews/{reviewId}")
+    @DeleteMapping("/api/v1/reviews/{reviewId}")
     // handles deleteReview.
     public ResponseEntity<Void> deleteReview(@PathVariable Long reviewId) {
         reviewService.deleteOwnReview(reviewId);

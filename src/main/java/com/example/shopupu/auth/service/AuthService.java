@@ -22,6 +22,7 @@ public class AuthService {
     private final RefreshTokenService refreshTokenService;
     private final AuthenticationManager authenticationManager;
     private final UserService userService;
+    private final com.example.shopupu.common.audit.AuditService auditService;
 
     public record TokenPair(String accessToken, String refreshToken) {}
 
@@ -30,11 +31,13 @@ public class AuthService {
         try {
             authenticationManager.authenticate(new UsernamePasswordAuthenticationToken(email, password));
         } catch (AuthenticationException e) {
+            auditService.record(email, "LOGIN_FAILED", "user", null, null);
             // Uniform message: no hint whether the account exists (SEC-16).
             throw new UnauthorizedException("Wrong login or password");
         }
         User user = userService.getByEmail(email)
                 .orElseThrow(() -> new UnauthorizedException("Wrong login or password"));
+        auditService.record(email, "LOGIN_SUCCEEDED", "user", String.valueOf(user.getId()), null);
         return issueTokens(user);
     }
 
@@ -70,6 +73,8 @@ public class AuthService {
     public void changePassword(String email, String currentPassword, String newPassword) {
         User user = userService.changePassword(email, currentPassword, newPassword);
         refreshTokenService.revokeAll(user);
+        auditService.record(email, "PASSWORD_CHANGED", "user", String.valueOf(user.getId()),
+                "All sessions revoked");
     }
 
     private UserDetails toPrincipal(User user) {

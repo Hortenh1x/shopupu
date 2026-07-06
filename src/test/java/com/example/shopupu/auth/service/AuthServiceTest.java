@@ -39,6 +39,9 @@ class AuthServiceTest {
     @Mock
     private UserService userService;
 
+    @Mock
+    private com.example.shopupu.common.audit.AuditService auditService;
+
     @InjectMocks
     private AuthService authService;
 

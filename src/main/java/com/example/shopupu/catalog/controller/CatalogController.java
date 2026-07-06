@@ -19,7 +19,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 @RestController
-@RequestMapping("/api/catalog")
+@RequestMapping("/api/v1/catalog")
 @RequiredArgsConstructor
 public class CatalogController {
 

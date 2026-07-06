@@ -77,6 +77,9 @@ class OrderServiceTest {
     @Mock
     private org.springframework.context.ApplicationEventPublisher eventPublisher;
 
+    @Mock
+    private com.example.shopupu.common.audit.AuditService auditService;
+
     private OrderService orderService;
     private User user;
 
@@ -93,7 +96,9 @@ class OrderServiceTest {
                 orderNumberGenerator,
                 checkoutProperties,
                 promoService,
-                eventPublisher
+                eventPublisher,
+                auditService,
+                new io.micrometer.core.instrument.simple.SimpleMeterRegistry()
         );
         user = User.builder().id(1L).email("user@example.com").build();
     }

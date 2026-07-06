@@ -22,4 +22,8 @@ public interface PaymentRepository extends JpaRepository<Payment, Long> {
 
 
     Optional<Payment> findByIdempotencyKey(String idempotencyKey);
+
+    List<Payment> findTop100ByStatusInAndCreatedAtBefore(
+            java.util.Collection<com.example.shopupu.payments.entity.PaymentStatus> statuses,
+            java.time.Instant cutoff);
 }

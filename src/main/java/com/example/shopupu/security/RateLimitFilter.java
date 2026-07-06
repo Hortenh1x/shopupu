@@ -74,11 +74,11 @@ public class RateLimitFilter extends OncePerRequestFilter {
             return Zone.NONE;
         }
         String uri = request.getRequestURI();
-        if (uri.startsWith("/api/auth/")) {
+        if (uri.startsWith("/api/v1/auth/")) {
             return Zone.AUTH;
         }
-        if (uri.equals("/api/orders/checkout") || uri.equals("/api/payments")
-                || uri.equals("/api/payments/create") || uri.equals("/api/payments/callback")) {
+        if (uri.equals("/api/v1/orders/checkout") || uri.equals("/api/v1/payments")
+                || uri.equals("/api/v1/payments/create") || uri.equals("/api/v1/payments/callback")) {
             return Zone.CHECKOUT;
         }
         return Zone.NONE;

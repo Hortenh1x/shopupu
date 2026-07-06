@@ -52,6 +52,8 @@ public class OrderService {
     private final CheckoutProperties checkoutProperties;
     private final com.example.shopupu.promo.service.PromoService promoService;
     private final org.springframework.context.ApplicationEventPublisher eventPublisher;
+    private final com.example.shopupu.common.audit.AuditService auditService;
+    private final io.micrometer.core.instrument.MeterRegistry meterRegistry;
 
     @Transactional
     public Order createOrderFromCart(User user, String idempotencyKey) {
@@ -146,6 +148,7 @@ public class OrderService {
             promoService.redeem(promo, user, savedOrder);
         }
         cartItemRepository.deleteAll(cartItems);
+        meterRegistry.counter("shopupu.orders", "event", "created").increment();
         return savedOrder;
     }
 
@@ -186,7 +189,10 @@ public class OrderService {
     public Order updateStatus(Long id, OrderStatus newStatus) {
         accessControlService.requireAdmin();
         Order order = getOrder(id);
-        return applyStatus(order, newStatus, accessControlService.currentEmail());
+        Order updated = applyStatus(order, newStatus, accessControlService.currentEmail());
+        auditService.record(accessControlService.currentEmail(), "ORDER_STATUS_CHANGED",
+                "order", updated.getOrderNumber(), "-> " + newStatus);
+        return updated;
     }
 
     /** Customer/admin cancellation; releases the inventory reservation (ORD-06). */
@@ -280,6 +286,7 @@ public class OrderService {
         order.setStatus(newStatus);
         Order saved = orderRepository.save(order);
         recordHistory(saved, current, newStatus, actor);
+        meterRegistry.counter("shopupu.orders", "event", newStatus.name().toLowerCase()).increment();
         eventPublisher.publishEvent(new com.example.shopupu.notifications.OrderStatusChangedEvent(
                 saved.getId(), saved.getOrderNumber(),
                 saved.getUser() != null ? saved.getUser().getEmail() : null,

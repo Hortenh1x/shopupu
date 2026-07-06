@@ -59,16 +59,16 @@ class SecurityAccessIT extends PostgresContainerSupport {
 
     @Test
     void publicCatalogIsOpen() throws Exception {
-        mockMvc.perform(get("/api/catalog/products"))
+        mockMvc.perform(get("/api/v1/catalog/products"))
                 .andExpect(status().isOk());
     }
 
     @Test
     void unknownEndpointRequiresAuthentication() throws Exception {
         // deny-by-default: anything not whitelisted must not be public
-        mockMvc.perform(get("/api/orders"))
+        mockMvc.perform(get("/api/v1/orders"))
                 .andExpect(status().isUnauthorized());
-        mockMvc.perform(get("/api/cart"))
+        mockMvc.perform(get("/api/v1/cart"))
                 .andExpect(status().isUnauthorized());
     }
 
@@ -85,28 +85,28 @@ class SecurityAccessIT extends PostgresContainerSupport {
 
     @Test
     void adminEndpointsRejectCustomers() throws Exception {
-        mockMvc.perform(get("/api/admin/orders").with(customer(stranger)))
+        mockMvc.perform(get("/api/v1/admin/orders").with(customer(stranger)))
                 .andExpect(status().isForbidden());
-        mockMvc.perform(get("/api/admin/users").with(customer(stranger)))
+        mockMvc.perform(get("/api/v1/admin/users").with(customer(stranger)))
                 .andExpect(status().isForbidden());
     }
 
     @Test
     void managerCannotManageUsers() throws Exception {
-        mockMvc.perform(get("/api/admin/users")
+        mockMvc.perform(get("/api/v1/admin/users")
                         .with(user(stranger.getEmail()).roles("MANAGER")))
                 .andExpect(status().isForbidden());
-        mockMvc.perform(get("/api/admin/orders")
+        mockMvc.perform(get("/api/v1/admin/orders")
                         .with(user(stranger.getEmail()).roles("MANAGER")))
                 .andExpect(status().isOk());
     }
 
     @Test
     void foreignOrderIsNotAccessible() throws Exception {
-        mockMvc.perform(get("/api/orders/" + order.getId()).with(customer(owner)))
+        mockMvc.perform(get("/api/v1/orders/" + order.getId()).with(customer(owner)))
                 .andExpect(status().isOk());
         // IDOR (AUTHZ-04): another customer must not read someone else's order
-        mockMvc.perform(get("/api/orders/" + order.getId()).with(customer(stranger)))
+        mockMvc.perform(get("/api/v1/orders/" + order.getId()).with(customer(stranger)))
                 .andExpect(status().isForbidden());
     }
 

@@ -20,6 +20,10 @@ management:
       show-details: never
 
 logging:
+  # structured JSON logs for log aggregation (OBS-01)
+  structured:
+    format:
+      console: ecs
   level:
     root: INFO
     com.example.shopupu: INFO

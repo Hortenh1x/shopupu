@@ -24,7 +24,7 @@ import org.springframework.web.bind.annotation.RestController;
 
 @RestController
 @RequiredArgsConstructor
-@RequestMapping("/api/admin/orders")
+@RequestMapping("/api/v1/admin/orders")
 @PreAuthorize("hasAnyRole('ADMIN','MANAGER')")
 public class AdminOrderController {
 

@@ -23,7 +23,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 @RestController
-@RequestMapping("/api/auth")
+@RequestMapping("/api/v1/auth")
 @RequiredArgsConstructor
 public class AuthController {
 
@@ -71,11 +71,6 @@ public class AuthController {
         String email = authentication.getName();
         var user = userService.getByEmail(email)
                 .orElseThrow(() -> new ResourceNotFoundException("User not found"));
-        return ResponseEntity.ok(new UserProfile(
-                user.getId(),
-                user.getEmail(),
-                user.isEnabled(),
-                user.getRoles().stream().map(role -> role.getName()).toList()
-        ));
+        return ResponseEntity.ok(UserProfile.from(user));
     }
 }

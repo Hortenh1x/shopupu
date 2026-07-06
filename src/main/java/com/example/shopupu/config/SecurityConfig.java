@@ -46,15 +46,15 @@ public class SecurityConfig {
                         .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
                         .requestMatchers(HttpMethod.GET, "/uploads/**").permitAll()
                         .requestMatchers(HttpMethod.POST,
-                                "/api/auth/register", "/api/auth/login", "/api/auth/refresh").permitAll()
-                        .requestMatchers(HttpMethod.GET, "/api/catalog/**").permitAll()
+                                "/api/v1/auth/register", "/api/v1/auth/login", "/api/v1/auth/refresh").permitAll()
+                        .requestMatchers(HttpMethod.GET, "/api/v1/catalog/**").permitAll()
                         // payment callbacks are authenticated by provider signature, not JWT
-                        .requestMatchers(HttpMethod.POST, "/api/payments/callback").permitAll()
+                        .requestMatchers(HttpMethod.POST, "/api/v1/payments/callback").permitAll()
                         .requestMatchers("/swagger", "/swagger-ui/**", "/v3/api-docs/**").permitAll()
                         .requestMatchers("/actuator/health/**", "/actuator/health").permitAll()
                         .requestMatchers("/actuator/**").hasRole("ADMIN")
-                        .requestMatchers("/api/admin/users/**").hasRole("ADMIN")
-                        .requestMatchers("/api/admin/**").hasAnyRole("ADMIN", "MANAGER")
+                        .requestMatchers("/api/v1/admin/users/**").hasRole("ADMIN")
+                        .requestMatchers("/api/v1/admin/**").hasAnyRole("ADMIN", "MANAGER")
                         .anyRequest().authenticated()
                 )
                 .exceptionHandling(ex -> ex

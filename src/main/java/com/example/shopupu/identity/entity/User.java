@@ -1,6 +1,7 @@
 package com.example.shopupu.identity.entity;
 
 import jakarta.persistence.*;
+import java.time.Instant;
 import java.util.HashSet;
 import java.util.Set;
 import lombok.*;
@@ -9,9 +10,6 @@ import lombok.*;
 @Table(name = "users")
 @Getter @Setter
 @NoArgsConstructor @AllArgsConstructor @Builder
-/**
- * describes the User class.
- */
 public class User {
 
     @Id
@@ -26,6 +24,24 @@ public class User {
 
     @Column(unique = true)
     private String username;
+
+    @Column(name = "first_name", length = 128)
+    private String firstName;
+
+    @Column(name = "last_name", length = 128)
+    private String lastName;
+
+    @Column(length = 32)
+    private String phone;
+
+    /** Clothing preference used for size suggestions (USER-01). */
+    @Column(name = "preferred_size", length = 32)
+    private String preferredSize;
+
+    /** Set when the account is anonymized on a GDPR erasure request (USER-05). */
+    @Column(name = "deleted_at")
+    private Instant deletedAt;
+
     @Builder.Default
     private boolean enabled = true;
 

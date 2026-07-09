@@ -36,3 +36,7 @@ build/
 .idea/
 uploads/
 .env
+
+# Agent session data & generated artifacts
+.claude/
+graphify-out/

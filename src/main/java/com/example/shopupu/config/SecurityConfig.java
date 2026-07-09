@@ -8,6 +8,7 @@ import org.springframework.context.annotation.Configuration;
 import org.springframework.http.HttpMethod;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.config.annotation.authentication.configuration.AuthenticationConfiguration;
+import org.springframework.security.config.Customizer;
 import org.springframework.security.config.annotation.method.configuration.EnableMethodSecurity;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.http.SessionCreationPolicy;
@@ -15,6 +16,7 @@ import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
+import org.springframework.security.web.header.HeaderWriter;
 import org.springframework.security.web.header.writers.ReferrerPolicyHeaderWriter;
 
 @Configuration
@@ -22,19 +24,33 @@ import org.springframework.security.web.header.writers.ReferrerPolicyHeaderWrite
 @RequiredArgsConstructor
 public class SecurityConfig {
 
+    // Strict CSP for the API (SEC-04). Browsers don't render JSON, so 'none' is safe there.
+    private static final String API_CSP = "default-src 'none'; frame-ancestors 'none'; base-uri 'none'";
+
+    // Swagger UI serves its own JS/CSS and fetches /v3/api-docs — 'none' would blank it out.
+    // Only the docs paths get this relaxed policy (see cspHeaderWriter).
+    private static final String DOCS_CSP =
+            "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; "
+                    + "img-src 'self' data:; font-src 'self'; connect-src 'self'; "
+                    + "frame-ancestors 'none'; base-uri 'none'";
+
     private final JwtAuthFilter jwtAuthFilter;
     private final RateLimitFilter rateLimitFilter;
 
     @Bean
     public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
         return http
+                // Wire CORS into the security chain so the CorsFilter runs before
+                // authorization and uses the CorsConfigurationSource bean (CorsConfig).
+                // Without this, deny-by-default rejects browser cross-origin requests.
+                .cors(Customizer.withDefaults())
                 // CSRF is intentionally disabled: stateless JWT API, tokens travel in the
                 // Authorization header only, no cookie-based sessions (SEC-03).
                 .csrf(csrf -> csrf.disable())
                 .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .headers(headers -> headers
-                        .contentSecurityPolicy(csp -> csp.policyDirectives(
-                                "default-src 'none'; frame-ancestors 'none'; base-uri 'none'"))
+                        // one CSP header, chosen per path: strict on the API, Swagger-friendly on the docs
+                        .addHeaderWriter(cspHeaderWriter())
                         .referrerPolicy(rp -> rp.policy(ReferrerPolicyHeaderWriter.ReferrerPolicy.NO_REFERRER))
                         .httpStrictTransportSecurity(hsts -> hsts
                                 .includeSubDomains(true)
@@ -69,6 +85,20 @@ public class SecurityConfig {
                 .addFilterBefore(jwtAuthFilter, UsernamePasswordAuthenticationFilter.class)
                 .addFilterBefore(rateLimitFilter, JwtAuthFilter.class)
                 .build();
+    }
+
+    /**
+     * Emits exactly one Content-Security-Policy header, chosen by path: the relaxed
+     * DOCS_CSP for Swagger/OpenAPI so its bundled JS/CSS and /v3/api-docs fetch work,
+     * the strict API_CSP everywhere else. A single header avoids the intersection of
+     * two CSPs (which would re-block Swagger).
+     */
+    private static HeaderWriter cspHeaderWriter() {
+        return (request, response) -> {
+            String uri = request.getRequestURI();
+            boolean docs = uri.startsWith("/swagger") || uri.startsWith("/v3/api-docs");
+            response.setHeader("Content-Security-Policy", docs ? DOCS_CSP : API_CSP);
+        };
     }
 
     private static void writeProblem(jakarta.servlet.http.HttpServletResponse response, int status, String detail)

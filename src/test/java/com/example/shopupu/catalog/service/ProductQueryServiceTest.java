@@ -47,4 +47,33 @@ class ProductQueryServiceTest {
 
         assertEquals(1, page.getTotalElements());
     }
+
+    // handles findListItemsByIds.
+    @Test
+    void findListItemsByIdsKeepsRelevanceOrderAndDropsUnsellable() {
+        Product first = sellableProduct(1L);
+        Product second = sellableProduct(2L);
+        Product deleted = sellableProduct(3L);
+        deleted.setDeletedAt(java.time.Instant.now());
+        // repository returns them in arbitrary order; ids define the relevance order
+        when(productRepository.findAllById(List.of(2L, 3L, 1L)))
+                .thenReturn(List.of(first, deleted, second));
+
+        var items = productQueryService.findListItemsByIds(List.of(2L, 3L, 1L));
+
+        assertEquals(List.of(2L, 1L), items.stream().map(i -> i.id()).toList());
+    }
+
+    @Test
+    void findListItemsByIdsReturnsEmptyForEmptyInput() {
+        assertEquals(List.of(), productQueryService.findListItemsByIds(List.of()));
+    }
+
+    private Product sellableProduct(Long id) {
+        Product product = new Product();
+        product.setId(id);
+        product.setTitle("p" + id);
+        product.setEnabled(true);
+        return product;
+    }
 }

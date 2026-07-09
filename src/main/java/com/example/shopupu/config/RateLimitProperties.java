@@ -27,4 +27,11 @@ public class RateLimitProperties {
 
     @Min(1)
     private long checkoutRefillPerMinute = 30;
+
+    /** Bucket size for semantic/NL search (each query may hit an external AI API), per client IP. */
+    @Min(1)
+    private long semanticCapacity = 30;
+
+    @Min(1)
+    private long semanticRefillPerMinute = 30;
 }

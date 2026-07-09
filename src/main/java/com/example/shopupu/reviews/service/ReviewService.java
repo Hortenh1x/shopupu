@@ -1,5 +1,6 @@
 package com.example.shopupu.reviews.service;
 
+import com.example.shopupu.ai.event.ProductReviewsChangedEvent;
 import com.example.shopupu.catalog.entity.Product;
 import com.example.shopupu.catalog.repository.ProductRepository;
 import com.example.shopupu.common.exception.BusinessRuleException;
@@ -22,6 +23,7 @@ import java.util.Set;
 import lombok.RequiredArgsConstructor;
 import org.jsoup.Jsoup;
 import org.jsoup.safety.Safelist;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
@@ -42,6 +44,8 @@ public class ReviewService {
     private final OrderRepository orderRepository;
     private final AccessControlService accessControlService;
     private final com.example.shopupu.common.audit.AuditService auditService;
+    // AI review summaries regenerate AFTER_COMMIT when the approved set changes
+    private final ApplicationEventPublisher eventPublisher;
 
     @Transactional(readOnly = true)
     public Page<Review> getPublishedReviews(Long productId, Pageable pageable) {
@@ -85,20 +89,25 @@ public class ReviewService {
         if (review.getStatus() == ReviewStatus.DELETED) {
             throw new BusinessRuleException("Deleted review cannot be updated");
         }
+        ReviewStatus previous = review.getStatus();
         review.setRating(rating);
         review.setTitle(sanitize(title));
         review.setBody(sanitize(body));
         // edits go back through moderation instead of self-publishing
         review.setStatus(ReviewStatus.PENDING);
-        return reviewRepository.save(review);
+        Review saved = reviewRepository.save(review);
+        publishIfApprovedSetChanged(saved, previous);
+        return saved;
     }
 
     @org.springframework.cache.annotation.CacheEvict(cacheNames = "productRating", allEntries = true)
     public void deleteOwnReview(Long reviewId) {
         Review review = requireReview(reviewId);
         requireReviewOwner(review);
+        ReviewStatus previous = review.getStatus();
         review.setStatus(ReviewStatus.DELETED);
         reviewRepository.save(review);
+        publishIfApprovedSetChanged(review, previous);
     }
 
     @Transactional(readOnly = true)
@@ -118,18 +127,29 @@ public class ReviewService {
             throw new BusinessRuleException("Use DELETE to delete a review");
         }
         Review review = requireReview(reviewId);
+        ReviewStatus previous = review.getStatus();
         review.setStatus(status);
         Review saved = reviewRepository.save(review);
         auditService.record(accessControlService.currentEmail(), "REVIEW_MODERATED",
                 "review", String.valueOf(reviewId), "-> " + status);
+        publishIfApprovedSetChanged(saved, previous);
         return saved;
     }
 
     @org.springframework.cache.annotation.CacheEvict(cacheNames = "productRating", allEntries = true)
     public void deleteAdminReview(Long reviewId) {
         Review review = requireReview(reviewId);
+        ReviewStatus previous = review.getStatus();
         review.setStatus(ReviewStatus.DELETED);
         reviewRepository.save(review);
+        publishIfApprovedSetChanged(review, previous);
+    }
+
+    /** The AI summary only cares about transitions into or out of APPROVED. */
+    private void publishIfApprovedSetChanged(Review review, ReviewStatus previous) {
+        if (previous == ReviewStatus.APPROVED || review.getStatus() == ReviewStatus.APPROVED) {
+            eventPublisher.publishEvent(new ProductReviewsChangedEvent(review.getProduct().getId()));
+        }
     }
 
     /** Strips all HTML from user content (REV-03/SEC-07). */

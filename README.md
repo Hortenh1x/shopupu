@@ -1,16 +1,19 @@
 # Shopupu — Clothing Shop Backend
 
 Production-oriented Spring Boot REST API for an online clothing store: product
-variants (size/color/SKU), inventory with reservations, order state machine,
+variants (size/color/SKU), inventory with reservations, an order state machine,
 idempotent checkout, promo codes, moderated reviews and pluggable payment
 gateways (monobank for UAH, Fondy for EUR, stub for local dev).
+
+API-only backend — the web frontend is a separate project (`../shopupu-web`).
 
 ## Tech Stack
 
 - Java 25, Spring Boot 4.0.x (GA)
 - Spring Security (stateless JWT, deny-by-default), Bucket4j rate limiting
-- Spring Data JPA / Hibernate, PostgreSQL, Flyway
-- Caffeine cache, Springdoc OpenAPI
+- Spring Data JPA / Hibernate, PostgreSQL (+pgvector), Flyway
+- Caffeine cache, Springdoc OpenAPI, JJWT, Lombok, MapStruct
+- AI (опционально): эмбеддинги Ollama `bge-m3` / Voyage + LLM DeepSeek `deepseek-v4-flash` (OpenAI-совместимый, thinking off), stub-провайдеры по умолчанию
 - JUnit 5, Mockito, Testcontainers, JaCoCo, Spotless
 
 ## Quick Start (local)
@@ -28,7 +31,7 @@ Health: <http://localhost:8080/actuator/health>
 
 Without the `dev` profile the application **refuses to start unless `JWT_SECRET`
 is set** — this is intentional (no secrets ship in the repo). All environment
-variables are documented in [`.env.example`](.env.example).
+variables are documented in [`.env.example`](.env).
 
 Run tests (unit + Testcontainers integration; needs Docker):
 
@@ -51,6 +54,40 @@ docker build -t shopupu .
 | `dev` | local development: dev-only JWT secret, verbose logging |
 | `prod` | production hardening: restricted actuator, INFO logs, no auto-baseline |
 | `test` | used by the test suite (Testcontainers PostgreSQL) |
+
+## Architecture
+
+Modular monolith, **package-by-feature** under `com.example.shopupu`. Every
+domain module has the same internal shape (`controller` · `dto` · `entity` ·
+`repository` · `service`, plus `mapper` / `gateway` / `model` where needed).
+
+| Module | Responsibility |
+|---|---|
+| `auth` | register / login / refresh / logout, password reset & email verification |
+| `identity` | users, roles, address book, wishlist, consent journal, GDPR |
+| `catalog` | categories, brands, products, variants, images, filtered search |
+| `inventory` | stock / reserved per SKU, atomic movements, oversell prevention |
+| `cart` | user & guest carts (`X-Cart-Token`), merge on login |
+| `orders` | idempotent checkout, order state machine, status history, snapshots |
+| `payments` | monobank / Fondy / stub gateways, HMAC webhooks, refunds |
+| `promo` | promo codes with atomic redemption accounting |
+| `shipping` | methods, rates, free-shipping threshold, address snapshot |
+| `reviews` | verified-purchase reviews, pre-moderation, sanitization |
+| `ai` | semantic search (pgvector), «похожие»/«с этим покупают», саммари отзывов |
+| `notifications` | domain events → async email (SMTP or logging fallback) |
+| `common` · `config` · `security` | cross-cutting: audit, errors, storage, JWT, rate limiting, properties |
+
+```
+src/main/java/com/example/shopupu/
+  <module>/{controller,dto,entity,repository,service,mapper,gateway,model}
+  ShopupuApplication.java
+src/main/resources/
+  application{,-dev,-prod}.yml      # env-driven config, fail-fast
+  db/migration/V1..V14__*.sql       # Flyway — the single source of schema truth
+  messages*.properties              # i18n (en / uk)
+src/test/java/...                    # *Test (unit) + *IT (Testcontainers)
+docs/                                # ADRs, ER diagram, runbook
+```
 
 ## Domain Model
 
@@ -88,7 +125,7 @@ Inventory correctness: резервирование/списание — ато�
   `forgot-password`/`reset-password` и `verify-email`/`resend-verification` —
   одноразовые токены по почте (без раскрытия существования аккаунта)
 - `GET /api/v1/catalog/products` (страницы), `GET /api/v1/catalog/products/search`
-  (фильтры: `q, categoryId, brandId, gender, size, color, minPrice, maxPrice, inStock`),
+  (фильтры: `q, categoryId, brandId, gender, variantSize, color, minPrice, maxPrice, inStock`),
   `GET /api/v1/catalog/products/{id}` (с вариантами и остатками), `GET /api/v1/catalog/brands`
 - `GET|POST|PUT|DELETE /api/v1/cart/items/{variantId}` — корзина по вариантам;
   работает и для гостей: первый ответ выдаёт `X-Cart-Token`, при login/register
@@ -99,8 +136,15 @@ Inventory correctness: резервирование/списание — ато�
   (подпись обязательна, fail-closed); `POST /api/v1/admin/payments/{id}/refund`
 - `/api/v1/users/me/**` — профиль, адресная книга (default-адрес), wishlist,
   GDPR: `GET /export` (выгрузка данных) и `DELETE /api/v1/users/me` (анонимизация)
-- `/api/v1/admin/**` — ADMIN/MANAGER: каталог + варианты + остатки, заказы (+история),
-  отзывы (модерация), промокоды, пользователи (только ADMIN)
+- `/api/v1/admin/**` — ADMIN/MANAGER: каталог + варианты + остатки, отзывы (модерация),
+  промокоды; заказы (+история) и пользователи — только ADMIN
+- **AI** (выключено по умолчанию, `AI_ENABLED`; со stub-провайдерами работает офлайн):
+  `GET /api/v1/catalog/products/semantic-search?q=…` (векторный поиск, pgvector KNN,
+  fallback на keyword), `GET …/nl-search?q=тёплая куртка до 100` (LLM-разбор запроса
+  в фильтры), `GET …/{id}/similar`, `GET …/{id}/bought-together` (co-occurrence по
+  оплаченным заказам), `GET …/{id}/review-summary` («что говорят покупатели»);
+  админ-триггеры: `POST /api/v1/admin/ai/embeddings/backfill | recommendations/recompute |
+  review-summaries/refresh` (202, аудит)
 
 Ошибки — RFC 9457 Problem Details c `code` и `requestId` (сквозной
 `X-Request-Id` в ответах).
@@ -117,13 +161,26 @@ Inventory correctness: резервирование/списание — ато�
 - Загрузка изображений: проверка magic bytes, генерируемые имена, лимиты размера
 - Отзывы: только после покупки, санитизация HTML, премодерация
 
+## Testing
+
+- Unit-тесты (`*Test`) — JUnit 5 + Mockito, без БД.
+- Интеграционные (`*IT`) — Testcontainers PostgreSQL через
+  `support/PostgresContainerSupport` (нужен Docker). Инварианты корректности
+  закреплены тестами: `CheckoutConcurrencyIT` (нет oversell под конкуренцией),
+  `SecurityAccessIT` (deny-by-default, роли, IDOR).
+- `./mvnw verify` — единый гейт: тесты + порог покрытия JaCoCo + Spotless.
+
 ## Migrations
 
 Flyway — единственный источник схемы (`ddl-auto: validate`). `V1`–`V8` —
 исходная схема; `V9__clothing_domain.sql` — варианты/инвентарь/номера заказов/
 история статусов; `V10` — роль MANAGER + модерация отзывов; `V11` — промокоды;
 `V12` — профиль/адресная книга/wishlist + audit trail; `V13` — гостевые
-корзины + журнал согласий.
+корзины + журнал согласий; `V14` — одноразовые токены (сброс пароля,
+верификация email); `V15` — pgvector + эмбеддинги товаров (нужен образ
+`pgvector/pgvector:pg18`); `V16` — рекомендации «с этим покупают»; `V17` —
+саммари отзывов. Миграции только аддитивные (expand/contract) — применённую
+миграцию не редактируют, добавляют новую.
 
 Архитектурные решения и эксплуатация: [docs/adr/](docs/adr),
 [docs/er-diagram.md](docs/er-diagram.md), [docs/runbook.md](docs/runbook.md).

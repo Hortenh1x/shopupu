@@ -26,7 +26,9 @@ public class CatalogQueryController {
             @RequestParam(required = false) Long categoryId,
             @RequestParam(required = false) Long brandId,
             @RequestParam(required = false) Gender gender,
-            @RequestParam(required = false) String size,
+            // named variantSize because a `size` request param is also consumed
+            // by the Pageable resolver as the page size
+            @RequestParam(required = false) String variantSize,
             @RequestParam(required = false) String color,
             @RequestParam(required = false) BigDecimal minPrice,
             @RequestParam(required = false) BigDecimal maxPrice,
@@ -38,7 +40,7 @@ public class CatalogQueryController {
         filter.categoryId = categoryId;
         filter.brandId = brandId;
         filter.gender = gender;
-        filter.size = size;
+        filter.size = variantSize;
         filter.color = color;
         filter.minPrice = minPrice;
         filter.maxPrice = maxPrice;

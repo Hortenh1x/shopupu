@@ -21,3 +21,8 @@ payments:
   default-provider: stub
   currency: EUR
   callback-secret:
+
+ai:
+  enabled: true
+  embedding-provider: stub
+  llm-provider: stub

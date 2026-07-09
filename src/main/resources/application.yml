@@ -1,4 +1,6 @@
 spring:
+  config:
+    import: optional:file:.env[.properties]
   application:
     name: shopupu
 
@@ -50,6 +52,10 @@ spring:
 server:
   port: ${SERVER_PORT:8080}
   shutdown: graceful
+  # Behind a trusted reverse proxy / Cloudflare tunnel set this to "framework" so
+  # X-Forwarded-Proto/Host/For are honored (correct https URLs + real client IP).
+  # Default "none" = trust nothing (safe when exposed directly).
+  forward-headers-strategy: ${SERVER_FORWARD_HEADERS_STRATEGY:none}
   compression:
     enabled: true
     mime-types: application/json,text/plain
@@ -115,6 +121,8 @@ app:
     auth-refill-per-minute: 10
     checkout-capacity: 30
     checkout-refill-per-minute: 30
+    semantic-capacity: 30
+    semantic-refill-per-minute: 30
 
 shipping:
   currency: ${SHIPPING_CURRENCY:EUR}
@@ -124,3 +132,19 @@ shipping:
     standardPost: 4.99
     localPickup: 0.00
     defaultRate: 7.49
+
+ai:
+  enabled: ${AI_ENABLED:false}
+  # embeddings: stub | ollama (local, :11434) | local (TEI) | voyage
+  embedding-provider: ${AI_EMBEDDING_PROVIDER:ollama}
+  embedding-model: ${AI_EMBEDDING_MODEL:bge-m3}
+  embedding-base-url: ${AI_EMBEDDING_BASE_URL:}
+  embedding-dim: ${AI_EMBEDDING_DIM:1024}
+  # llm: stub | deepseek (OpenAI-compatible; deepseek-v4-flash, thinking disabled)
+  llm-provider: ${AI_LLM_PROVIDER:stub}
+  llm-model: ${AI_LLM_MODEL:deepseek-v4-flash}
+  llm-base-url: ${AI_LLM_BASE_URL:}
+  llm-api-key: ${DEEPSEEK_API_KEY:}
+  voyage-api-key: ${VOYAGE_API_KEY:}
+  request-timeout-seconds: ${AI_REQUEST_TIMEOUT_SECONDS:15}
+  review-summary-min-reviews: ${AI_REVIEW_SUMMARY_MIN_REVIEWS:3}

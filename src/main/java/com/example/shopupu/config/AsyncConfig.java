@@ -20,4 +20,16 @@ public class AsyncConfig {
         executor.initialize();
         return executor;
     }
+
+    /** Separate pool for AI side effects (embedding indexing, summary generation). */
+    @Bean(name = "aiExecutor")
+    public ThreadPoolTaskExecutor aiExecutor() {
+        ThreadPoolTaskExecutor executor = new ThreadPoolTaskExecutor();
+        executor.setThreadNamePrefix("ai-");
+        executor.setCorePoolSize(2);
+        executor.setMaxPoolSize(4);
+        executor.setQueueCapacity(500);
+        executor.initialize();
+        return executor;
+    }
 }

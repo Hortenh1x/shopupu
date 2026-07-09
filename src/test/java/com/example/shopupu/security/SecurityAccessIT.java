@@ -2,6 +2,7 @@ package com.example.shopupu.security;
 
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.user;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import com.example.shopupu.identity.entity.User;
@@ -99,13 +100,30 @@ class SecurityAccessIT extends PostgresContainerSupport {
     }
 
     @Test
-    void managerCannotManageUsers() throws Exception {
+    void aiCatalogReadsArePublicButAdminAiTriggersAreNot() throws Exception {
+        // AI search lives under the whitelisted GET /api/v1/catalog/** surface
+        mockMvc.perform(get("/api/v1/catalog/products/semantic-search").param("q", "dress"))
+                .andExpect(status().isOk());
+        // deny-by-default: maintenance triggers require ADMIN or MANAGER
+        mockMvc.perform(post("/api/v1/admin/ai/embeddings/backfill"))
+                .andExpect(status().isUnauthorized());
+        mockMvc.perform(post("/api/v1/admin/ai/embeddings/backfill").with(customer(stranger)))
+                .andExpect(status().isForbidden());
+        mockMvc.perform(post("/api/v1/admin/ai/embeddings/backfill")
+                        .with(user(stranger.getEmail()).roles("MANAGER")))
+                .andExpect(status().isAccepted());
+    }
+
+    @Test
+    void managerCannotManageUsersOrOrders() throws Exception {
+        // user administration is ADMIN-only
         mockMvc.perform(get("/api/v1/admin/users")
                         .with(user(stranger.getEmail()).roles("MANAGER")))
                 .andExpect(status().isForbidden());
+        // order administration is ADMIN-only too (AdminOrderController @PreAuthorize hasRole ADMIN)
         mockMvc.perform(get("/api/v1/admin/orders")
                         .with(user(stranger.getEmail()).roles("MANAGER")))
-                .andExpect(status().isOk());
+                .andExpect(status().isForbidden());
     }
 
     @Test

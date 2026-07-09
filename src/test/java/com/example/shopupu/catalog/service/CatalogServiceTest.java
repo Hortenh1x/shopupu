@@ -74,6 +74,9 @@ class CatalogServiceTest {
     @Mock
     private FileStorageService fileStorageService;
 
+    @Mock
+    private org.springframework.context.ApplicationEventPublisher eventPublisher;
+
     @org.mockito.Spy
     private com.example.shopupu.catalog.mapper.CatalogMapper catalogMapper = new com.example.shopupu.catalog.mapper.CatalogMapper();
 
@@ -366,8 +369,11 @@ class CatalogServiceTest {
     // handles deleteVariant.
     @Test
     void deleteVariantDisablesInsteadOfRemovingRow() {
+        Product product = new Product();
+        product.setId(1L);
         ProductVariant variant = ProductVariant.builder()
                 .id(3L)
+                .product(product)
                 .sku("SKU-1")
                 .size("M")
                 .price(new BigDecimal("10.00"))

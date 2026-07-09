@@ -1,10 +1,11 @@
 services:
   db:
-    image: postgres:18
+    # postgres:18 + pgvector extension (AI semantic search, V15 migration)
+    image: pgvector/pgvector:pg18
     environment:
       POSTGRES_DB: shopupu
       POSTGRES_USER: shopupu
-      POSTGRES_PASSWORD: shopupu
+      POSTGRES_PASSWORD: 1832
     ports:
       - "5432:5432"
     volumes:
@@ -15,6 +16,34 @@ services:
       interval: 5s
       timeout: 3s
       retries: 10
+
+  # Embeddings for AI semantic search. Dev default is a local Ollama daemon
+  # (AI_EMBEDDING_PROVIDER=ollama, http://localhost:11434) — run it on the host:
+  #   ollama serve && ollama pull bge-m3
+  # Alternatively a TEI sidecar (AI_EMBEDDING_PROVIDER=local, base-url :8081):
+  # embeddings:
+  #   image: ghcr.io/huggingface/text-embeddings-inference:cpu-1.6
+  #   command: --model-id BAAI/bge-m3
+  #   ports:
+  #     - "8081:80"
+
+  # Cloudflare Tunnel — public HTTPS URL for the locally-running backend, so
+  # payment-provider webhooks (/api/v1/payments/callback) and remote clients can
+  # reach it in dev. Opt-in; NOT started by `docker compose up -d db`:
+  #   docker compose --profile tunnel up -d cloudflared
+  # See docs/cloudflare-tunnel.md.
+  cloudflared:
+    image: cloudflare/cloudflared:latest
+    profiles: ["tunnel"]
+    restart: unless-stopped
+    # the backend runs on the host (./mvnw spring-boot:run), not in a container
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    # Quick tunnel: zero-config, prints a random https://*.trycloudflare.com URL.
+    command: tunnel --no-autoupdate --url http://host.docker.internal:8080
+    # Named tunnel (your own hostname) instead: set TUNNEL_TOKEN in .env, then use
+    #   environment: { TUNNEL_TOKEN: "${TUNNEL_TOKEN}" }
+    #   command: tunnel --no-autoupdate run
 
 volumes:
   shopupu-db:

@@ -1,5 +1,6 @@
 package com.example.shopupu.catalog.service;
 
+import com.example.shopupu.ai.event.ProductChangedEvent;
 import com.example.shopupu.catalog.dto.ProductRequest;
 import com.example.shopupu.catalog.dto.VariantRequest;
 import com.example.shopupu.catalog.entity.Brand;
@@ -22,6 +23,7 @@ import com.example.shopupu.inventory.service.InventoryService;
 import java.time.Instant;
 import java.util.List;
 import lombok.RequiredArgsConstructor;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
@@ -40,6 +42,8 @@ public class CatalogService {
     private final InventoryService inventoryService;
     private final FileStorageService fileStorageService;
     private final com.example.shopupu.catalog.mapper.CatalogMapper catalogMapper;
+    // AI embedding re-indexing listens AFTER_COMMIT; publishing costs nothing here
+    private final ApplicationEventPublisher eventPublisher;
 
     // === Categories =========================================================
 
@@ -120,7 +124,9 @@ public class CatalogService {
         Product product = new Product();
         applyProductFields(product, request, category);
         product.setSlug(resolveProductSlug(request.slug(), request.title(), null));
-        return toResponse(productRepository.save(product));
+        Product saved = productRepository.save(product);
+        eventPublisher.publishEvent(new ProductChangedEvent(saved.getId()));
+        return toResponse(saved);
     }
 
     public com.example.shopupu.catalog.dto.ProductResponse updateProduct(Long id, ProductRequest request) {
@@ -130,7 +136,9 @@ public class CatalogService {
         if (request.slug() != null && !request.slug().isBlank()) {
             product.setSlug(resolveProductSlug(request.slug(), request.title(), id));
         }
-        return toResponse(productRepository.save(product));
+        Product saved = productRepository.save(product);
+        eventPublisher.publishEvent(new ProductChangedEvent(saved.getId()));
+        return toResponse(saved);
     }
 
     private void applyProductFields(Product product, ProductRequest request, Category category) {
@@ -214,6 +222,7 @@ public class CatalogService {
         product.setEnabled(false);
         product.setDeletedAt(Instant.now());
         productRepository.save(product);
+        eventPublisher.publishEvent(new ProductChangedEvent(id));
     }
 
     // === Variants ===========================================================
@@ -242,6 +251,7 @@ public class CatalogService {
         ProductVariant saved = variantRepository.save(variant);
         inventoryService.setStock(saved.getId(),
                 request.stock() == null ? 0 : request.stock(), "admin:variant-created");
+        eventPublisher.publishEvent(new ProductChangedEvent(product.getId()));
         return saved;
     }
 
@@ -266,6 +276,7 @@ public class CatalogService {
         if (request.stock() != null) {
             inventoryService.setStock(variantId, request.stock(), "admin:variant-updated");
         }
+        eventPublisher.publishEvent(new ProductChangedEvent(saved.getProduct().getId()));
         return saved;
     }
 
@@ -274,6 +285,7 @@ public class CatalogService {
         ProductVariant variant = findVariant(variantId);
         variant.setEnabled(false);
         variantRepository.save(variant);
+        eventPublisher.publishEvent(new ProductChangedEvent(variant.getProduct().getId()));
     }
 
     // === Images =============================================================

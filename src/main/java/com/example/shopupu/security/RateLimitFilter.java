@@ -67,13 +67,21 @@ public class RateLimitFilter extends OncePerRequestFilter {
                 "detail":"Rate limit exceeded, retry later"}""");
     }
 
-    private enum Zone { AUTH, CHECKOUT, NONE }
+    private enum Zone { AUTH, CHECKOUT, SEMANTIC, NONE }
 
     private Zone zoneFor(HttpServletRequest request) {
+        String uri = request.getRequestURI();
+        if ("GET".equals(request.getMethod())) {
+            // semantic/NL search may call an external embedding/LLM API per query
+            if (uri.equals("/api/v1/catalog/products/semantic-search")
+                    || uri.equals("/api/v1/catalog/products/nl-search")) {
+                return Zone.SEMANTIC;
+            }
+            return Zone.NONE;
+        }
         if (!"POST".equals(request.getMethod())) {
             return Zone.NONE;
         }
-        String uri = request.getRequestURI();
         if (uri.startsWith("/api/v1/auth/")) {
             return Zone.AUTH;
         }
@@ -85,8 +93,16 @@ public class RateLimitFilter extends OncePerRequestFilter {
     }
 
     private Bucket newBucket(Zone zone) {
-        long capacity = zone == Zone.AUTH ? properties.getAuthCapacity() : properties.getCheckoutCapacity();
-        long refill = zone == Zone.AUTH ? properties.getAuthRefillPerMinute() : properties.getCheckoutRefillPerMinute();
+        long capacity = switch (zone) {
+            case AUTH -> properties.getAuthCapacity();
+            case SEMANTIC -> properties.getSemanticCapacity();
+            default -> properties.getCheckoutCapacity();
+        };
+        long refill = switch (zone) {
+            case AUTH -> properties.getAuthRefillPerMinute();
+            case SEMANTIC -> properties.getSemanticRefillPerMinute();
+            default -> properties.getCheckoutRefillPerMinute();
+        };
         return Bucket.builder()
                 .addLimit(Bandwidth.builder()
                         .capacity(capacity)

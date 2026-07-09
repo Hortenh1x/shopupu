@@ -44,4 +44,14 @@ public interface ReviewRepository extends JpaRepository<Review, Long> {
             where r.product.id = :productId and r.status = com.example.shopupu.reviews.entity.ReviewStatus.APPROVED
             """)
     Double averagePublishedRatingByProductId(Long productId);
+
+    /** Products with enough approved reviews to deserve an AI summary. */
+    @Query("""
+            select r.product.id
+            from Review r
+            where r.status = com.example.shopupu.reviews.entity.ReviewStatus.APPROVED
+            group by r.product.id
+            having count(r) >= :minCount
+            """)
+    java.util.List<Long> findProductIdsWithApprovedCountAtLeast(long minCount);
 }

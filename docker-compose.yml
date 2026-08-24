@@ -62,10 +62,12 @@ services:
       BOOTSTRAP_ADMIN_EMAIL: ${BOOTSTRAP_ADMIN_EMAIL:-}
       BOOTSTRAP_ADMIN_PASSWORD: ${BOOTSTRAP_ADMIN_PASSWORD:-}
       AI_ENABLED: ${AI_ENABLED:-true}
-      AI_EMBEDDING_PROVIDER: ollama
-      AI_LLM_PROVIDER: deepseek
-      AI_LLM_BASE_URL: https://api.deepseek.com
-      DEEPSEEK_API_KEY: ${DEEPSEEK_API_KEY}
+      AI_EMBEDDING_PROVIDER: ${AI_EMBEDDING_PROVIDER:-ollama}
+      # stub keeps the app bootable without a key: the DeepSeek bean is created
+      # whenever the provider says "deepseek", even with AI_ENABLED=false
+      AI_LLM_PROVIDER: ${AI_LLM_PROVIDER:-deepseek}
+      AI_LLM_BASE_URL: ${AI_LLM_BASE_URL:-https://api.deepseek.com}
+      DEEPSEEK_API_KEY: ${DEEPSEEK_API_KEY:-}
     volumes:
       - ./uploads:/app/uploads
 

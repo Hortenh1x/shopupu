@@ -10,7 +10,6 @@ import jakarta.validation.constraints.Size;
  */
 public record CreateReviewRequest(
         @Min(1) @Max(5) Integer rating,
-        @NotBlank @Size(max = 160) String title,
         @NotBlank @Size(max = 5000) String body,
         Long orderId
 ) {

@@ -146,6 +146,16 @@ Inventory correctness: резервирование/списание — ато�
   админ-триггеры: `POST /api/v1/admin/ai/embeddings/backfill | recommendations/recompute |
   review-summaries/refresh` (202, аудит)
 
+**AI в проде (решение для v1): включено.** Прод-профиль compose поднимает AI с
+живыми провайдерами: эмбеддинги — Ollama `bge-m3` на самом сервере (loopback
+:11434, наружу не торчит, ключей не нужно), LLM — DeepSeek `deepseek-v4-flash`
+с выключенным thinking (`DEEPSEEK_API_KEY` в `.env`; дёшево, единичные
+summarize/extract-вызовы). После первого деплоя один раз:
+`POST /api/v1/admin/ai/embeddings/backfill`. Откат безопасен и не требует
+деплоя: `AI_ENABLED=false` — все AI-ручки штатно деградируют (keyword-поиск,
+пустые рекомендации, 404 у саммари); так же деградирует и каждый сбой провайдера
+в рантайме. Детали — в [docs/ai-features-plan.md](docs/ai-features-plan.md).
+
 Ошибки — RFC 9457 Problem Details c `code` и `requestId` (сквозной
 `X-Request-Id` в ответах).
 

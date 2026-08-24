@@ -57,7 +57,7 @@ public class GdprService {
         List<UserDataExport.ExportedReview> reviews = reviewRepository
                 .findByUserId(user.getId()).stream()
                 .map(r -> new UserDataExport.ExportedReview(
-                        r.getProduct().getId(), r.getRating(), r.getTitle(), r.getBody(),
+                        r.getProduct().getId(), r.getRating(), r.getBody(),
                         r.getStatus().name(), r.getCreatedAt()))
                 .toList();
 
@@ -74,7 +74,6 @@ public class GdprService {
         cartRepository.findByUser(user).ifPresent(cartRepository::delete);
 
         for (Review review : reviewRepository.findByUserId(user.getId())) {
-            review.setTitle("[deleted]");
             review.setBody("[deleted]");
             review.setStatus(ReviewStatus.DELETED);
             reviewRepository.save(review);

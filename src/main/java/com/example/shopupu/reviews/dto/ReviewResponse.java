@@ -12,7 +12,6 @@ public record ReviewResponse(
         Long userId,
         String username,
         Integer rating,
-        String title,
         String body,
         ReviewStatus status,
         Instant createdAt,

@@ -54,6 +54,45 @@ public class SemanticSearchService {
         return keywordFallback(q, limit);
     }
 
+    /**
+     * Semantic search that keeps the cosine distance per hit so callers (the
+     * stylist) can judge whether the closest product is actually the requested
+     * garment. Distance is null on the keyword fallback — relevance unknown.
+     */
+    public List<ScoredItem> semanticSearchScored(String q, int limit) {
+        String query = normalize(q);
+        if (query.isBlank()) {
+            return List.of();
+        }
+        if (aiProperties.isEnabled()) {
+            try {
+                float[] embedding = queryEmbeddingService.embedQuery(query);
+                var scored = embeddingRepository.findNearestProductIdsWithDistance(
+                        embedding, aiProperties.getEmbeddingModel(), limit);
+                if (!scored.isEmpty()) {
+                    meterRegistry.counter("shopupu.ai", "op", "semantic_search", "result", "ok").increment();
+                    var distanceById = scored.stream().collect(java.util.stream.Collectors.toMap(
+                            com.example.shopupu.ai.repository.ProductEmbeddingRepository.ScoredProductId::productId,
+                            com.example.shopupu.ai.repository.ProductEmbeddingRepository.ScoredProductId::distance));
+                    return productQueryService.findListItemsByIds(scored.stream()
+                                    .map(com.example.shopupu.ai.repository.ProductEmbeddingRepository.ScoredProductId::productId)
+                                    .toList())
+                            .stream()
+                            .map(item -> new ScoredItem(item, distanceById.get(item.id())))
+                            .toList();
+                }
+            } catch (Exception ex) {
+                log.warn("Scored semantic search failed, falling back to keyword search", ex);
+            }
+        }
+        meterRegistry.counter("shopupu.ai", "op", "semantic_search", "result", "fallback").increment();
+        return keywordFallback(q, limit).stream().map(item -> new ScoredItem(item, null)).toList();
+    }
+
+    /** A search hit plus its cosine distance (null when relevance is unknown). */
+    public record ScoredItem(ProductListItem item, Double distance) {
+    }
+
     /** Natural-language query -> ProductFilter (Claude structured output) -> existing search. */
     public Page<ProductListItem> nlSearch(String q, Pageable pageable) {
         ProductFilter filter = new ProductFilter();

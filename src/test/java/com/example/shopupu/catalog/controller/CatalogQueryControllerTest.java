@@ -9,7 +9,7 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import com.example.shopupu.catalog.dto.ProductListItem;
-import com.example.shopupu.catalog.mapper.CatalogMapper;
+import com.example.shopupu.catalog.mapper.CatalogMapperImpl;
 import com.example.shopupu.catalog.model.ProductFilter;
 import com.example.shopupu.catalog.service.ProductQueryService;
 import java.util.List;
@@ -51,7 +51,7 @@ class CatalogQueryControllerTest {
 
     @BeforeEach
     void setUp() {
-        var controller = new CatalogQueryController(productQueryService, new CatalogMapper());
+        var controller = new CatalogQueryController(productQueryService, new CatalogMapperImpl());
         mockMvc = MockMvcBuilders.standaloneSetup(controller)
                 .setCustomArgumentResolvers(new PageableHandlerMethodArgumentResolver())
                 .build();

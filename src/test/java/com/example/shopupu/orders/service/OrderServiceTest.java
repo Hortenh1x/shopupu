@@ -99,7 +99,7 @@ class OrderServiceTest {
                 eventPublisher,
                 auditService,
                 new io.micrometer.core.instrument.simple.SimpleMeterRegistry(),
-                new com.example.shopupu.orders.mapper.OrderMapper()
+                new com.example.shopupu.orders.mapper.OrderMapperImpl()
         );
         user = User.builder().id(1L).email("user@example.com").build();
     }

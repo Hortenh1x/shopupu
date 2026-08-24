@@ -1,5 +1,7 @@
 package com.example.shopupu.ai.gateway;
 
+import com.example.shopupu.ai.model.ChatMessage;
+import com.example.shopupu.ai.model.OutfitPlan;
 import com.example.shopupu.ai.model.ParsedProductQuery;
 import com.example.shopupu.ai.model.ReviewSummary;
 import java.util.List;
@@ -18,4 +20,10 @@ public interface LlmClient {
     Optional<ReviewSummary> summarizeReviews(String productTitle, List<String> reviewLines);
 
     Optional<ParsedProductQuery> parseCatalogQuery(String query);
+
+    /**
+     * Stylist chat: turn a conversation into an outfit plan (reply + catalog
+     * slots). {@code catalogContext} tells the model what the shop carries.
+     */
+    Optional<OutfitPlan> planOutfit(List<ChatMessage> conversation, String catalogContext);
 }

@@ -64,7 +64,7 @@ public class ReviewService {
         return new ProductRatingSummaryResponse(productId, roundedAverage, count);
     }
 
-    public Review createReview(Long productId, Integer rating, String title, String body, Long orderId) {
+    public Review createReview(Long productId, Integer rating, String body, Long orderId) {
         User user = accessControlService.currentUser();
         Product product = requireProduct(productId);
         ensureUserCanCreateReview(user, productId);
@@ -75,7 +75,6 @@ public class ReviewService {
         review.setProduct(product);
         review.setOrder(orderId == null ? null : orderRepository.findById(orderId).orElse(null));
         review.setRating(rating);
-        review.setTitle(sanitize(title));
         review.setBody(sanitize(body));
         // moderation first: reviews appear publicly only after approval (REV-02)
         review.setStatus(ReviewStatus.PENDING);
@@ -83,7 +82,7 @@ public class ReviewService {
     }
 
     @org.springframework.cache.annotation.CacheEvict(cacheNames = "productRating", allEntries = true)
-    public Review updateReview(Long reviewId, Integer rating, String title, String body) {
+    public Review updateReview(Long reviewId, Integer rating, String body) {
         Review review = requireReview(reviewId);
         requireReviewOwner(review);
         if (review.getStatus() == ReviewStatus.DELETED) {
@@ -91,7 +90,6 @@ public class ReviewService {
         }
         ReviewStatus previous = review.getStatus();
         review.setRating(rating);
-        review.setTitle(sanitize(title));
         review.setBody(sanitize(body));
         // edits go back through moderation instead of self-publishing
         review.setStatus(ReviewStatus.PENDING);

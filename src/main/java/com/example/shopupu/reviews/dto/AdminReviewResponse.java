@@ -13,7 +13,6 @@ public record AdminReviewResponse(
         Long userId,
         String userEmail,
         Integer rating,
-        String title,
         String body,
         ReviewStatus status,
         Instant createdAt,

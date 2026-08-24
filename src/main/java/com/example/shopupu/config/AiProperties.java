@@ -69,4 +69,15 @@ public class AiProperties {
     @NotNull
     @Min(1)
     private Integer reviewSummaryMinReviews = 3;
+
+    /**
+     * Stylist honesty gate: a slot whose best cosine distance exceeds this is
+     * treated as "not in the catalog" instead of recommending the nearest
+     * unrelated garment. Empirically (bge-m3, this catalog): real matches score
+     * ≤0.38, missing garment types ≥0.47.
+     */
+    @NotNull
+    @jakarta.validation.constraints.DecimalMin("0.0")
+    @jakarta.validation.constraints.DecimalMax("2.0")
+    private Double stylistMatchMaxDistance = 0.45;
 }

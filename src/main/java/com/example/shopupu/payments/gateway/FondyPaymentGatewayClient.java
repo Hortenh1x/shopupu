@@ -9,7 +9,9 @@ import java.security.MessageDigest;
 import java.time.Duration;
 import java.util.HexFormat;
 import java.util.Map;
+import java.util.Optional;
 import java.util.TreeMap;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.http.MediaType;
 import org.springframework.http.client.JdkClientHttpRequestFactory;
@@ -21,6 +23,7 @@ import org.springframework.web.client.RestClient;
  * the customer enters the card on Fondy's page (PCI scope stays with Fondy).
  * Requests are signed with SHA1 over '|'-joined sorted params per Fondy docs.
  */
+@Slf4j
 @Component
 @ConditionalOnProperty(name = "payments.default-provider", havingValue = "fondy")
 public class FondyPaymentGatewayClient implements PaymentGatewayClient {
@@ -78,6 +81,48 @@ public class FondyPaymentGatewayClient implements PaymentGatewayClient {
         }
     }
 
+    /** POST /status/order_id (signed) — used by the reconciliation job, read-only. */
+    @Override
+    public Optional<PaymentStatus> fetchPaymentStatus(String externalPaymentId) {
+        try {
+            TreeMap<String, String> params = new TreeMap<>(Map.of(
+                    "merchant_id", required(paymentProperties.getFondy().getMerchantId(), "payments.fondy.merchant-id"),
+                    "order_id", externalPaymentId
+            ));
+            params.put("signature", sign(params));
+
+            FondyResponse response = restClient.post()
+                    .uri("/status/order_id/")
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .body(Map.of("request", params))
+                    .retrieve()
+                    .body(FondyResponse.class);
+
+            if (response == null || response.response() == null) {
+                return Optional.empty();
+            }
+            return Optional.ofNullable(mapOrderStatus(response.response().order_status()));
+        } catch (Exception ex) {
+            log.warn("Failed to fetch Fondy order status for {}", externalPaymentId, ex);
+            return Optional.empty();
+        }
+    }
+
+    /** Fondy order statuses: created/processing/declined/approved/expired/reversed. */
+    static PaymentStatus mapOrderStatus(String orderStatus) {
+        if (orderStatus == null) {
+            return null;
+        }
+        return switch (orderStatus) {
+            case "created", "processing" -> PaymentStatus.PENDING;
+            case "approved" -> PaymentStatus.SUCCEEDED;
+            case "declined" -> PaymentStatus.FAILED;
+            case "expired" -> PaymentStatus.EXPIRED;
+            case "reversed" -> PaymentStatus.REFUNDED;
+            default -> null;
+        };
+    }
+
     /** SHA1(password|param1|param2|...) over non-empty params sorted by key. */
     private String sign(TreeMap<String, String> params) {
         String secret = required(paymentProperties.getFondy().getSecret(), "payments.fondy.secret");
@@ -109,6 +154,7 @@ public class FondyPaymentGatewayClient implements PaymentGatewayClient {
     private record FondyResponse(FondyResponseBody response) {
     }
 
-    private record FondyResponseBody(String checkout_url, String payment_id, String response_status) {
+    private record FondyResponseBody(String checkout_url, String payment_id, String response_status,
+                                     String order_status) {
     }
 }

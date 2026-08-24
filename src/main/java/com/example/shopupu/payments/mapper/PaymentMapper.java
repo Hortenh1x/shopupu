@@ -2,31 +2,15 @@ package com.example.shopupu.payments.mapper;
 
 import com.example.shopupu.payments.dto.PaymentResponse;
 import com.example.shopupu.payments.entity.Payment;
-import org.springframework.stereotype.Component;
+import org.mapstruct.Mapper;
+import org.mapstruct.Mapping;
+import org.mapstruct.MappingConstants;
+import org.mapstruct.ReportingPolicy;
 
+@Mapper(componentModel = MappingConstants.ComponentModel.SPRING, unmappedTargetPolicy = ReportingPolicy.ERROR)
+public interface PaymentMapper {
 
-@Component
-/**
- * describes the PaymentMapper class.
- */
-public class PaymentMapper {
-
-
-    // handles toResponse.
-    public PaymentResponse toResponse(Payment payment) {
-        if (payment == null) return null;
-        return new PaymentResponse(
-                payment.getId(),
-                payment.getOrder().getId(),
-                payment.getExternalId(),
-                payment.getProvider(),
-                payment.getStatus(),
-                payment.getAmount(),
-                payment.getCurrency(),
-                payment.getPaymentUrl(),
-                payment.getClientToken(),
-                payment.getCreatedAt(),
-                payment.getUpdatedAt()
-        );
-    }
+    @Mapping(target = "orderId", source = "order.id")
+    @Mapping(target = "externalPaymentId", source = "externalId")
+    PaymentResponse toResponse(Payment payment);
 }

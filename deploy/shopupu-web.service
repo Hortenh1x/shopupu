@@ -1,0 +1,15 @@
+[Unit]
+Description=shopupu-web (Next.js production server on :3000)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+User=horten
+WorkingDirectory=/home/horten/Idea Projects/shopupu-web
+ExecStart=/usr/bin/npm run start
+Restart=always
+RestartSec=3
+Environment=NODE_ENV=production
+
+[Install]
+WantedBy=multi-user.target

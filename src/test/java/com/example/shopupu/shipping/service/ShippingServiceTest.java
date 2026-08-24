@@ -25,7 +25,7 @@ import com.example.shopupu.shipping.entity.Shipment;
 import com.example.shopupu.shipping.entity.ShippingAddress;
 import com.example.shopupu.shipping.entity.ShippingMethod;
 import com.example.shopupu.shipping.entity.ShippingStatus;
-import com.example.shopupu.shipping.mapper.ShippingMapper;
+import com.example.shopupu.shipping.mapper.ShippingMapperImpl;
 import com.example.shopupu.shipping.repository.ShipmentRepository;
 import com.example.shopupu.shipping.repository.ShippingAddressRepository;
 import java.math.BigDecimal;
@@ -71,7 +71,7 @@ class ShippingServiceTest {
                 orderRepository,
                 shipmentRepository,
                 addressRepository,
-                new ShippingMapper(),
+                new ShippingMapperImpl(),
                 shippingProperties,
                 accessControlService,
                 orderService

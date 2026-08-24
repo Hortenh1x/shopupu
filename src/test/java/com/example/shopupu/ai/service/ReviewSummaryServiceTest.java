@@ -135,11 +135,10 @@ class ReviewSummaryServiceTest {
         return product;
     }
 
-    private Review review(int rating, String title) {
+    private Review review(int rating, String body) {
         Review review = new Review();
         review.setRating(rating);
-        review.setTitle(title);
-        review.setBody("body of " + title);
+        review.setBody(body);
         return review;
     }
 }

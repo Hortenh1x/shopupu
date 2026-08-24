@@ -35,4 +35,40 @@ class StubLlmClientTest {
         assertEquals("тёплая куртка до 100", parsed.get().q());
         assertEquals(null, parsed.get().maxPrice());
     }
+
+    @Test
+    void keywordPlanHonestlyNamesGarmentsTheShopDoesNotCarry() {
+        var plan = StubLlmClient.keywordPlan("нужен костюм с галстуком на деловую встречу");
+
+        // the shopper's own words are echoed back
+        assertEquals(List.of("костюм", "галстуком"), plan.unavailable());
+        assertTrue(plan.reply().startsWith("We don't carry костюм, галстуком"));
+        // still offers the closest formal pieces instead of nothing
+        assertEquals("Blazer", plan.slots().get(0).slot());
+    }
+
+    @Test
+    void keywordPlanDoesNotFalseFlagShortEnglishStemsInsideWords() {
+        // "tie" inside "sweatier", "cap" inside "escape" must not trigger honesty notes
+        var plan = StubLlmClient.keywordPlan("something sweatier to escape the cold");
+
+        assertTrue(plan.unavailable().isEmpty());
+    }
+
+    @Test
+    void keywordPlanDoesNotReadGenderOutOfUnrelatedWords() {
+        // "нужен" contains "жен": must NOT be taken as a womenswear request,
+        // otherwise the gender filter silently drops the men's blazer
+        var plan = StubLlmClient.keywordPlan("нужен пиджак на деловую встречу");
+
+        assertEquals("Blazer", plan.slots().get(0).slot());
+        assertEquals(null, plan.slots().get(0).gender());
+    }
+
+    @Test
+    void keywordPlanStillDetectsRealGenderWords() {
+        var plan = StubLlmClient.keywordPlan("что-то официальное для женщины");
+
+        assertEquals(com.example.shopupu.catalog.entity.Gender.WOMEN, plan.slots().get(0).gender());
+    }
 }

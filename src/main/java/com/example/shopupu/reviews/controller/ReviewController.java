@@ -42,7 +42,7 @@ public class ReviewController {
             @PathVariable Long productId,
             @Valid @RequestBody CreateReviewRequest request
     ) {
-        var review = reviewService.createReview(productId, request.rating(), request.title(), request.body(), request.orderId());
+        var review = reviewService.createReview(productId, request.rating(), request.body(), request.orderId());
         return reviewMapper.toResponse(review);
     }
 
@@ -52,7 +52,7 @@ public class ReviewController {
             @PathVariable Long reviewId,
             @Valid @RequestBody UpdateReviewRequest request
     ) {
-        var review = reviewService.updateReview(reviewId, request.rating(), request.title(), request.body());
+        var review = reviewService.updateReview(reviewId, request.rating(), request.body());
         return reviewMapper.toResponse(review);
     }
 

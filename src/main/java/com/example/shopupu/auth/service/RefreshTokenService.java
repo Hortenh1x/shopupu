@@ -15,7 +15,10 @@ import java.util.Base64;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.PlatformTransactionManager;
+import org.springframework.transaction.TransactionDefinition;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionTemplate;
 
 /**
  * Opaque refresh tokens. Only a SHA-256 hash is persisted, so a leaked database
@@ -29,6 +32,7 @@ public class RefreshTokenService {
 
     private final RefreshTokenRepository refreshTokenRepository;
     private final JwtProperties jwtProperties;
+    private final PlatformTransactionManager transactionManager;
 
     private static final SecureRandom RANDOM = new SecureRandom();
 
@@ -55,7 +59,11 @@ public class RefreshTokenService {
 
         if (rt.isRevoked()) {
             // Reuse of a rotated token: assume the token leaked and kill the whole chain.
-            int revoked = refreshTokenRepository.revokeAllByUser(rt.getUser());
+            // REQUIRES_NEW like the audit trail: the UnauthorizedException below rolls the
+            // surrounding transaction back, and the revocation must survive that rollback.
+            TransactionTemplate revokeTx = new TransactionTemplate(transactionManager);
+            revokeTx.setPropagationBehavior(TransactionDefinition.PROPAGATION_REQUIRES_NEW);
+            Integer revoked = revokeTx.execute(tx -> refreshTokenRepository.revokeAllByUser(rt.getUser()));
             log.warn("Refresh token reuse detected for user id={}, revoked {} active tokens",
                     rt.getUser().getId(), revoked);
             throw new UnauthorizedException("Invalid refresh token");

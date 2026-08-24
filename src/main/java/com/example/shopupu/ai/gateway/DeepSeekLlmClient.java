@@ -1,5 +1,7 @@
 package com.example.shopupu.ai.gateway;
 
+import com.example.shopupu.ai.model.ChatMessage;
+import com.example.shopupu.ai.model.OutfitPlan;
 import com.example.shopupu.ai.model.ParsedProductQuery;
 import com.example.shopupu.ai.model.ReviewSummary;
 import com.example.shopupu.config.AiProperties;
@@ -58,6 +60,23 @@ public class DeepSeekLlmClient implements LlmClient {
             Extract only what is explicitly stated; use null otherwise.
             'under 100' / 'до 100' means maxPrice 100.""";
 
+    private static final String STYLIST_SYSTEM = """
+            You are the personal stylist of an online clothing shop. From the shopper's
+            request (and the prior conversation) assemble an outfit out of the catalog.
+            Reply with ONE JSON object and nothing else:
+            {"reply": "1-2 friendly sentences in the shopper's language explaining the outfit",
+             "slots": [{"slot": "short garment label in the shopper's language",
+                        "query": "english search keywords for this garment, e.g. 'tailored wool blazer'",
+                        "gender": "MEN" | "WOMEN" | "UNISEX" | null,
+                        "maxPrice": number or null}, ...2 to 4 slots],
+             "unavailable": ["garment the shopper asked for that the shop does NOT carry,
+                             in the shopper's own words", ... or empty]}
+            Only put garment types the catalog carries into slots. Be honest: when the shopper
+            asks for something the shop does not carry (e.g. a tie), list it in "unavailable",
+            say so plainly in reply, and offer the closest available pieces instead — never
+            pretend an unrelated product is the requested garment. Respect any budget: put it
+            into maxPrice.""";
+
     private final AiProperties aiProperties;
     private final RestClient restClient;
     private final ObjectMapper objectMapper;
@@ -91,11 +110,28 @@ public class DeepSeekLlmClient implements LlmClient {
         return complete(ParsedProductQuery.class, PARSE_SYSTEM, query);
     }
 
+    @Override
+    public Optional<OutfitPlan> planOutfit(List<ChatMessage> conversation, String catalogContext) {
+        if (conversation == null || conversation.isEmpty()) {
+            return Optional.empty();
+        }
+        List<Message> messages = new java.util.ArrayList<>();
+        messages.add(new Message("system", STYLIST_SYSTEM + "\n\nCatalog:\n" + catalogContext));
+        for (ChatMessage turn : conversation) {
+            messages.add(new Message("assistant".equals(turn.role()) ? "assistant" : "user", turn.content()));
+        }
+        return completeMessages(OutfitPlan.class, messages);
+    }
+
     private <T> Optional<T> complete(Class<T> type, String system, String user) {
+        return completeMessages(type, List.of(new Message("system", system), new Message("user", user)));
+    }
+
+    private <T> Optional<T> completeMessages(Class<T> type, List<Message> messages) {
         try {
             ChatRequest request = new ChatRequest(
                     aiProperties.getLlmModel(),
-                    List.of(new Message("system", system), new Message("user", user)),
+                    messages,
                     new ResponseFormat("json_object"),
                     new Thinking("disabled"),
                     0.0,

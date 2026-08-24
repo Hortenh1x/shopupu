@@ -75,7 +75,6 @@ class GdprServiceTest {
                 .enabled(true)
                 .build();
         Review review = new Review();
-        review.setTitle("Nice");
         review.setBody("Great hoodie");
         review.setStatus(ReviewStatus.APPROVED);
         when(reviewRepository.findByUserId(7L)).thenReturn(List.of(review));
@@ -96,7 +95,6 @@ class GdprServiceTest {
         assertEquals("random-hash", user.getPasswordHash());
 
         assertEquals(ReviewStatus.DELETED, review.getStatus());
-        assertEquals("[deleted]", review.getTitle());
         assertEquals("[deleted]", review.getBody());
 
         verify(addressRepository).deleteByUser(user);

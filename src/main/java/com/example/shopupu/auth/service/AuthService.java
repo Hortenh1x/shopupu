@@ -1,11 +1,15 @@
 package com.example.shopupu.auth.service;
 
+import com.example.shopupu.common.exception.BadRequestException;
 import com.example.shopupu.common.exception.UnauthorizedException;
 import com.example.shopupu.identity.entity.User;
 import com.example.shopupu.identity.service.UserService;
 import com.example.shopupu.security.JwtTokenProvider;
+import com.google.api.client.googleapis.auth.oauth2.GoogleIdToken;
+import com.google.api.client.googleapis.auth.oauth2.GoogleIdTokenVerifier;
 import java.util.stream.Collectors;
 import lombok.RequiredArgsConstructor;
+import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.AuthenticationException;
@@ -26,6 +30,7 @@ public class AuthService {
     private final com.example.shopupu.cart.service.CartService cartService;
     private final OneTimeTokenService oneTimeTokenService;
     private final com.example.shopupu.notifications.NotificationService notificationService;
+    private final ObjectProvider<GoogleIdTokenVerifier> googleVerifierProvider;
 
     public record TokenPair(String accessToken, String refreshToken) {}
 
@@ -46,6 +51,44 @@ public class AuthService {
         User user = userService.getByEmail(email)
                 .orElseThrow(() -> new UnauthorizedException("Wrong login or password"));
         auditService.record(email, "LOGIN_SUCCEEDED", "user", String.valueOf(user.getId()), null);
+        cartService.mergeGuestCart(guestCartToken, email);
+        return issueTokens(user);
+    }
+
+    /**
+     * Logs in (or provisions) a user from a Google ID token (AUTH-13). The token
+     * is verified against Google's keys (signature, issuer, audience, expiry);
+     * we additionally require {@code email_verified} before trusting the email.
+     * Inert until {@code google.client-id} is configured.
+     */
+    @Transactional
+    public TokenPair loginWithGoogle(String idTokenString, String guestCartToken) {
+        GoogleIdTokenVerifier verifier = googleVerifierProvider.getIfAvailable();
+        if (verifier == null) {
+            throw new BadRequestException("Google login is not configured");
+        }
+
+        GoogleIdToken idToken;
+        try {
+            idToken = verifier.verify(idTokenString);
+        } catch (Exception e) {
+            throw new UnauthorizedException("Could not verify Google token");
+        }
+        if (idToken == null) {
+            throw new UnauthorizedException("Invalid Google token");
+        }
+
+        GoogleIdToken.Payload payload = idToken.getPayload();
+        String email = payload.getEmail();
+        if (email == null || !Boolean.TRUE.equals(payload.getEmailVerified())) {
+            throw new UnauthorizedException("Google account email is not verified");
+        }
+
+        User user = userService.findOrCreateGoogleUser(email);
+        if (!user.isEnabled()) {
+            throw new UnauthorizedException("Account is disabled");
+        }
+        auditService.record(email, "LOGIN_SUCCEEDED_GOOGLE", "user", String.valueOf(user.getId()), null);
         cartService.mergeGuestCart(guestCartToken, email);
         return issueTokens(user);
     }

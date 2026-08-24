@@ -1,5 +1,6 @@
 package com.example.shopupu.auth.dto;
 
+import com.example.shopupu.identity.entity.Gender;
 import com.example.shopupu.identity.entity.User;
 import java.util.List;
 
@@ -10,6 +11,7 @@ public record UserProfile(
         String lastName,
         String phone,
         String preferredSize,
+        Gender gender,
         boolean enabled,
         boolean emailVerified,
         List<String> roles
@@ -22,6 +24,7 @@ public record UserProfile(
                 user.getLastName(),
                 user.getPhone(),
                 user.getPreferredSize(),
+                user.getGender(),
                 user.isEnabled(),
                 user.isEmailVerified(),
                 user.getRoles().stream().map(role -> role.getName()).toList()

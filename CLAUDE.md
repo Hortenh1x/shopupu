@@ -50,7 +50,7 @@ same internal shape: `controller/` · `dto/` · `entity/` · `repository/` · `s
 | `promo` | promo codes with atomic redemption accounting |
 | `shipping` | methods, rates, free-shipping threshold, per-order address snapshot |
 | `reviews` | verified-purchase reviews, pre-moderation, HTML sanitization |
-| `ai` | semantic search (pgvector), recommendations, review summaries; pluggable embedding/LLM providers with stub fallback |
+| `ai` | semantic search (pgvector), recommendations, review summaries, stylist chat (outfit recommendations); pluggable embedding/LLM providers with stub fallback |
 | `notifications` | domain events → async email (SMTP or logging fallback) |
 | `common` | audit trail, exception handling, storage, security helpers, web filters |
 | `config` | `@ConfigurationProperties`, security, CORS, caching, OpenAPI, bootstrap admin |
@@ -148,4 +148,6 @@ Payment provider is selected by `PAYMENTS_DEFAULT_PROVIDER` (`stub` for local de
 - [docs/runbook.md](docs/runbook.md) — operational incident procedures
 - [docs/ai-features-plan.md](docs/ai-features-plan.md) — AI features design & as-built notes
 - [docs/cloudflare-tunnel.md](docs/cloudflare-tunnel.md) — expose the dev backend for webhooks
+- [docs/deploy-cloudflare.md](docs/deploy-cloudflare.md) — production deploy of shopupu.net (tunnel path routing, prod compose profile)
+- [docs/deploy-oracle.md](docs/deploy-oracle.md) — the same stack on Oracle Cloud Ampere A1 (aarch64: build on the instance, no OCI ingress, systemd frontend)
 - `graphify-out/graph.html` — interactive knowledge graph of this codebase (run `/graphify query "..."` to ask it questions)

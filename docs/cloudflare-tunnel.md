@@ -44,4 +44,5 @@ signature, not by network origin — the tunnel does not weaken that.
 
 - Linux: `extra_hosts: host.docker.internal:host-gateway` (already set) lets the
   container reach the host's `:8080`.
-- Not a production deployment — it's a dev/staging convenience.
+- Not a production deployment — it's a dev/staging convenience. For the real
+  shopupu.net deployment see [deploy-cloudflare.md](deploy-cloudflare.md).

@@ -41,9 +41,6 @@ public class Review {
     @Column(nullable = false)
     private Integer rating;
 
-    @Column(nullable = false, length = 160)
-    private String title;
-
     @Column(nullable = false, columnDefinition = "text")
     private String body;
 

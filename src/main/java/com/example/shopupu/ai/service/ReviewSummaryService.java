@@ -115,10 +115,7 @@ public class ReviewSummaryService {
     }
 
     private static String toReviewLine(Review review) {
-        String title = review.getTitle() == null || review.getTitle().isBlank()
-                ? ""
-                : review.getTitle() + " — ";
-        return "[" + review.getRating() + "/5] " + title + review.getBody();
+        return "[" + review.getRating() + "/5] " + review.getBody();
     }
 
     private void evict(Long productId) {

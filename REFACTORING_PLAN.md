@@ -139,11 +139,22 @@ Review (PENDING→APPROVED/REJECTED, verified purchase)
 - [x] DOC-03/04/05: ADR (auth, inventory, payments), ER-диаграмма (mermaid), runbook — в `docs/`
 - [x] AUTH-07/SEC-16: восстановление пароля через одноразовый токен (хэш в БД, TTL 30 мин, one-shot, отзыв всех сессий); `forgot-password` отвечает одинаково для существующих и несуществующих email
 - [x] AUTH-06: верификация email при регистрации (одноразовый токен, TTL 24 ч, `verify-email`/`resend-verification`, флаг `emailVerified` в профиле)
-- [ ] ARCH-03: MapStruct (зависимости подключены, мапперы пока ручные)
+- [x] ARCH-03: MapStruct — все 5 мапперов (Catalog/Order/Payment/Review/Shipping) переведены на интерфейсы с `unmappedTargetPolicy = ERROR`; кастомная логика (сортировки, availability-map) — default-методами
+- [x] PAY-06: reconciliation-джоба — каждые 15 мин сверка незакрытых платежей (CREATED/PENDING/EXPIRED за 24 ч) со статусом провайдера (monobank invoice/status, Fondy status/order_id); расхождения → WARN-лог + метрика `shopupu.payments{result=reconciliation_mismatch}`, процедура в runbook. Webhook остаётся источником истины — джоба ничего не меняет
+- [x] AUTH-13: Sign in with Google — глубокое покрытие тестами (провижининг нового аккаунта, линковка к существующему email без дубля, refresh-ротация); попутно исправлен reuse-detection: ревокация всей цепочки refresh-токенов теперь в REQUIRES_NEW и переживает откат транзакции
 
-### Фаза 5 — Поэтапно [M]
-Гостевая корзина + merge, полнотекстовый поиск (PG FTS), Redis-кэш, outbox + брокер, 2FA/OAuth2, wishlist, мультисклад, курсорная пагинация, ADR/ER-диаграмма, reconciliation-джоба, HIBP, консенты, retention-джобы.
+### Фаза 5 — out of scope v1 ❌
+
+**Не входит в v1 и не блокирует релиз.** Кандидаты на v2 по мере надобности:
+полнотекстовый поиск (PG FTS), Redis-кэш, outbox + брокер, 2FA, мультисклад,
+курсорная пагинация, HIBP-проверка паролей, retention-джобы.
+
+Из первоначального списка фазы 5 уже сделано в v1: гостевая корзина + merge,
+wishlist, консенты, ADR/ER-диаграмма, reconciliation-джоба, OAuth2 в объёме
+Sign in with Google (AUTH-13).
 
 ## 5. Порядок работы
 
 Каждая фаза = отдельные коммиты по ID требований. После каждой фазы: `mvnw test` зелёный, миграции `validate`-совместимы. Фазы 0–3 закрывают все [C]; фаза 4 — большинство [H].
+
+**Граница v1 (2026-08-10): фазы 0–4 закрыты полностью, фаза 5 объявлена out-of-scope. Дальнейшее движение — деплой (см. PLAN_TO_100.md §3).**

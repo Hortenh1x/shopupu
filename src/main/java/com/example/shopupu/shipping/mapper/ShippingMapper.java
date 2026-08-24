@@ -5,43 +5,25 @@ import com.example.shopupu.shipping.dto.ShipmentDto;
 import com.example.shopupu.shipping.dto.ShippingAddressDto;
 import com.example.shopupu.shipping.entity.Shipment;
 import com.example.shopupu.shipping.entity.ShippingAddress;
-import org.springframework.stereotype.Component;
+import org.mapstruct.Mapper;
+import org.mapstruct.Mapping;
+import org.mapstruct.MappingConstants;
+import org.mapstruct.ReportingPolicy;
 
-@Component
-/**
- * describes the ShippingMapper class.
- */
-public class ShippingMapper {
+@Mapper(componentModel = MappingConstants.ComponentModel.SPRING, unmappedTargetPolicy = ReportingPolicy.ERROR)
+public interface ShippingMapper {
 
-    // handles toDto.
-    public ShippingAddressDto toDto(ShippingAddress a) {
-        if (a == null) return null;
-        return new ShippingAddressDto(
-                a.getId(),
-                a.getFullName(),
-                a.getLine1(),
-                a.getLine2(),
-                a.getCity(),
-                a.getState(),
-                a.getPostalCode(),
-                a.getCountry()
-        );
-    }
+    ShippingAddressDto toDto(ShippingAddress address);
 
-    // handles toDto.
-    public ShipmentDto toDto(Shipment s, Order order) {
-        if (s == null || order == null) return null;
-        return new ShipmentDto(
-                order.getId(),
-                s.getMethod(),
-                s.getStatus(),
-                order.getStatus(),
-                s.getCost(),
-                s.getCurrency(),
-                s.getTrackingNumber(),
-                toDto(s.getAddress()),
-                s.getCreatedAt(),
-                s.getUpdatedAt()
-        );
-    }
+    @Mapping(target = "orderId", source = "order.id")
+    @Mapping(target = "orderStatus", source = "order.status")
+    @Mapping(target = "method", source = "shipment.method")
+    @Mapping(target = "shippingStatus", source = "shipment.status")
+    @Mapping(target = "shippingCost", source = "shipment.cost")
+    @Mapping(target = "currency", source = "shipment.currency")
+    @Mapping(target = "trackingNumber", source = "shipment.trackingNumber")
+    @Mapping(target = "address", source = "shipment.address")
+    @Mapping(target = "createdAt", source = "shipment.createdAt")
+    @Mapping(target = "updatedAt", source = "shipment.updatedAt")
+    ShipmentDto toDto(Shipment shipment, Order order);
 }

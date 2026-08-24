@@ -1,6 +1,7 @@
 package com.example.shopupu.auth.controller;
 
 import com.example.shopupu.auth.dto.ChangePasswordRequest;
+import com.example.shopupu.auth.dto.GoogleLoginRequest;
 import com.example.shopupu.auth.dto.LoginRequest;
 import com.example.shopupu.auth.dto.RefreshRequest;
 import com.example.shopupu.auth.dto.RegisterRequest;
@@ -82,6 +83,14 @@ public class AuthController {
     @PostMapping("/refresh")
     public ResponseEntity<TokenPairResponse> refresh(@Valid @RequestBody RefreshRequest req) {
         var pair = authService.refresh(req.refreshToken());
+        return ResponseEntity.ok(new TokenPairResponse(pair.accessToken(), pair.refreshToken()));
+    }
+
+    @PostMapping("/google")
+    public ResponseEntity<TokenPairResponse> google(
+            @RequestHeader(value = "X-Cart-Token", required = false) String guestCartToken,
+            @Valid @RequestBody GoogleLoginRequest req) {
+        var pair = authService.loginWithGoogle(req.idToken(), guestCartToken);
         return ResponseEntity.ok(new TokenPairResponse(pair.accessToken(), pair.refreshToken()));
     }
 

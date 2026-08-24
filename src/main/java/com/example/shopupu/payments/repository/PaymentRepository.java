@@ -26,4 +26,9 @@ public interface PaymentRepository extends JpaRepository<Payment, Long> {
     List<Payment> findTop100ByStatusInAndCreatedAtBefore(
             java.util.Collection<com.example.shopupu.payments.entity.PaymentStatus> statuses,
             java.time.Instant cutoff);
+
+    List<Payment> findTop100ByStatusInAndExternalIdIsNotNullAndCreatedAtBetween(
+            java.util.Collection<com.example.shopupu.payments.entity.PaymentStatus> statuses,
+            java.time.Instant createdAfter,
+            java.time.Instant createdBefore);
 }

@@ -111,11 +111,22 @@ public class RateLimitFilter extends OncePerRequestFilter {
                 .build();
     }
 
+    /**
+     * Resolves the client IP from the framework-provided peer address only.
+     *
+     * <p>We deliberately do NOT read {@code X-Forwarded-For} here: it is fully
+     * client-controlled, so honoring it lets an attacker send a rotating/forged
+     * value per request to mint a fresh token bucket every time, defeating the
+     * brute-force limits on auth/checkout (SEC-05, AUTH-08). The proxy-trust
+     * decision belongs to {@code server.forward-headers-strategy}: when set to
+     * {@code framework}/{@code native} behind a trusted proxy, Spring/Tomcat
+     * validate the proxy chain and set {@link HttpServletRequest#getRemoteAddr()}
+     * to the real client IP; when {@code none} (default / direct exposure) it is
+     * the unspoofable socket peer. Either way {@code getRemoteAddr()} is the
+     * correct, trust-appropriate source.
+     */
     private String clientIp(HttpServletRequest request) {
-        String forwarded = request.getHeader("X-Forwarded-For");
-        if (forwarded != null && !forwarded.isBlank()) {
-            return forwarded.split(",")[0].trim();
-        }
-        return request.getRemoteAddr();
+        String remoteAddr = request.getRemoteAddr();
+        return (remoteAddr == null || remoteAddr.isBlank()) ? "unknown" : remoteAddr;
     }
 }

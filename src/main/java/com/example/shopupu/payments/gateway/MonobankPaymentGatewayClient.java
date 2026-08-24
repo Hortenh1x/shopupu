@@ -5,6 +5,8 @@ import com.example.shopupu.payments.entity.PaymentStatus;
 import java.math.BigDecimal;
 import java.net.http.HttpClient;
 import java.time.Duration;
+import java.util.Optional;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.http.MediaType;
 import org.springframework.http.client.JdkClientHttpRequestFactory;
@@ -17,6 +19,7 @@ import org.springframework.web.client.RestClient;
  * result arrives via the signed webhook.
  * API: POST /api/merchant/invoice/create with X-Token.
  */
+@Slf4j
 @Component
 @ConditionalOnProperty(name = "payments.default-provider", havingValue = "monobank")
 public class MonobankPaymentGatewayClient implements PaymentGatewayClient {
@@ -75,6 +78,43 @@ public class MonobankPaymentGatewayClient implements PaymentGatewayClient {
         }
     }
 
+    /** GET /api/merchant/invoice/status — used by the reconciliation job, read-only. */
+    @Override
+    public Optional<PaymentStatus> fetchPaymentStatus(String externalPaymentId) {
+        try {
+            MonobankStatusResponse response = restClient.get()
+                    .uri(uriBuilder -> uriBuilder
+                            .path("/api/merchant/invoice/status")
+                            .queryParam("invoiceId", externalPaymentId)
+                            .build())
+                    .header("X-Token", required(paymentProperties.getMonobank().getToken(), "payments.monobank.token"))
+                    .retrieve()
+                    .body(MonobankStatusResponse.class);
+            if (response == null) {
+                return Optional.empty();
+            }
+            return Optional.ofNullable(mapInvoiceStatus(response.status()));
+        } catch (Exception ex) {
+            log.warn("Failed to fetch Monobank invoice status for {}", externalPaymentId, ex);
+            return Optional.empty();
+        }
+    }
+
+    /** Monobank invoice statuses: created/processing/hold/success/failure/reversed/expired. */
+    static PaymentStatus mapInvoiceStatus(String status) {
+        if (status == null) {
+            return null;
+        }
+        return switch (status) {
+            case "created", "processing", "hold" -> PaymentStatus.PENDING;
+            case "success" -> PaymentStatus.SUCCEEDED;
+            case "failure" -> PaymentStatus.FAILED;
+            case "reversed" -> PaymentStatus.REFUNDED;
+            case "expired" -> PaymentStatus.EXPIRED;
+            default -> null;
+        };
+    }
+
     private long toMinorUnits(BigDecimal amount) {
         return amount.movePointRight(2).setScale(0, java.math.RoundingMode.HALF_UP).longValueExact();
     }
@@ -98,5 +138,8 @@ public class MonobankPaymentGatewayClient implements PaymentGatewayClient {
     }
 
     private record MonobankInvoiceResponse(String invoiceId, String pageUrl) {
+    }
+
+    private record MonobankStatusResponse(String invoiceId, String status) {
     }
 }

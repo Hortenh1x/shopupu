@@ -24,7 +24,6 @@ public record UserDataExport(
     public record ExportedReview(
             Long productId,
             Integer rating,
-            String title,
             String body,
             String status,
             Instant createdAt

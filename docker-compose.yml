@@ -2,12 +2,15 @@ services:
   db:
     # postgres:18 + pgvector extension (AI semantic search, V15 migration)
     image: pgvector/pgvector:pg18
+    restart: unless-stopped
     environment:
       POSTGRES_DB: shopupu
       POSTGRES_USER: shopupu
-      POSTGRES_PASSWORD: 1832
+      # set a strong DB_PASSWORD in .env on servers; 1832 is the local-dev default
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-1832}
     ports:
-      - "5432:5432"
+      # loopback only: nothing on the LAN can reach Postgres directly
+      - "127.0.0.1:5432:5432"
     volumes:
       # postgres:18 images keep PGDATA in a subdirectory of /var/lib/postgresql
       - shopupu-db:/var/lib/postgresql
@@ -16,6 +19,55 @@ services:
       interval: 5s
       timeout: 3s
       retries: 10
+
+  # Production backend behind the Cloudflare Tunnel (docs/deploy-cloudflare.md).
+  # Opt-in: docker compose --profile prod up -d app
+  # host network: Ollama (127.0.0.1:11434) and Postgres (127.0.0.1:5432) are
+  # reachable as localhost, and cloudflared routes to http://localhost:8080.
+  app:
+    build: .
+    profiles: ["prod"]
+    restart: unless-stopped
+    network_mode: host
+    # match the host owner of ./uploads so stored images stay writable
+    user: "1000:1000"
+    depends_on:
+      db:
+        condition: service_healthy
+    # bound the JVM (MaxRAMPercentage=75 is % of this limit, not of host RAM,
+    # so Ollama/Postgres/frontend on the same box are never starved)
+    mem_limit: 3g
+    environment:
+      SPRING_PROFILES_ACTIVE: prod
+      DB_URL: jdbc:postgresql://localhost:5432/shopupu
+      DB_USERNAME: shopupu
+      DB_PASSWORD: ${DB_PASSWORD:-1832}
+      JWT_SECRET: ${JWT_SECRET}
+      CORS_ALLOWED_ORIGINS: https://shopupu.net,https://www.shopupu.net
+      FRONTEND_BASE_URL: https://shopupu.net
+      PUBLIC_UPLOADS_BASE_URL: https://shopupu.net/uploads
+      PAYMENT_CALLBACK_URL: https://shopupu.net/api/v1/payments/callback
+      PAYMENTS_DEFAULT_PROVIDER: ${PAYMENTS_DEFAULT_PROVIDER:-stub}
+      PAYMENT_CALLBACK_SECRET: ${PAYMENT_CALLBACK_SECRET:-}
+      PAYMENT_CURRENCY: ${PAYMENT_CURRENCY:-EUR}
+      MONOBANK_TOKEN: ${MONOBANK_TOKEN:-}
+      FONDY_MERCHANT_ID: ${FONDY_MERCHANT_ID:-}
+      FONDY_SECRET: ${FONDY_SECRET:-}
+      # behind cloudflared the XFF chain is trustworthy; per-IP rate limiting needs it
+      SERVER_FORWARD_HEADERS_STRATEGY: ${SERVER_FORWARD_HEADERS_STRATEGY:-framework}
+      GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID:-}
+      RESEND_API_KEY: ${RESEND_API_KEY:-}
+      NOTIFICATIONS_FROM_EMAIL: ${NOTIFICATIONS_FROM_EMAIL:-Shopupu <onboarding@resend.dev>}
+      BOOTSTRAP_ADMIN_ENABLED: ${BOOTSTRAP_ADMIN_ENABLED:-false}
+      BOOTSTRAP_ADMIN_EMAIL: ${BOOTSTRAP_ADMIN_EMAIL:-}
+      BOOTSTRAP_ADMIN_PASSWORD: ${BOOTSTRAP_ADMIN_PASSWORD:-}
+      AI_ENABLED: ${AI_ENABLED:-true}
+      AI_EMBEDDING_PROVIDER: ollama
+      AI_LLM_PROVIDER: deepseek
+      AI_LLM_BASE_URL: https://api.deepseek.com
+      DEEPSEEK_API_KEY: ${DEEPSEEK_API_KEY}
+    volumes:
+      - ./uploads:/app/uploads
 
   # Embeddings for AI semantic search. Dev default is a local Ollama daemon
   # (AI_EMBEDDING_PROVIDER=ollama, http://localhost:11434) — run it on the host:

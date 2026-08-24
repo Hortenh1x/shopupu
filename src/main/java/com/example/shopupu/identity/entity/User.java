@@ -38,6 +38,11 @@ public class User {
     @Column(name = "preferred_size", length = 32)
     private String preferredSize;
 
+    /** Self-selected gender, optional (USER-06). */
+    @Enumerated(EnumType.STRING)
+    @Column(length = 16)
+    private Gender gender;
+
     /** Set when the account is anonymized on a GDPR erasure request (USER-05). */
     @Column(name = "deleted_at")
     private Instant deletedAt;
@@ -49,6 +54,12 @@ public class User {
 
     @Builder.Default
     private boolean enabled = true;
+
+    /** Identity provider that owns this login (AUTH-13). Google accounts sign in via ID token. */
+    @Builder.Default
+    @Enumerated(EnumType.STRING)
+    @Column(name = "auth_provider", nullable = false, length = 20)
+    private AuthProvider authProvider = AuthProvider.LOCAL;
 
     @ManyToMany(fetch = FetchType.EAGER)
     @JoinTable(

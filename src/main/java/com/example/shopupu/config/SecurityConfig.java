@@ -7,8 +7,8 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.http.HttpMethod;
 import org.springframework.security.authentication.AuthenticationManager;
-import org.springframework.security.config.annotation.authentication.configuration.AuthenticationConfiguration;
 import org.springframework.security.config.Customizer;
+import org.springframework.security.config.annotation.authentication.configuration.AuthenticationConfiguration;
 import org.springframework.security.config.annotation.method.configuration.EnableMethodSecurity;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.http.SessionCreationPolicy;
@@ -64,8 +64,11 @@ public class SecurityConfig {
                         .requestMatchers(HttpMethod.POST,
                                 "/api/v1/auth/register", "/api/v1/auth/login", "/api/v1/auth/refresh",
                                 "/api/v1/auth/forgot-password", "/api/v1/auth/reset-password",
-                                "/api/v1/auth/verify-email").permitAll()
+                                "/api/v1/auth/verify-email", "/api/v1/auth/google").permitAll()
                         .requestMatchers(HttpMethod.GET, "/api/v1/catalog/**").permitAll()
+                        // stylist chat is a public catalog read; POST only because the
+                        // conversation travels in the body (degrades to stub without AI)
+                        .requestMatchers(HttpMethod.POST, "/api/v1/catalog/stylist/chat").permitAll()
                         // guest carts are scoped by an opaque X-Cart-Token (CART-01)
                         .requestMatchers("/api/v1/cart/**").permitAll()
                         // payment callbacks are authenticated by provider signature, not JWT

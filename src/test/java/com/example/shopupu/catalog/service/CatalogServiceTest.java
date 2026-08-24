@@ -78,7 +78,7 @@ class CatalogServiceTest {
     private org.springframework.context.ApplicationEventPublisher eventPublisher;
 
     @org.mockito.Spy
-    private com.example.shopupu.catalog.mapper.CatalogMapper catalogMapper = new com.example.shopupu.catalog.mapper.CatalogMapper();
+    private com.example.shopupu.catalog.mapper.CatalogMapper catalogMapper = new com.example.shopupu.catalog.mapper.CatalogMapperImpl();
 
     @InjectMocks
     private CatalogService catalogService;

@@ -6,6 +6,12 @@
       "runtimeExecutable": "npm",
       "runtimeArgs": ["--prefix", "/home/horten/Idea Projects/shopupu-web", "run", "start"],
       "port": 3000
+    },
+    {
+      "name": "backend",
+      "runtimeExecutable": "./mvnw",
+      "runtimeArgs": ["spring-boot:run", "-Dspring-boot.run.profiles=dev"],
+      "port": 8080
     }
   ]
 }

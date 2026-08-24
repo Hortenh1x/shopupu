@@ -73,6 +73,19 @@ management:
       show-details: when_authorized
       roles: ADMIN
 
+# Sign in with Google (AUTH-13). Blank client id => the feature stays off and the
+# frontend hides the button; the OAuth Client ID is the same value used by the SPA.
+google:
+  client-id: ${GOOGLE_CLIENT_ID:}
+
+notifications:
+  # Resend HTTP email provider. Blank api-key => falls back to SMTP (spring.mail.host)
+  # or the dev logging sender. Paste the key to go live; nothing else required.
+  resend:
+    api-key: ${RESEND_API_KEY:}
+    from: ${NOTIFICATIONS_FROM_EMAIL:Shopupu <onboarding@resend.dev>}
+    timeout-seconds: ${RESEND_TIMEOUT_SECONDS:10}
+
 jwt:
   # No default on purpose: the application must fail to start without a real secret.
   # Dev profile supplies a local-only value in application-dev.yml.
@@ -104,6 +117,8 @@ payments:
     secret: ${FONDY_SECRET:}
 
 app:
+  # Public base URL of the browser SPA; used to build reset/verify email links.
+  frontend-base-url: ${FRONTEND_BASE_URL:http://localhost:3000}
   cors:
     allowed-origins: ${CORS_ALLOWED_ORIGINS:http://localhost:5173,http://localhost:3000,http://127.0.0.1:3000}
   uploads:
@@ -148,3 +163,4 @@ ai:
   voyage-api-key: ${VOYAGE_API_KEY:}
   request-timeout-seconds: ${AI_REQUEST_TIMEOUT_SECONDS:15}
   review-summary-min-reviews: ${AI_REVIEW_SUMMARY_MIN_REVIEWS:3}
+  stylist-match-max-distance: ${AI_STYLIST_MATCH_MAX_DISTANCE:0.45}

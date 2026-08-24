@@ -27,7 +27,7 @@ import com.example.shopupu.payments.gateway.PaymentCallbackVerifier;
 import com.example.shopupu.payments.gateway.PaymentGatewayClient;
 import com.example.shopupu.payments.gateway.PaymentGatewayCreateRequest;
 import com.example.shopupu.payments.gateway.PaymentGatewayCreateResponse;
-import com.example.shopupu.payments.mapper.PaymentMapper;
+import com.example.shopupu.payments.mapper.PaymentMapperImpl;
 import com.example.shopupu.payments.repository.PaymentEventRepository;
 import com.example.shopupu.payments.repository.PaymentRepository;
 import com.example.shopupu.shipping.entity.Shipment;
@@ -90,7 +90,7 @@ class PaymentServiceTest {
                 paymentRepository,
                 paymentEventRepository,
                 orderRepository,
-                new PaymentMapper(),
+                new PaymentMapperImpl(),
                 paymentGatewayClient,
                 paymentCallbackVerifier,
                 properties,

@@ -56,6 +56,26 @@ public class ProductEmbeddingRepository {
                 .list();
     }
 
+    /** Same KNN but with the cosine distance, so callers can judge relevance. */
+    public List<ScoredProductId> findNearestProductIdsWithDistance(float[] queryEmbedding, String model, int limit) {
+        return jdbcClient.sql("""
+                        select pe.product_id, pe.embedding <=> cast(:embedding as vector) as distance
+                        from product_embeddings pe
+                        join products p on p.id = pe.product_id
+                        where pe.model = :model and p.enabled = true and p.deleted_at is null
+                        order by distance
+                        limit :limit
+                        """)
+                .param("model", model)
+                .param("embedding", toVectorLiteral(queryEmbedding))
+                .param("limit", limit)
+                .query((rs, rowNum) -> new ScoredProductId(rs.getLong("product_id"), rs.getDouble("distance")))
+                .list();
+    }
+
+    public record ScoredProductId(Long productId, double distance) {
+    }
+
     /** Nearest neighbours of an already-indexed product, excluding itself. */
     public List<Long> findSimilarProductIds(Long productId, String model, int limit) {
         return jdbcClient.sql("""

@@ -45,4 +45,4 @@ jobs:
 
       # feeds the dependency graph so Dependabot alerts cover Maven deps (SEC-13)
       - name: Submit dependency graph
-        uses: advanced-security/maven-dependency-submission-action@v4
+        uses: advanced-security/maven-dependency-submission-action@v5

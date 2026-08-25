@@ -71,6 +71,11 @@ public class DeepSeekLlmClient implements LlmClient {
                         "maxPrice": number or null}, ...2 to 4 slots],
              "unavailable": ["garment the shopper asked for that the shop does NOT carry,
                              in the shopper's own words", ... or empty]}
+            The shopper's language is the language the shopper's LAST message is written in.
+            Detect it from the words alone and mirror it in "reply" and every "slot" label.
+            Currency, prices and place names are NOT language cues: "a warm outfit under
+            150 euros" is English — reply in English, not French; "тёплый образ до 150 евро"
+            is Russian — reply in Russian.
             Only put garment types the catalog carries into slots. Be honest: when the shopper
             asks for something the shop does not carry (e.g. a tie), list it in "unavailable",
             say so plainly in reply, and offer the closest available pieces instead — never

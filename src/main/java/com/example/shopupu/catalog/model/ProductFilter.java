@@ -15,6 +15,8 @@ public class ProductFilter {
     public BigDecimal maxPrice;
     public Boolean inStock;
     public Boolean enabled;
+    /** Candidate ids from vector search; null means "no id restriction". */
+    public java.util.List<Long> ids;
 
     public ProductFilter() {}
 }

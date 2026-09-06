@@ -22,7 +22,7 @@ public record OutfitPlan(
 ) {
 
     public record OutfitSlot(
-            @JsonPropertyDescription("Short garment label in the shopper's language, e.g. 'Пиджак' or 'Blazer'")
+            @JsonPropertyDescription("Short garment label in the same language as the reply, e.g. 'Пиджак' or 'Blazer'")
             String slot,
             @JsonPropertyDescription("English search keywords for this garment, e.g. 'tailored wool blazer'")
             String query,

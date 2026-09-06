@@ -1,9 +1,12 @@
 package com.example.shopupu.ai.service;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
@@ -115,6 +118,92 @@ class SemanticSearchServiceTest {
     }
 
     @Test
+    void nlSearchMatchesResidualKeywordsByEmbeddingAndFiltersOnTheParsedAttributes() {
+        // "warm" describes no product title, so the LIKE-only path used to return nothing
+        float[] vector = {1, 0};
+        when(nlQueryParser.parse("warm jacket under 120"))
+                .thenReturn(Optional.of(new ParsedProductQuery(
+                        "warm jacket", null, null, null, null, new BigDecimal("120"))));
+        when(queryEmbeddingService.embedQuery("warm jacket")).thenReturn(vector);
+        when(embeddingRepository.findNearestProductIdsWithDistance(
+                vector, aiProperties.getEmbeddingModel(), aiProperties.getNlSearchCandidates()))
+                .thenReturn(List.of(scored(7L, 0.21), scored(3L, 0.34)));
+        when(productQueryService.findListItemsByIdsMatching(eq(List.of(7L, 3L)), any()))
+                .thenReturn(List.of(listItem(7L), listItem(3L)));
+
+        var page = service.nlSearch("Warm jacket under 120", PageRequest.of(0, 20));
+
+        assertEquals(List.of(7L, 3L), page.getContent().stream().map(ProductListItem::id).toList());
+        assertEquals(2, page.getTotalElements());
+        ArgumentCaptor<ProductFilter> captor = ArgumentCaptor.forClass(ProductFilter.class);
+        verify(productQueryService).findListItemsByIdsMatching(any(), captor.capture());
+        ProductFilter filter = captor.getValue();
+        assertEquals(new BigDecimal("120"), filter.maxPrice);
+        assertEquals(Boolean.TRUE, filter.enabled);
+        assertNull(filter.q, "the embedding already matched the keywords");
+        verify(productQueryService, never()).findProducts(any(), any());
+    }
+
+    @Test
+    void nlSearchDropsVectorCandidatesBeyondTheRelevanceGate() {
+        float[] vector = {1, 0};
+        when(nlQueryParser.parse("warm jacket"))
+                .thenReturn(Optional.of(new ParsedProductQuery("warm jacket", null, null, null, null, null)));
+        when(queryEmbeddingService.embedQuery("warm jacket")).thenReturn(vector);
+        when(embeddingRepository.findNearestProductIdsWithDistance(any(), anyString(), anyInt()))
+                .thenReturn(List.of(scored(7L, 0.21), scored(3L, 0.92)));
+        when(productQueryService.findListItemsByIdsMatching(eq(List.of(7L)), any()))
+                .thenReturn(List.of(listItem(7L)));
+
+        var page = service.nlSearch("warm jacket", PageRequest.of(0, 20));
+
+        assertEquals(List.of(7L), page.getContent().stream().map(ProductListItem::id).toList());
+    }
+
+    @Test
+    void nlSearchFallsBackToKeywordSearchWhenNoCandidateIsRelevantEnough() {
+        when(nlQueryParser.parse("spaceship"))
+                .thenReturn(Optional.of(new ParsedProductQuery("spaceship", null, null, null, null, null)));
+        when(queryEmbeddingService.embedQuery("spaceship")).thenReturn(new float[] {0, 1});
+        when(embeddingRepository.findNearestProductIdsWithDistance(any(), anyString(), anyInt()))
+                .thenReturn(List.of(scored(7L, 0.88)));
+        when(productQueryService.findProducts(any(), any())).thenReturn(new PageImpl<>(List.of()));
+
+        service.nlSearch("spaceship", PageRequest.of(0, 20));
+
+        verify(productQueryService).findProducts(any(), any());
+        verify(productQueryService, never()).findListItemsByIdsMatching(any(), any());
+    }
+
+    @Test
+    void nlSearchFallsBackToKeywordSearchWhenFiltersRejectEveryCandidate() {
+        when(nlQueryParser.parse("jacket under 20"))
+                .thenReturn(Optional.of(new ParsedProductQuery(
+                        "jacket", null, null, null, null, new BigDecimal("20"))));
+        when(queryEmbeddingService.embedQuery("jacket")).thenReturn(new float[] {1, 0});
+        when(embeddingRepository.findNearestProductIdsWithDistance(any(), anyString(), anyInt()))
+                .thenReturn(List.of(scored(7L, 0.19)));
+        when(productQueryService.findListItemsByIdsMatching(any(), any())).thenReturn(List.of());
+        when(productQueryService.findProducts(any(), any())).thenReturn(new PageImpl<>(List.of()));
+
+        service.nlSearch("jacket under 20", PageRequest.of(0, 20));
+
+        verify(productQueryService).findProducts(any(), any());
+    }
+
+    @Test
+    void nlSearchFallsBackToKeywordSearchWhenTheEmbeddingProviderFails() {
+        when(nlQueryParser.parse("warm jacket"))
+                .thenReturn(Optional.of(new ParsedProductQuery("warm jacket", null, null, null, null, null)));
+        when(queryEmbeddingService.embedQuery(anyString())).thenThrow(new IllegalStateException("down"));
+        when(productQueryService.findProducts(any(), any())).thenReturn(new PageImpl<>(List.of()));
+
+        service.nlSearch("warm jacket", PageRequest.of(0, 20));
+
+        verify(productQueryService).findProducts(any(), any());
+    }
+
+    @Test
     void nlSearchKeepsOriginalQueryWhenParserIsUnavailable() {
         when(nlQueryParser.parse(anyString())).thenReturn(Optional.empty());
         when(productQueryService.findProducts(any(), any())).thenReturn(new PageImpl<>(List.of()));
@@ -124,6 +213,10 @@ class SemanticSearchServiceTest {
         ArgumentCaptor<ProductFilter> captor = ArgumentCaptor.forClass(ProductFilter.class);
         verify(productQueryService).findProducts(captor.capture(), any());
         assertEquals("blue jeans", captor.getValue().q);
+    }
+
+    private ProductEmbeddingRepository.ScoredProductId scored(Long id, double distance) {
+        return new ProductEmbeddingRepository.ScoredProductId(id, distance);
     }
 
     private ProductListItem listItem(Long id) {

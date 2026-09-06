@@ -80,4 +80,21 @@ public class AiProperties {
     @jakarta.validation.constraints.DecimalMin("0.0")
     @jakarta.validation.constraints.DecimalMax("2.0")
     private Double stylistMatchMaxDistance = 0.45;
+
+    /**
+     * Relevance gate for natural-language search. Deliberately looser than the
+     * stylist gate: a result list may show near-misses, while a stylist slot
+     * claims "this IS the garment you asked for". Above it the vector candidates
+     * are dropped and the query falls back to keyword search.
+     */
+    @NotNull
+    @jakarta.validation.constraints.DecimalMin("0.0")
+    @jakarta.validation.constraints.DecimalMax("2.0")
+    private Double nlSearchMaxDistance = 0.55;
+
+    /** How many vector candidates NL search ranks before the structured filters run. */
+    @NotNull
+    @Min(1)
+    @Max(500)
+    private Integer nlSearchCandidates = 60;
 }

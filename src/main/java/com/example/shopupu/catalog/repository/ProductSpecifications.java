@@ -40,9 +40,25 @@ public final class ProductSpecifications {
         return (root, cq, cb) -> cb.equal(root.get("brand").get("id"), brandId);
     }
 
+    /**
+     * Shopping for men or women includes unisex pieces — a unisex hoodie belongs in
+     * both lists, and excluding it hid most of the catalog behind the gender filter.
+     * UNISEX and KIDS stay exact: those select a specific rack, not a broader one.
+     */
     public static Specification<Product> byGender(com.example.shopupu.catalog.entity.Gender gender) {
         if (gender == null) return null;
-        return (root, cq, cb) -> cb.equal(root.get("gender"), gender);
+        if (gender != com.example.shopupu.catalog.entity.Gender.MEN
+                && gender != com.example.shopupu.catalog.entity.Gender.WOMEN) {
+            return (root, cq, cb) -> cb.equal(root.get("gender"), gender);
+        }
+        return (root, cq, cb) -> root.get("gender")
+                .in(gender, com.example.shopupu.catalog.entity.Gender.UNISEX);
+    }
+
+    /** Restricts the result to a candidate set — used by semantic search, which ranks outside the DB. */
+    public static Specification<Product> byIdIn(List<Long> ids) {
+        if (ids == null || ids.isEmpty()) return null;
+        return (root, cq, cb) -> root.get("id").in(ids);
     }
 
     public static Specification<Product> byEnabled(Boolean enabled) {
@@ -115,6 +131,8 @@ public final class ProductSpecifications {
         if (enabled != null) spec = spec.and(enabled);
         Specification<Product> variant = hasMatchingVariant(f.size, f.color, f.minPrice, f.maxPrice, f.inStock);
         if (variant != null) spec = spec.and(variant);
+        Specification<Product> ids = byIdIn(f.ids);
+        if (ids != null) spec = spec.and(ids);
 
         return spec;
     }

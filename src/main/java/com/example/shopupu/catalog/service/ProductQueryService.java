@@ -48,4 +48,26 @@ public class ProductQueryService {
                 .map(catalogMapper::toProductListItem)
                 .toList();
     }
+
+    /**
+     * Applies the structured filters to a fixed candidate set and returns the
+     * survivors in the given (relevance) order: the vector search decides the
+     * ranking, the database still decides what matches. Filtering runs as one
+     * query so variant-level criteria (size, colour, price, stock) keep working.
+     */
+    @Transactional(readOnly = true)
+    public List<com.example.shopupu.catalog.dto.ProductListItem> findListItemsByIdsMatching(
+            List<Long> orderedIds, ProductFilter f) {
+        if (orderedIds == null || orderedIds.isEmpty()) {
+            return List.of();
+        }
+        f.ids = orderedIds;
+        Map<Long, Product> byId = productRepository.findAll(ProductSpecifications.build(f)).stream()
+                .collect(Collectors.toMap(Product::getId, Function.identity()));
+        return orderedIds.stream()
+                .map(byId::get)
+                .filter(Objects::nonNull)
+                .map(catalogMapper::toProductListItem)
+                .toList();
+    }
 }

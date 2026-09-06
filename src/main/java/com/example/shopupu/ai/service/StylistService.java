@@ -66,11 +66,13 @@ public class StylistService {
 
         List<StylistChatResponse.StylistSlot> slots = new ArrayList<>();
         java.util.Set<Long> alreadyRecommended = new java.util.HashSet<>();
+        Script replyScript = scriptOf(plan.reply());
         for (OutfitPlan.OutfitSlot slot : plan.slots().stream().limit(MAX_SLOTS).toList()) {
             SlotResolution resolution = resolveSlot(slot, alreadyRecommended);
             if (!resolution.products().isEmpty()) {
                 resolution.products().forEach(item -> alreadyRecommended.add(item.id()));
-                slots.add(new StylistChatResponse.StylistSlot(slot.slot(), resolution.products()));
+                slots.add(new StylistChatResponse.StylistSlot(
+                        slotLabel(slot, resolution.products(), replyScript), resolution.products()));
             } else if (resolution.notInCatalog()
                     && unavailable.stream().noneMatch(existing -> existing.equalsIgnoreCase(slot.slot()))) {
                 // honesty gate: nothing in the catalog is actually this garment
@@ -116,6 +118,61 @@ public class StylistService {
     }
 
     private record SlotResolution(List<ProductListItem> products, boolean notInCatalog) {
+    }
+
+    /**
+     * A slot label is a heading printed above real products, so it must read in the
+     * same script as the reply. The prompt asks for one language per plan, but the
+     * model occasionally answers in English and labels the slots in Cyrillic, which
+     * would render a mixed-language panel. When the two disagree, the catalog's own
+     * product title is the safe label — it is real, and it matches the shop's language.
+     * The {@code unavailable} list is left alone on purpose: it quotes the shopper.
+     */
+    private String slotLabel(OutfitPlan.OutfitSlot slot, List<ProductListItem> products, Script replyScript) {
+        Script labelScript = scriptOf(slot.slot());
+        if (labelScript == Script.UNDETERMINED || replyScript == Script.UNDETERMINED || labelScript == replyScript) {
+            return slot.slot();
+        }
+        return products.isEmpty() || products.get(0).title() == null ? slot.slot() : products.get(0).title();
+    }
+
+    /** Writing system of a piece of text, as far as it can be told from its letters. */
+    private enum Script {
+        LATIN,
+        CYRILLIC,
+        UNDETERMINED
+    }
+
+    private static Script scriptOf(String text) {
+        if (text == null) {
+            return Script.UNDETERMINED;
+        }
+        int latin = 0;
+        int cyrillic = 0;
+        for (int i = 0; i < text.length(); i++) {
+            char ch = text.charAt(i);
+            if (!Character.isLetter(ch)) {
+                continue;
+            }
+            Character.UnicodeBlock block = Character.UnicodeBlock.of(ch);
+            if (block == Character.UnicodeBlock.CYRILLIC
+                    || block == Character.UnicodeBlock.CYRILLIC_SUPPLEMENTARY) {
+                cyrillic++;
+            } else if (block == Character.UnicodeBlock.BASIC_LATIN
+                    || block == Character.UnicodeBlock.LATIN_1_SUPPLEMENT
+                    || block == Character.UnicodeBlock.LATIN_EXTENDED_A) {
+                latin++;
+            }
+        }
+        if (latin > 0 && cyrillic == 0) {
+            return Script.LATIN;
+        }
+        if (cyrillic > 0 && latin == 0) {
+            return Script.CYRILLIC;
+        }
+        // no letters, or both scripts present (an English product name inside a
+        // Russian sentence) — not enough signal to overrule the model
+        return Script.UNDETERMINED;
     }
 
     private boolean genderMatches(Gender wanted, Gender actual) {

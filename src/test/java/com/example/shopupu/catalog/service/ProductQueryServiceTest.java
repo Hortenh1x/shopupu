@@ -69,6 +69,26 @@ class ProductQueryServiceTest {
         assertEquals(List.of(), productQueryService.findListItemsByIds(List.of()));
     }
 
+    // handles findListItemsByIdsMatching.
+    @Test
+    void findListItemsByIdsMatchingKeepsRelevanceOrderAndPassesTheCandidatesToTheSpecification() {
+        ProductFilter filter = new ProductFilter();
+        filter.enabled = true;
+        // the specification decides what matches; only two of the three candidates come back
+        when(productRepository.findAll(any(Specification.class)))
+                .thenReturn(List.of(sellableProduct(1L), sellableProduct(2L)));
+
+        var items = productQueryService.findListItemsByIdsMatching(List.of(2L, 3L, 1L), filter);
+
+        assertEquals(List.of(2L, 1L), items.stream().map(i -> i.id()).toList());
+        assertEquals(List.of(2L, 3L, 1L), filter.ids);
+    }
+
+    @Test
+    void findListItemsByIdsMatchingReturnsEmptyForEmptyInput() {
+        assertEquals(List.of(), productQueryService.findListItemsByIdsMatching(List.of(), new ProductFilter()));
+    }
+
     private Product sellableProduct(Long id) {
         Product product = new Product();
         product.setId(id);

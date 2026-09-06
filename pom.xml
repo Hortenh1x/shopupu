@@ -220,6 +220,23 @@
                     <useModulePath>false</useModulePath>
                 </configuration>
             </plugin>
+            <!-- Surefire's default includes skip *IT, so the Testcontainers suites were
+                 never executed by the build. Failsafe runs them in the verify phase. -->
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-failsafe-plugin</artifactId>
+                <configuration>
+                    <useModulePath>false</useModulePath>
+                </configuration>
+                <executions>
+                    <execution>
+                        <goals>
+                            <goal>integration-test</goal>
+                            <goal>verify</goal>
+                        </goals>
+                    </execution>
+                </executions>
+            </plugin>
 			<plugin>
 				<groupId>org.jacoco</groupId>
 				<artifactId>jacoco-maven-plugin</artifactId>

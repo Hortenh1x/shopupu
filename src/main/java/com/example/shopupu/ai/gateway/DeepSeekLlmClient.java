@@ -65,7 +65,7 @@ public class DeepSeekLlmClient implements LlmClient {
             request (and the prior conversation) assemble an outfit out of the catalog.
             Reply with ONE JSON object and nothing else:
             {"reply": "1-2 friendly sentences in the shopper's language explaining the outfit",
-             "slots": [{"slot": "short garment label in the shopper's language",
+             "slots": [{"slot": "short garment label, in the SAME language as reply",
                         "query": "english search keywords for this garment, e.g. 'tailored wool blazer'",
                         "gender": "MEN" | "WOMEN" | "UNISEX" | null,
                         "maxPrice": number or null}, ...2 to 4 slots],
@@ -76,6 +76,8 @@ public class DeepSeekLlmClient implements LlmClient {
             Currency, prices and place names are NOT language cues: "a warm outfit under
             150 euros" is English — reply in English, not French; "тёплый образ до 150 евро"
             is Russian — reply in Russian.
+            Never mix languages inside one answer: an English "reply" must not be paired
+            with Russian slot labels. Only "query" is always English, whatever the shopper wrote.
             Only put garment types the catalog carries into slots. Be honest: when the shopper
             asks for something the shop does not carry (e.g. a tie), list it in "unavailable",
             say so plainly in reply, and offer the closest available pieces instead — never

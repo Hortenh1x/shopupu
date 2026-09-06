@@ -93,15 +93,80 @@ public class SemanticSearchService {
     public record ScoredItem(ProductListItem item, Double distance) {
     }
 
-    /** Natural-language query -> ProductFilter (Claude structured output) -> existing search. */
+    /**
+     * Natural-language search, hybrid: the LLM splits the query into attributes
+     * (price, gender, size, colour) plus residual keywords, the residual keywords
+     * are matched by embedding rather than by SQL LIKE, and the attributes filter
+     * the candidates in the database. That is what makes "warm jacket under 120"
+     * work — "warm" describes no product title, so the LIKE-only path found nothing.
+     * Any miss (AI off, no embeddings, provider down, nothing relevant enough)
+     * falls back to the keyword search, which is still the whole feature's floor.
+     */
     public Page<ProductListItem> nlSearch(String q, Pageable pageable) {
         ProductFilter filter = new ProductFilter();
         filter.enabled = Boolean.TRUE;
         filter.q = q;
         if (aiProperties.isEnabled()) {
             nlQueryParser.parse(normalize(q)).ifPresent(parsed -> apply(parsed, filter, q));
+            Page<ProductListItem> semantic = semanticPage(filter, pageable);
+            if (semantic != null) {
+                meterRegistry.counter("shopupu.ai", "op", "nl_search", "result", "ok").increment();
+                return semantic;
+            }
         }
+        meterRegistry.counter("shopupu.ai", "op", "nl_search", "result", "fallback").increment();
         return productQueryService.findProducts(filter, pageable);
+    }
+
+    /** Vector candidates for the residual keywords, filtered by the parsed attributes; null = no usable result. */
+    private Page<ProductListItem> semanticPage(ProductFilter filter, Pageable pageable) {
+        String keywords = normalize(filter.q);
+        if (keywords.isBlank()) {
+            return null;
+        }
+        try {
+            float[] embedding = queryEmbeddingService.embedQuery(keywords);
+            List<Long> ids = embeddingRepository
+                    .findNearestProductIdsWithDistance(
+                            embedding, aiProperties.getEmbeddingModel(), aiProperties.getNlSearchCandidates())
+                    .stream()
+                    .filter(scored -> scored.distance() <= aiProperties.getNlSearchMaxDistance())
+                    .map(ProductEmbeddingRepository.ScoredProductId::productId)
+                    .toList();
+            if (ids.isEmpty()) {
+                return null;
+            }
+            // q is dropped on purpose: the embedding already matched the keywords
+            List<ProductListItem> matches = productQueryService.findListItemsByIdsMatching(ids, attributesOf(filter));
+            return matches.isEmpty() ? null : pageOf(matches, pageable);
+        } catch (Exception ex) {
+            log.warn("NL semantic search failed, falling back to keyword search", ex);
+            return null;
+        }
+    }
+
+    private ProductFilter attributesOf(ProductFilter filter) {
+        ProductFilter scoped = new ProductFilter();
+        scoped.enabled = filter.enabled;
+        scoped.categoryId = filter.categoryId;
+        scoped.brandId = filter.brandId;
+        scoped.gender = filter.gender;
+        scoped.size = filter.size;
+        scoped.color = filter.color;
+        scoped.minPrice = filter.minPrice;
+        scoped.maxPrice = filter.maxPrice;
+        scoped.inStock = filter.inStock;
+        return scoped;
+    }
+
+    /** Pages the already-ranked list in memory; relevance order wins over the pageable's sort. */
+    private Page<ProductListItem> pageOf(List<ProductListItem> items, Pageable pageable) {
+        if (pageable == null || pageable.isUnpaged()) {
+            return new org.springframework.data.domain.PageImpl<>(items);
+        }
+        int from = (int) Math.min(pageable.getOffset(), items.size());
+        int to = Math.min(from + pageable.getPageSize(), items.size());
+        return new org.springframework.data.domain.PageImpl<>(items.subList(from, to), pageable, items.size());
     }
 
     private void apply(ParsedProductQuery parsed, ProductFilter filter, String originalQuery) {

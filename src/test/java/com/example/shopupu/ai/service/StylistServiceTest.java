@@ -164,6 +164,38 @@ class StylistServiceTest {
     }
 
     @Test
+    void replacesSlotLabelsWrittenInAnotherScriptThanTheReply() {
+        // observed with deepseek-v4-flash: English reply, Cyrillic slot labels
+        OutfitPlan plan = new OutfitPlan("A blazer over a merino crewneck.", List.of(
+                new OutfitPlan.OutfitSlot("шерстяной блейзер", "tailored wool blazer", null, null),
+                new OutfitPlan.OutfitSlot("Trousers", "pleated trousers", null, null)), List.of());
+        when(llmClient.planOutfit(any(), anyString())).thenReturn(Optional.of(plan));
+        when(semanticSearchService.semanticSearchScored(eq("tailored wool blazer"), anyInt()))
+                .thenReturn(List.of(scored(8L, "Tailored Wool Blazer", "184.00", Gender.MEN, NEAR)));
+        when(semanticSearchService.semanticSearchScored(eq("pleated trousers"), anyInt()))
+                .thenReturn(List.of(scored(12L, "Pleated Wide Trousers", "104.00", Gender.WOMEN, NEAR)));
+
+        StylistChatResponse response = service.chat(new StylistChatRequest("business dinner tonight", null));
+
+        // the off-language label falls back to the catalog's own name, the matching one stays
+        assertEquals("Tailored Wool Blazer", response.slots().get(0).slot());
+        assertEquals("Trousers", response.slots().get(1).slot());
+    }
+
+    @Test
+    void keepsSlotLabelsWrittenInTheSameScriptAsTheReply() {
+        OutfitPlan plan = new OutfitPlan("Блейзер и брюки — строго и по погоде.", List.of(
+                new OutfitPlan.OutfitSlot("Блейзер", "tailored wool blazer", null, null)), List.of());
+        when(llmClient.planOutfit(any(), anyString())).thenReturn(Optional.of(plan));
+        when(semanticSearchService.semanticSearchScored(eq("tailored wool blazer"), anyInt()))
+                .thenReturn(List.of(scored(8L, "Tailored Wool Blazer", "184.00", Gender.MEN, NEAR)));
+
+        StylistChatResponse response = service.chat(new StylistChatRequest("деловой ужин сегодня", null));
+
+        assertEquals("Блейзер", response.slots().get(0).slot());
+    }
+
+    @Test
     void keywordFallbackHitsWithoutDistancesAreTrusted() {
         OutfitPlan plan = new OutfitPlan("Plain plan.", List.of(
                 new OutfitPlan.OutfitSlot("Shirt", "shirt", null, null)), List.of());

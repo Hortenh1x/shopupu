@@ -164,3 +164,8 @@ ai:
   request-timeout-seconds: ${AI_REQUEST_TIMEOUT_SECONDS:15}
   review-summary-min-reviews: ${AI_REVIEW_SUMMARY_MIN_REVIEWS:3}
   stylist-match-max-distance: ${AI_STYLIST_MATCH_MAX_DISTANCE:0.45}
+  # NL search relevance: candidates within MARGIN of the best hit are shown; if even
+  # the best hit is beyond MAX_DISTANCE the catalog cannot answer the query at all
+  nl-search-max-distance: ${AI_NL_SEARCH_MAX_DISTANCE:0.62}
+  nl-search-distance-margin: ${AI_NL_SEARCH_DISTANCE_MARGIN:0.05}
+  nl-search-candidates: ${AI_NL_SEARCH_CANDIDATES:60}

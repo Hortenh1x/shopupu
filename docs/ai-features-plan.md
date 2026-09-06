@@ -192,12 +192,13 @@ structural filters as `/search`). `ProductQueryService.semanticSearch(...)`:
 4. **Graceful fallback**: if embeddings are unavailable (stub / no key / timeout),
    transparently fall back to the existing keyword `findProducts(...)`.
 
-### Optional: natural-language query → filters
+### Natural-language query → filters
 
 `GET /api/v1/catalog/products/nl-search?q=тёплая куртка на осень до 100€` →
-`LlmClient.complete(system, q, ProductFilter.class)` (Claude **structured outputs**,
-Haiku) → feed the parsed `ProductFilter` into the existing search. Cheap, isolated,
-and fully behind `ai.enabled`.
+`LlmClient.parseCatalogQuery` splits the sentence into attribute filters plus
+residual keywords, and the search runs **hybrid** (see the as-built note below):
+the keywords are matched by embedding, the attributes filter in SQL. Fully behind
+`ai.enabled`, and every failure path still lands on the keyword search.
 
 **Deliverables:** `V15`, `ProductEmbedding` entity + repo (native KNN),
 `ProductChangedEvent` + listener, backfill job, 2 controller methods, `SEMANTIC`
@@ -357,7 +358,49 @@ simplicity/risk:
 - **PostgreSQL 18**: compose + Testcontainers moved `postgres:18` → `pgvector/pgvector:pg18`
   (same PG major, adds the extension binaries; existing dev volumes stay compatible).
 - **Semantic search returns a top-K `List`** (not `Page`) — KNN totals are meaningless;
-  `nl-search` keeps the `Page` shape since it delegates to the existing filtered search.
+  `nl-search` keeps the `Page` shape, paging its ranked candidate set in memory.
+
+### NL search is hybrid (2026-09-06)
+
+The first cut fed the parsed residual keywords straight into `ProductSpecifications`,
+i.e. `LIKE '%…%'` over title and description. That only ever matched words printed on
+a product: **"warm jacket under 120" returned nothing**, because no title says "warm".
+
+As built now, `SemanticSearchService.nlSearch`:
+
+1. parses the query (LLM), falling back to `StubLlmClient.keywordParse` — a regex
+   read of budget and gender — when the provider is down. Without that backstop an
+   outage silently drops the shopper's budget and the ranking happily offers a €158
+   coat to someone who said "under $150";
+2. embeds the residual keywords and takes the nearest `ai.nl-search-candidates`;
+3. judges relevance twice: an **absolute ceiling** (`ai.nl-search-max-distance`)
+   rejects a query the catalog cannot answer, and a **window around the best hit**
+   (`ai.nl-search-distance-margin`) keeps the field as tight as that query allows;
+4. applies the parsed attributes to those candidates in one query
+   (`ProductQueryService.findListItemsByIdsMatching`), so variant-level filters —
+   size, colour, price, stock — keep working while relevance order is preserved;
+5. falls back to the keyword search whenever any of that yields nothing.
+
+**Why relative, not a fixed threshold** (measured on the live catalog, bge-m3):
+
+| query | best hit | first irrelevant |
+|---|---|---|
+| `rain jacket` | 0.324 (Technical Rain Jacket) | 0.461 |
+| `cozy sweater` | 0.410 (Merino Crewneck) | — |
+| `warm jacket` | 0.444 (Cropped Denim Jacket) | 0.502 |
+| `black dress for a party` | 0.499 (Wrap Jersey Dress) | 0.565 |
+| `cold evening walk` | 0.577 | 0.579 |
+| `spaceship` | 0.666 | — |
+
+No single number works: a gate tight enough for `rain jacket` answers
+`black dress for a party` with nothing, and one loose enough for the latter lets a
+ribbed tank through for `warm jacket`. Nonsense, though, is unambiguous — it never
+scores below 0.66 — so the absolute value is only used as a junk filter.
+
+**Residual keywords are translated to English** by the parser: product text is
+English, so a query left in Russian ranked on cross-lingual noise ("тёплая куртка"
+put a ribbed tank second). With the translation, RU and EN queries return the
+same products.
 
 ## Decisions
 

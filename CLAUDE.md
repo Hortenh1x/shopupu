@@ -21,8 +21,8 @@ The codebase was refactored from a prototype into a hardened modular monolith �
 docker compose up -d db
 ./mvnw spring-boot:run -Dspring-boot.run.profiles=dev
 
-./mvnw test                 # unit + Testcontainers integration tests (needs Docker)
-./mvnw verify               # test + JaCoCo coverage gate + Spotless check — the CI gate
+./mvnw test                 # unit tests (*Test) only — surefire does not pick up *IT
+./mvnw verify               # unit + Testcontainers ITs (failsafe) + JaCoCo gate + Spotless — the CI gate
 ./mvnw spotless:apply       # auto-format before committing (verify FAILS on violations)
 ./mvnw -Dtest=OrderServiceTest test   # single test class
 
@@ -95,9 +95,12 @@ the refactor specifically fixed (blockers are listed in [REFACTORING_PLAN.md](RE
 - **DTOs are Java records**; request DTOs carry Bean Validation annotations; controllers validate.
 - **Services own transactions** (`@Transactional`, `readOnly = true` for queries). Controllers are thin.
 - **Money is `BigDecimal`**, never `double`. Timestamps are UTC.
-- **Tests:** unit tests are `*Test` (JUnit 5 + Mockito); integration tests are `*IT` and extend
-  `support/PostgresContainerSupport` (Testcontainers PostgreSQL). Concurrency/security invariants have
-  dedicated ITs (`CheckoutConcurrencyIT`, `SecurityAccessIT`) — keep them green.
+- **Tests:** unit tests are `*Test` (JUnit 5 + Mockito) and run under surefire; integration tests are
+  `*IT`, extend `support/PostgresContainerSupport` (Testcontainers PostgreSQL) and run under **failsafe
+  in the `verify` phase** — `./mvnw test` alone never executes them. Concurrency/security invariants have
+  dedicated ITs (`CheckoutConcurrencyIT`, `SecurityAccessIT`) — keep them green. The container is a
+  singleton on purpose (not `@Container`): JUnit would stop it after the first IT class while Spring
+  reuses the cached context, and every later class then fails to get a JDBC connection.
 - **API is versioned under `/api/v1`.** Admin/manager surface is `/api/v1/admin/**`
   (`/admin/users/**` and `/admin/orders/**` are ADMIN-only, the rest ADMIN or MANAGER).
 - **Auditable actions** (logins, password change, GDPR erasure, admin status change, refund, review
@@ -129,6 +132,14 @@ Payment provider is selected by `PAYMENTS_DEFAULT_PROVIDER` (`stub` for local de
   (`ai.llm-provider=deepseek`, OpenAI-compatible; the client sends `thinking:{type:disabled}`
   since V4 defaults to thinking on). Single summarize/extract calls — keep thinking off,
   don't switch to a reasoning/frontier model.
+- **NL search is hybrid**: the LLM splits the query into attributes + residual keywords, the keywords
+  are matched by **embedding** (not `LIKE`) and the attributes filter in SQL. Relevance is judged
+  against the best hit (`ai.nl-search-distance-margin`) with an absolute junk ceiling
+  (`ai.nl-search-max-distance`) — a single fixed threshold cannot serve both a precise query and a
+  vague one. With the LLM down, `StubLlmClient.keywordParse` still reads the budget, so an outage
+  never turns "under $150" into results that cost more.
+- **The gender filter includes UNISEX**: MEN → {MEN, UNISEX}, WOMEN → {WOMEN, UNISEX}; UNISEX and KIDS
+  stay exact. Strict equality hid most of the catalog behind the filter.
 - **pgvector/jsonb tables are deliberately not JPA entities** (`product_embeddings`,
   `product_recommendations`, `product_review_summary`) — access goes through JdbcClient
   repositories in `ai/repository`, keeping vector types out of Hibernate's `validate`.

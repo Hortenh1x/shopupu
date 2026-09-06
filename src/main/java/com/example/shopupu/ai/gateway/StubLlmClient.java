@@ -24,8 +24,9 @@ public class StubLlmClient implements LlmClient {
 
     private static final int TLDR_SNIPPET_LENGTH = 160;
 
+    // the currency symbol is optional so "under $150" and "до 150" both parse
     private static final Pattern MAX_PRICE = Pattern.compile(
-            "(?:до|under|below|max|не дороже)\\s*(\\d{2,5})", Pattern.CASE_INSENSITIVE);
+            "(?:до|under|below|max|не дороже)\\s*[$€₴£]?\\s*(\\d{2,5})", Pattern.CASE_INSENSITIVE);
 
     /**
      * Garment types shoppers ask for that the catalog does not carry — the bot
@@ -69,6 +70,29 @@ public class StubLlmClient implements LlmClient {
                 .findFirst()
                 .orElse("");
         return Optional.of(keywordPlan(lastUserMessage));
+    }
+
+    /**
+     * Deterministic query parse — the degradation path for natural-language search
+     * when the LLM provider is unavailable, mirroring {@link #keywordPlan(String)}
+     * for the stylist. Without it an outage silently drops the shopper's budget and
+     * the search happily ranks items that cost more than they asked for.
+     *
+     * <p>The budget phrase is stripped out of the residual keywords, so what gets
+     * embedded is the garment alone: "warm jacket under 120" -> "warm jacket" + 120.
+     * Price words measurably blur the vector — they pull every candidate ~0.05
+     * further away and reorder the top hits.
+     */
+    public static ParsedProductQuery keywordParse(String query) {
+        if (query == null || query.isBlank()) {
+            return new ParsedProductQuery(query, null, null, null, null, null);
+        }
+        String lower = query.toLowerCase(Locale.ROOT);
+        BigDecimal maxPrice = detectMaxPrice(lower);
+        Gender gender = detectGender(lower);
+        String keywords = MAX_PRICE.matcher(query).replaceAll(" ").replaceAll("\\s+", " ").trim();
+        return new ParsedProductQuery(
+                keywords.isBlank() ? query : keywords, gender, null, null, null, maxPrice);
     }
 
     /**

@@ -1,5 +1,6 @@
 package com.example.shopupu.ai.service;
 
+import com.example.shopupu.ai.gateway.StubLlmClient;
 import com.example.shopupu.ai.model.ParsedProductQuery;
 import com.example.shopupu.ai.repository.ProductEmbeddingRepository;
 import com.example.shopupu.catalog.dto.ProductListItem;
@@ -107,7 +108,11 @@ public class SemanticSearchService {
         filter.enabled = Boolean.TRUE;
         filter.q = q;
         if (aiProperties.isEnabled()) {
-            nlQueryParser.parse(normalize(q)).ifPresent(parsed -> apply(parsed, filter, q));
+            // deterministic backstop: with the LLM down the parse would yield no
+            // attributes at all, and the vector path would rank items that cost more
+            // than the shopper asked for instead of honouring the budget
+            apply(nlQueryParser.parse(normalize(q))
+                    .orElseGet(() -> StubLlmClient.keywordParse(q)), filter, q);
             Page<ProductListItem> semantic = semanticPage(filter, pageable);
             if (semantic != null) {
                 meterRegistry.counter("shopupu.ai", "op", "nl_search", "result", "ok").increment();

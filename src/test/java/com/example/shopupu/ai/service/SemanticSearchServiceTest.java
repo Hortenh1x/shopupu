@@ -204,6 +204,23 @@ class SemanticSearchServiceTest {
     }
 
     @Test
+    void nlSearchStillHonoursTheBudgetWhenTheLlmParserIsDown() {
+        // prod outage shape: DeepSeek returns 402, the deterministic parse takes over
+        when(nlQueryParser.parse(anyString())).thenReturn(Optional.empty());
+        when(queryEmbeddingService.embedQuery("warm jacket")).thenReturn(new float[] {1, 0});
+        when(embeddingRepository.findNearestProductIdsWithDistance(any(), anyString(), anyInt()))
+                .thenReturn(List.of(scored(7L, 0.31)));
+        when(productQueryService.findListItemsByIdsMatching(any(), any())).thenReturn(List.of(listItem(7L)));
+
+        service.nlSearch("warm jacket under $150", PageRequest.of(0, 20));
+
+        ArgumentCaptor<ProductFilter> captor = ArgumentCaptor.forClass(ProductFilter.class);
+        verify(productQueryService).findListItemsByIdsMatching(any(), captor.capture());
+        assertEquals(new BigDecimal("150"), captor.getValue().maxPrice,
+                "an LLM outage must not silently drop the shopper's budget");
+    }
+
+    @Test
     void nlSearchKeepsOriginalQueryWhenParserIsUnavailable() {
         when(nlQueryParser.parse(anyString())).thenReturn(Optional.empty());
         when(productQueryService.findProducts(any(), any())).thenReturn(new PageImpl<>(List.of()));

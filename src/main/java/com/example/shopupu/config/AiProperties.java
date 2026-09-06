@@ -82,15 +82,18 @@ public class AiProperties {
     private Double stylistMatchMaxDistance = 0.45;
 
     /**
-     * Relevance gate for natural-language search. Deliberately looser than the
-     * stylist gate: a result list may show near-misses, while a stylist slot
-     * claims "this IS the garment you asked for". Above it the vector candidates
-     * are dropped and the query falls back to keyword search.
+     * Relevance gate for natural-language search; above it the vector candidates are
+     * dropped and the query falls back to keyword search. Measured on the live catalog
+     * (bge-m3): a garment the shopper actually described scores 0.32-0.48 ("rain jacket"
+     * -> Technical Rain Jacket 0.32, "cozy sweater" -> Merino Crewneck 0.41), unrelated
+     * stock starts around 0.50, and nonsense ("spaceship") never comes closer than 0.66.
+     * Slightly looser than the stylist gate: a result list may show near-misses, while a
+     * stylist slot claims "this IS the garment you asked for".
      */
     @NotNull
     @jakarta.validation.constraints.DecimalMin("0.0")
     @jakarta.validation.constraints.DecimalMax("2.0")
-    private Double nlSearchMaxDistance = 0.55;
+    private Double nlSearchMaxDistance = 0.48;
 
     /** How many vector candidates NL search ranks before the structured filters run. */
     @NotNull

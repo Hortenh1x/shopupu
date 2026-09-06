@@ -37,6 +37,31 @@ class StubLlmClientTest {
     }
 
     @Test
+    void keywordParseExtractsTheBudgetAndStripsItFromTheKeywords() {
+        var parsed = StubLlmClient.keywordParse("warm jacket under $150");
+
+        assertEquals("warm jacket", parsed.q(), "price words blur the embedding");
+        assertEquals(new java.math.BigDecimal("150"), parsed.maxPrice());
+    }
+
+    @Test
+    void keywordParseReadsRussianBudgetsAndGender() {
+        var parsed = StubLlmClient.keywordParse("тёплая куртка для мужчин до 120");
+
+        assertEquals(new java.math.BigDecimal("120"), parsed.maxPrice());
+        assertEquals(com.example.shopupu.catalog.entity.Gender.MEN, parsed.gender());
+        assertEquals("тёплая куртка для мужчин", parsed.q());
+    }
+
+    @Test
+    void keywordParseLeavesAQueryWithoutABudgetAlone() {
+        var parsed = StubLlmClient.keywordParse("blue jeans");
+
+        assertEquals("blue jeans", parsed.q());
+        assertEquals(null, parsed.maxPrice());
+    }
+
+    @Test
     void keywordPlanHonestlyNamesGarmentsTheShopDoesNotCarry() {
         var plan = StubLlmClient.keywordPlan("нужен костюм с галстуком на деловую встречу");
 

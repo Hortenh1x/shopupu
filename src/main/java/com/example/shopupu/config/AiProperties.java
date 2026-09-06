@@ -82,18 +82,29 @@ public class AiProperties {
     private Double stylistMatchMaxDistance = 0.45;
 
     /**
-     * Relevance gate for natural-language search; above it the vector candidates are
-     * dropped and the query falls back to keyword search. Measured on the live catalog
-     * (bge-m3): a garment the shopper actually described scores 0.32-0.48 ("rain jacket"
-     * -> Technical Rain Jacket 0.32, "cozy sweater" -> Merino Crewneck 0.41), unrelated
-     * stock starts around 0.50, and nonsense ("spaceship") never comes closer than 0.66.
-     * Slightly looser than the stylist gate: a result list may show near-misses, while a
-     * stylist slot claims "this IS the garment you asked for".
+     * Absolute ceiling for natural-language search: if even the closest product is
+     * further than this, the catalog simply does not stock what was asked for and the
+     * query falls back to keyword search. Measured on the live catalog (bge-m3):
+     * every real query lands its best hit at 0.32-0.58, while nonsense ("spaceship")
+     * never comes closer than 0.666 — so 0.62 separates "vague but genuine" from junk.
      */
     @NotNull
     @jakarta.validation.constraints.DecimalMin("0.0")
     @jakarta.validation.constraints.DecimalMax("2.0")
-    private Double nlSearchMaxDistance = 0.48;
+    private Double nlSearchMaxDistance = 0.62;
+
+    /**
+     * How much further than the best hit a candidate may sit and still be shown.
+     * A fixed threshold cannot serve both query shapes: "rain jacket" nails its match
+     * at 0.32 while "black dress for a party" only reaches 0.499 — anything strict
+     * enough for the first returns nothing for the second. Judging candidates against
+     * the best hit adapts automatically, and the measured gap to the first irrelevant
+     * product (0.499 -> 0.565 there) is consistently wider than this margin.
+     */
+    @NotNull
+    @jakarta.validation.constraints.DecimalMin("0.0")
+    @jakarta.validation.constraints.DecimalMax("1.0")
+    private Double nlSearchDistanceMargin = 0.05;
 
     /** How many vector candidates NL search ranks before the structured filters run. */
     @NotNull

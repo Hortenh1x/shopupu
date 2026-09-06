@@ -131,11 +131,23 @@ public class SemanticSearchService {
         }
         try {
             float[] embedding = queryEmbeddingService.embedQuery(keywords);
-            List<Long> ids = embeddingRepository
+            List<ProductEmbeddingRepository.ScoredProductId> scored = embeddingRepository
                     .findNearestProductIdsWithDistance(
-                            embedding, aiProperties.getEmbeddingModel(), aiProperties.getNlSearchCandidates())
-                    .stream()
-                    .filter(scored -> scored.distance() <= aiProperties.getNlSearchMaxDistance())
+                            embedding, aiProperties.getEmbeddingModel(), aiProperties.getNlSearchCandidates());
+            if (scored.isEmpty()) {
+                return null;
+            }
+            // KNN always returns *something*, so relevance is judged twice: an absolute
+            // ceiling rejects a query the catalog cannot answer at all, and a window
+            // around the best hit keeps the field as tight as that query allows
+            double best = scored.get(0).distance();
+            if (best > aiProperties.getNlSearchMaxDistance()) {
+                return null;
+            }
+            double cutoff = Math.min(
+                    aiProperties.getNlSearchMaxDistance(), best + aiProperties.getNlSearchDistanceMargin());
+            List<Long> ids = scored.stream()
+                    .filter(hit -> hit.distance() <= cutoff)
                     .map(ProductEmbeddingRepository.ScoredProductId::productId)
                     .toList();
             if (ids.isEmpty()) {

@@ -127,7 +127,7 @@ class SemanticSearchServiceTest {
         when(queryEmbeddingService.embedQuery("warm jacket")).thenReturn(vector);
         when(embeddingRepository.findNearestProductIdsWithDistance(
                 vector, aiProperties.getEmbeddingModel(), aiProperties.getNlSearchCandidates()))
-                .thenReturn(List.of(scored(7L, 0.21), scored(3L, 0.34)));
+                .thenReturn(List.of(scored(7L, 0.21), scored(3L, 0.25)));
         when(productQueryService.findListItemsByIdsMatching(eq(List.of(7L, 3L)), any()))
                 .thenReturn(List.of(listItem(7L), listItem(3L)));
 
@@ -145,7 +145,7 @@ class SemanticSearchServiceTest {
     }
 
     @Test
-    void nlSearchDropsVectorCandidatesBeyondTheRelevanceGate() {
+    void nlSearchKeepsOnlyCandidatesCloseToTheBestHit() {
         float[] vector = {1, 0};
         when(nlQueryParser.parse("warm jacket"))
                 .thenReturn(Optional.of(new ParsedProductQuery("warm jacket", null, null, null, null, null)));
@@ -157,6 +157,24 @@ class SemanticSearchServiceTest {
 
         var page = service.nlSearch("warm jacket", PageRequest.of(0, 20));
 
+        assertEquals(List.of(7L), page.getContent().stream().map(ProductListItem::id).toList());
+    }
+
+    @Test
+    void nlSearchStillAnswersAVagueQueryWhoseBestHitIsFarther() {
+        // "black dress for a party" only reaches 0.50 on the live catalog; a fixed
+        // threshold tuned for precise queries would answer it with nothing at all
+        when(nlQueryParser.parse("black dress for a party"))
+                .thenReturn(Optional.of(new ParsedProductQuery("black dress", null, null, null, null, null)));
+        when(queryEmbeddingService.embedQuery("black dress")).thenReturn(new float[] {1, 0});
+        when(embeddingRepository.findNearestProductIdsWithDistance(any(), anyString(), anyInt()))
+                .thenReturn(List.of(scored(7L, 0.50), scored(3L, 0.565)));
+        when(productQueryService.findListItemsByIdsMatching(eq(List.of(7L)), any()))
+                .thenReturn(List.of(listItem(7L)));
+
+        var page = service.nlSearch("black dress for a party", PageRequest.of(0, 20));
+
+        // the answer survives, the 0.065-further product does not
         assertEquals(List.of(7L), page.getContent().stream().map(ProductListItem::id).toList());
     }
 

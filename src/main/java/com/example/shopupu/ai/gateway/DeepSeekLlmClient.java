@@ -51,14 +51,17 @@ public class DeepSeekLlmClient implements LlmClient {
     private static final String PARSE_SYSTEM = """
             You convert a shopper's free-text clothing query into JSON filters.
             Reply with ONE JSON object and nothing else:
-            {"q": "residual keywords (garment/style/fabric) in the query's own language, or null",
+            {"q": "residual keywords (garment/style/fabric) TRANSLATED TO ENGLISH, or null",
              "gender": "MEN" | "WOMEN" | "UNISEX" | "KIDS" | null,
              "size": "size like S, M, L, XL, 42 or null",
              "color": "color name in English or null",
              "minPrice": number or null,
              "maxPrice": number or null}
             Extract only what is explicitly stated; use null otherwise.
-            'under 100' / 'до 100' means maxPrice 100.""";
+            'under 100' / 'до 100' means maxPrice 100.
+            Always write "q" in English whatever language the shopper used ("тёплая куртка"
+            -> "warm jacket"): it is matched against an English-language catalog, and a
+            query left in its own language ranks unrelated garments first.""";
 
     private static final String STYLIST_SYSTEM = """
             You are the personal stylist of an online clothing shop. From the shopper's

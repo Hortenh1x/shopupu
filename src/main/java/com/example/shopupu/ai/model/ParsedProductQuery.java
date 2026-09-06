@@ -11,7 +11,7 @@ import java.math.BigDecimal;
  */
 @JsonClassDescription("Search filters extracted from a shopper's free-text clothing query")
 public record ParsedProductQuery(
-        @JsonPropertyDescription("Residual search keywords (garment type, style, fabric) in the query's own language, "
+        @JsonPropertyDescription("Residual search keywords (garment type, style, fabric) translated to English, "
                 + "without the attributes extracted into the other fields")
         String q,
         @JsonPropertyDescription("Target audience, only if explicitly stated")

@@ -42,11 +42,16 @@ public class DeepSeekLlmClient implements LlmClient {
     private static final String SUMMARY_SYSTEM = """
             You summarize customer reviews for an online clothing shop.
             Reply with ONE JSON object and nothing else:
-            {"tldr": "2-3 sentence summary in the dominant language of the reviews",
+            {"tldr": "2-3 sentence summary, see the language rule below",
              "pros": ["short positive point", ...up to 5],
              "cons": ["short negative point", ...up to 5, empty if none],
              "sentiment": "POSITIVE" | "MIXED" | "NEGATIVE"}
-            Base every statement strictly on the supplied reviews; never invent details.""";
+            Base every statement strictly on the supplied reviews; never invent details.
+            Write "tldr", "pros" and "cons" in the language the reviews themselves are
+            written in, and never translate into a third language: English reviews get an
+            English summary, Ukrainian reviews a Ukrainian one. (Observed failure: English
+            reviews summarised in German.) If the reviews mix languages, use the one most
+            of them are written in.""";
 
     private static final String PARSE_SYSTEM = """
             You convert a shopper's free-text clothing query into JSON filters.

@@ -105,6 +105,10 @@ the refactor specifically fixed (blockers are listed in [REFACTORING_PLAN.md](RE
   (`/admin/users/**` and `/admin/orders/**` are ADMIN-only, the rest ADMIN or MANAGER).
 - **Auditable actions** (logins, password change, GDPR erasure, admin status change, refund, review
   moderation) go through `common/audit/AuditService`.
+- **Never give a script a credential of its own.** Seed/tooling scripts read `SHOPUPU_ADMIN_PASSWORD`
+  and friends from the environment and fail fast when unset — a parameter default is how a working
+  admin password once reached production and the public repo at the same time.
+  `NoCommittedCredentialsTest` fails the build if one comes back.
 
 ## Profiles & config
 

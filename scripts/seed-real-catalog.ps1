@@ -1,11 +1,16 @@
 param(
     [string]$BaseUrl = "http://localhost:8080",
-    [string]$AdminEmail = "catalog.admin@shopupu.local",
-    [string]$AdminPassword = "ShopupuCatalogAdmin2026!",
+    [string]$AdminEmail = $(if ($env:SHOPUPU_ADMIN_EMAIL) { $env:SHOPUPU_ADMIN_EMAIL } else { "catalog.admin@shopupu.local" }),
+    # No default: a working password committed here once ended up live in production
+    [string]$AdminPassword = $env:SHOPUPU_ADMIN_PASSWORD,
     [string]$ImageDir = "$PSScriptRoot\catalog-images"
 )
 
 $ErrorActionPreference = "Stop"
+
+if ([string]::IsNullOrWhiteSpace($AdminPassword)) {
+    throw "Admin password missing. Set SHOPUPU_ADMIN_PASSWORD or pass -AdminPassword; this script must never carry one."
+}
 
 function Invoke-ShopupuJson {
     param(

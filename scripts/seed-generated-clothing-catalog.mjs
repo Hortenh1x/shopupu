@@ -7,7 +7,12 @@ import { fileURLToPath } from "node:url";
 const scriptDir = dirname(fileURLToPath(import.meta.url));
 const baseUrl = (process.env.SHOPUPU_BASE_URL ?? "http://localhost:8080").replace(/\/+$/, "");
 const adminEmail = process.env.SHOPUPU_ADMIN_EMAIL ?? "catalog.admin@shopupu.local";
-const adminPassword = process.env.SHOPUPU_ADMIN_PASSWORD ?? "ShopupuCatalogAdmin2026!";
+// No default: a working password committed here once ended up live in production
+const adminPassword = process.env.SHOPUPU_ADMIN_PASSWORD;
+if (!adminPassword) {
+  console.error("SHOPUPU_ADMIN_PASSWORD is not set. This script must never carry a password of its own.");
+  process.exit(1);
+}
 const imageDir = process.env.SHOPUPU_IMAGE_DIR
   ? resolve(process.env.SHOPUPU_IMAGE_DIR)
   : join(scriptDir, "generated-catalog-images");

@@ -1,12 +1,17 @@
 param(
     [string]$BaseUrl = "http://localhost:8080",
     [string]$AdminEmail = "seed-admin@example.com",
-    [string]$AdminPassword = "DemoAdmin123!",
+    # No defaults: a working password committed to a seed script once ended up live in production
+    [string]$AdminPassword = $env:SHOPUPU_ADMIN_PASSWORD,
     [string]$CustomerEmail = "demo-customer@example.com",
-    [string]$CustomerPassword = "DemoCustomer123!"
+    [string]$CustomerPassword = $env:SHOPUPU_CUSTOMER_PASSWORD
 )
 
 $ErrorActionPreference = "Stop"
+
+if ([string]::IsNullOrWhiteSpace($AdminPassword) -or [string]::IsNullOrWhiteSpace($CustomerPassword)) {
+    throw "Passwords missing. Set SHOPUPU_ADMIN_PASSWORD and SHOPUPU_CUSTOMER_PASSWORD, or pass them as parameters."
+}
 
 function Invoke-ShopupuJson {
     param(

@@ -3,6 +3,7 @@ package com.example.shopupu.ai.service;
 import com.example.shopupu.ai.dto.ReviewSummaryResponse;
 import com.example.shopupu.ai.gateway.LlmClient;
 import com.example.shopupu.ai.model.ReviewSummary;
+import com.example.shopupu.ai.model.TextScript;
 import com.example.shopupu.ai.repository.ReviewSummaryRepository;
 import com.example.shopupu.catalog.repository.ProductRepository;
 import com.example.shopupu.common.exception.ResourceNotFoundException;
@@ -97,9 +98,27 @@ public class ReviewSummaryService {
     private Optional<ReviewSummary> summarize(ReviewsSnapshot snapshot) {
         Optional<ReviewSummary> summary =
                 llmClient.summarizeReviews(snapshot.productTitle(), snapshot.reviewLines());
+        if (summary.isPresent() && driftedLanguage(snapshot, summary.get())) {
+            // asking for a language is not enough: a run over this catalogue produced
+            // German summaries, and once the prompt forbade that, Ukrainian ones — for
+            // reviews written entirely in English. No summary beats a wrong-language one.
+            log.warn("Discarding summary for '{}': written in a different script than its reviews",
+                    snapshot.productTitle());
+            meterRegistry.counter("shopupu.ai", "op", "review_summary", "result", "wrong_language")
+                    .increment();
+            return Optional.empty();
+        }
         meterRegistry.counter("shopupu.ai", "op", "review_summary",
                 "result", summary.isPresent() ? "ok" : "empty").increment();
         return summary;
+    }
+
+    private boolean driftedLanguage(ReviewsSnapshot snapshot, ReviewSummary summary) {
+        TextScript reviews = TextScript.of(String.join(" ", snapshot.reviewLines()));
+        TextScript written = TextScript.of(summary.tldr());
+        return reviews != TextScript.UNDETERMINED
+                && written != TextScript.UNDETERMINED
+                && reviews != written;
     }
 
     /** Snapshot mapped inside the TX (OSIV off); reviews are capped at the most recent N. */

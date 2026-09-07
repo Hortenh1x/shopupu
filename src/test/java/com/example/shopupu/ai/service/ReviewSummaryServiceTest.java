@@ -112,6 +112,37 @@ class ReviewSummaryServiceTest {
     }
 
     @Test
+    void regenerateDiscardsASummaryWrittenInAnotherScriptThanTheReviews() {
+        // observed on prod: English reviews summarised in German, then in Ukrainian
+        when(productRepository.findById(1L)).thenReturn(Optional.of(product()));
+        when(reviewRepository.findByProductIdAndStatus(eq(1L), eq(ReviewStatus.APPROVED), any()))
+                .thenReturn(new PageImpl<>(List.of(
+                        review(5, "Stayed completely dry in a downpour"),
+                        review(4, "True to size, good hood"))));
+        when(llmClient.summarizeReviews(anyString(), any())).thenReturn(Optional.of(new ReviewSummary(
+                "Покупці хвалять куртку", List.of("тепла"), List.of(), ReviewSummary.Sentiment.POSITIVE)));
+
+        service.regenerate(1L);
+
+        verify(summaryRepository, never()).upsert(any(), any(), anyInt(), any());
+    }
+
+    @Test
+    void regenerateKeepsASummaryInTheSameScriptAsTheReviews() {
+        when(productRepository.findById(1L)).thenReturn(Optional.of(product()));
+        when(reviewRepository.findByProductIdAndStatus(eq(1L), eq(ReviewStatus.APPROVED), any()))
+                .thenReturn(new PageImpl<>(List.of(
+                        review(5, "Покупка вдала, дуже тепла"), review(4, "Гарний крій"))));
+        ReviewSummary summary = new ReviewSummary(
+                "Покупці хвалять куртку", List.of("тепла"), List.of(), ReviewSummary.Sentiment.POSITIVE);
+        when(llmClient.summarizeReviews(anyString(), any())).thenReturn(Optional.of(summary));
+
+        service.regenerate(1L);
+
+        verify(summaryRepository).upsert(1L, summary, 2, aiProperties.getLlmModel());
+    }
+
+    @Test
     void regenerateIsNoOpWhenAiIsDisabled() {
         aiProperties.setEnabled(false);
 

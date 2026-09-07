@@ -47,11 +47,8 @@ public class DeepSeekLlmClient implements LlmClient {
              "cons": ["short negative point", ...up to 5, empty if none],
              "sentiment": "POSITIVE" | "MIXED" | "NEGATIVE"}
             Base every statement strictly on the supplied reviews; never invent details.
-            Write "tldr", "pros" and "cons" in the language the reviews themselves are
-            written in, and never translate into a third language: English reviews get an
-            English summary, Ukrainian reviews a Ukrainian one. (Observed failure: English
-            reviews summarised in German.) If the reviews mix languages, use the one most
-            of them are written in.""";
+            Write "tldr", "pros" and "cons" in ENGLISH — the catalogue and the storefront
+            are English. Never answer in any other language, whatever the reviews look like.""";
 
     private static final String PARSE_SYSTEM = """
             You convert a shopper's free-text clothing query into JSON filters.

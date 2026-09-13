@@ -1,0 +1,81 @@
+{
+  "packagesScanned": 151,
+  "findings": [
+    {
+      "package": "com.fasterxml.jackson.core:jackson-databind",
+      "version": "2.21.4",
+      "vulns": [
+        {
+          "id": "GHSA-5gvw-p9qm-jgwh",
+          "modified": "2026-09-10T03:51:10.658074Z"
+        },
+        {
+          "id": "GHSA-5jmj-h7xm-6q6v",
+          "modified": "2026-09-10T03:51:08.069993Z"
+        },
+        {
+          "id": "GHSA-mhm7-754m-9p8w",
+          "modified": "2026-09-10T03:50:52.852212Z"
+        }
+      ]
+    },
+    {
+      "package": "org.apache.logging.log4j:log4j-api",
+      "version": "2.25.4",
+      "vulns": [
+        {
+          "id": "GHSA-qv9r-c865-cp47",
+          "modified": "2026-09-10T03:50:52.972700Z"
+        }
+      ]
+    },
+    {
+      "package": "tools.jackson.core:jackson-databind",
+      "version": "3.1.4",
+      "vulns": [
+        {
+          "id": "GHSA-5gvw-p9qm-jgwh",
+          "modified": "2026-09-10T03:51:10.658074Z"
+        }
+      ]
+    },
+    {
+      "package": "org.apache.tomcat.embed:tomcat-embed-core",
+      "version": "11.0.22",
+      "vulns": [
+        {
+          "id": "GHSA-9xv2-5v5q-p794",
+          "modified": "2026-09-11T08:25:52.825871Z"
+        },
+        {
+          "id": "GHSA-gcx9-497g-6cp6",
+          "modified": "2026-09-11T08:25:41.300012Z"
+        },
+        {
+          "id": "GHSA-h3x4-894j-xpx5",
+          "modified": "2026-09-11T08:25:40.118635Z"
+        }
+      ]
+    },
+    {
+      "package": "org.jsoup:jsoup",
+      "version": "1.18.3",
+      "vulns": [
+        {
+          "id": "GHSA-pmhh-3w7g-xqp8",
+          "modified": "2026-09-10T03:50:53.809983Z"
+        }
+      ]
+    },
+    {
+      "package": "org.postgresql:postgresql",
+      "version": "42.7.11",
+      "vulns": [
+        {
+          "id": "GHSA-j92g-9f8w-j867",
+          "modified": "2026-09-10T03:50:12.377062Z"
+        }
+      ]
+    }
+  ]
+}

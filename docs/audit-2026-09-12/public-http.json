@@ -1,0 +1,34 @@
+[
+  {
+    "url": "https://shopupu.net/",
+    "error": "HTTP Error 403: Forbidden"
+  },
+  {
+    "url": "https://shopupu.net/api/v1/catalog/products?size=1",
+    "error": "HTTP Error 403: Forbidden"
+  },
+  {
+    "url": "https://shopupu.net/robots.txt",
+    "error": "HTTP Error 403: Forbidden"
+  },
+  {
+    "url": "https://shopupu.net/sitemap.xml",
+    "error": "HTTP Error 403: Forbidden"
+  },
+  {
+    "url": "https://www.shopupu.net/",
+    "error": "HTTP Error 403: Forbidden"
+  },
+  {
+    "url": "https://www.shopupu.net/api/v1/catalog/products?size=1",
+    "error": "HTTP Error 403: Forbidden"
+  },
+  {
+    "url": "https://www.shopupu.net/robots.txt",
+    "error": "HTTP Error 403: Forbidden"
+  },
+  {
+    "url": "https://www.shopupu.net/sitemap.xml",
+    "error": "HTTP Error 403: Forbidden"
+  }
+]

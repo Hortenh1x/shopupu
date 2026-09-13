@@ -1,0 +1,129 @@
+{
+  "results": [
+    {
+      "path": "/orders",
+      "viewport": 390,
+      "scrollWidth": 390,
+      "main": "Orders.\nSTATUS\nAll\ncreated\npending payment\npaid\nprocessing\nshipped\ndelivered\ncompleted\ncancelled\nrefunded\nORD-20260912-7ZGQQK\npaid\n€49.89\n–\n9/12/2026\nOpen\nORD-20260912-E5K96F\npaid\n€49.89\n–\n9/12/2026\nOpen\nORD-20260912-BJT324\npaid\n€44.89\n–\n9/12/2026\nOpen",
+      "violations": [
+        {
+          "id": "color-contrast",
+          "nodes": [
+            {
+              "target": [
+                "tr:nth-child(1) > td:nth-child(2) > .status.statusOk"
+              ],
+              "summary": "Fix any of the following:\n  Element has insufficient color contrast of 4.15 (foreground color: #467748, background color: #e4e6d5, font size: 9.4pt (12.48px), font weight: normal). Expected contrast ratio of 4.5:1"
+            },
+            {
+              "target": [
+                "tr:nth-child(2) > td:nth-child(2) > .status.statusOk"
+              ],
+              "summary": "Fix any of the following:\n  Element has insufficient color contrast of 4.15 (foreground color: #467748, background color: #e4e6d5, font size: 9.4pt (12.48px), font weight: normal). Expected contrast ratio of 4.5:1"
+            },
+            {
+              "target": [
+                "tr:nth-child(3) > td:nth-child(2) > .status.statusOk"
+              ],
+              "summary": "Fix any of the following:\n  Element has insufficient color contrast of 4.15 (foreground color: #467748, background color: #e4e6d5, font size: 9.4pt (12.48px), font weight: normal). Expected contrast ratio of 4.5:1"
+            },
+            {
+              "target": [
+                "p"
+              ],
+              "summary": "Fix any of the following:\n  Element has insufficient color contrast of 2.62 (foreground color: #685346, background color: #1a0e08, font size: 12.0pt (16px), font weight: normal). Expected contrast ratio of 4.5:1"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "path": "/orders/2",
+      "viewport": 390,
+      "scrollWidth": 390,
+      "main": "ORDER\nORD-20260912-E5K96F\n\nPlaced 9/12/2026, 4:11:11 PM · updated 9/12/2026, 4:11:11 PM\n\nAudit shirt\nM · Cream · AUDIT-SHIRT-M-2\n1\n€39.90\n€39.90\nShipping.\npending\ndhl\npaid\nSubtotal\n€39.90\nShipping\n€9.99\nTotal\n€49.89",
+      "violations": [
+        {
+          "id": "color-contrast",
+          "nodes": [
+            {
+              "target": [
+                ".statusOk"
+              ],
+              "summary": "Fix any of the following:\n  Element has insufficient color contrast of 4.15 (foreground color: #467748, background color: #e4e6d5, font size: 9.4pt (12.48px), font weight: normal). Expected contrast ratio of 4.5:1"
+            },
+            {
+              "target": [
+                ".footerCols > .stack > p"
+              ],
+              "summary": "Fix any of the following:\n  Element has insufficient color contrast of 2.62 (foreground color: #685346, background color: #1a0e08, font size: 12.0pt (16px), font weight: normal). Expected contrast ratio of 4.5:1"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "path": "/profile",
+      "viewport": 390,
+      "scrollWidth": 390,
+      "main": "My account.\nProfile\nAddresses\nWishlist\nConsents\nSecurity & data\nPersonal data\nFIRST NAME\nLAST NAME\nPHONE\nPREFERRED SIZE\nnot set\nXS\nS\nM\nL\nXL\nXXL\nGENDER\nnot set\nMale\nFemale\nOther\nSave profile\nAccount\n\nEmail: audit-a@example.invalid not verified\n\nRoles: CUSTOMER\n\nResend verification email",
+      "violations": [
+        {
+          "id": "color-contrast",
+          "nodes": [
+            {
+              "target": [
+                ".footerCols > .stack > p"
+              ],
+              "summary": "Fix any of the following:\n  Element has insufficient color contrast of 2.62 (foreground color: #685346, background color: #1a0e08, font size: 12.0pt (16px), font weight: normal). Expected contrast ratio of 4.5:1"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "path": "/checkout",
+      "viewport": 390,
+      "scrollWidth": 390,
+      "main": "CHECKOUT · STEP 1 OF 3\nReview your order.\nYour cart is empty.\n\nAdd products before checking out.\n\nBrowse the catalog",
+      "violations": [
+        {
+          "id": "color-contrast",
+          "nodes": [
+            {
+              "target": [
+                ".muted"
+              ],
+              "summary": "Fix any of the following:\n  Element has insufficient color contrast of 2.62 (foreground color: #685346, background color: #1a0e08, font size: 12.0pt (16px), font weight: normal). Expected contrast ratio of 4.5:1"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "path": "/cart",
+      "viewport": 390,
+      "scrollWidth": 390,
+      "main": "Cart\nYour cart is empty.\n\nEverything you add is kept, even before you sign in.\n\nBrowse the catalog",
+      "violations": [
+        {
+          "id": "color-contrast",
+          "nodes": [
+            {
+              "target": [
+                ".muted"
+              ],
+              "summary": "Fix any of the following:\n  Element has insufficient color contrast of 2.62 (foreground color: #685346, background color: #1a0e08, font size: 12.0pt (16px), font weight: normal). Expected contrast ratio of 4.5:1"
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "keyboardFirstFocus": {
+    "tag": "A",
+    "text": "shopupu",
+    "outline": "lab(54.7097 54.7431 59.201) solid 2px"
+  },
+  "reducedMotionEmulated": true
+}

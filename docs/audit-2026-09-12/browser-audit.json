@@ -1,0 +1,493 @@
+{
+  "pages": [
+    {
+      "path": "/",
+      "width": 1280,
+      "status": 200,
+      "viewport": 1280,
+      "scrollWidth": 1280,
+      "title": "shopupu",
+      "overflows": [],
+      "violations": [
+        {
+          "id": "color-contrast",
+          "impact": "serious",
+          "description": "Ensure the contrast between foreground and background colors meets WCAG 2 AA minimum contrast ratio thresholds",
+          "nodes": [
+            {
+              "target": [
+                "p"
+              ],
+              "summary": "Fix any of the following:\n  Element has insufficient color contrast of 2.62 (foreground color: #685346, background color: #1a0e08, font size: 12.0pt (16px), font weight: normal). Expected contrast ratio of 4.5:1"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "path": "/catalog",
+      "width": 1280,
+      "status": 200,
+      "viewport": 1280,
+      "scrollWidth": 1280,
+      "title": "shopupu",
+      "overflows": [],
+      "violations": [
+        {
+          "id": "color-contrast",
+          "impact": "serious",
+          "description": "Ensure the contrast between foreground and background colors meets WCAG 2 AA minimum contrast ratio thresholds",
+          "nodes": [
+            {
+              "target": [
+                "p"
+              ],
+              "summary": "Fix any of the following:\n  Element has insufficient color contrast of 2.62 (foreground color: #685346, background color: #1a0e08, font size: 12.0pt (16px), font weight: normal). Expected contrast ratio of 4.5:1"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "path": "/products/2",
+      "width": 1280,
+      "status": 200,
+      "viewport": 1280,
+      "scrollWidth": 1280,
+      "title": "shopupu",
+      "overflows": [],
+      "violations": [
+        {
+          "id": "color-contrast",
+          "impact": "serious",
+          "description": "Ensure the contrast between foreground and background colors meets WCAG 2 AA minimum contrast ratio thresholds",
+          "nodes": [
+            {
+              "target": [
+                ".footerCols > .stack > .muted"
+              ],
+              "summary": "Fix any of the following:\n  Element has insufficient color contrast of 2.62 (foreground color: #685346, background color: #1a0e08, font size: 12.0pt (16px), font weight: normal). Expected contrast ratio of 4.5:1"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "path": "/login",
+      "width": 1280,
+      "status": 200,
+      "viewport": 1280,
+      "scrollWidth": 1280,
+      "title": "shopupu",
+      "overflows": [],
+      "violations": [
+        {
+          "id": "color-contrast",
+          "impact": "serious",
+          "description": "Ensure the contrast between foreground and background colors meets WCAG 2 AA minimum contrast ratio thresholds",
+          "nodes": [
+            {
+              "target": [
+                "p"
+              ],
+              "summary": "Fix any of the following:\n  Element has insufficient color contrast of 2.62 (foreground color: #685346, background color: #1a0e08, font size: 12.0pt (16px), font weight: normal). Expected contrast ratio of 4.5:1"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "path": "/cart",
+      "width": 1280,
+      "status": 200,
+      "viewport": 1280,
+      "scrollWidth": 1280,
+      "title": "shopupu",
+      "overflows": [],
+      "violations": [
+        {
+          "id": "color-contrast",
+          "impact": "serious",
+          "description": "Ensure the contrast between foreground and background colors meets WCAG 2 AA minimum contrast ratio thresholds",
+          "nodes": [
+            {
+              "target": [
+                ".muted"
+              ],
+              "summary": "Fix any of the following:\n  Element has insufficient color contrast of 2.62 (foreground color: #685346, background color: #1a0e08, font size: 12.0pt (16px), font weight: normal). Expected contrast ratio of 4.5:1"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "path": "/orders",
+      "width": 1280,
+      "status": 200,
+      "viewport": 1280,
+      "scrollWidth": 1280,
+      "title": "shopupu",
+      "overflows": [],
+      "violations": [
+        {
+          "id": "color-contrast",
+          "impact": "serious",
+          "description": "Ensure the contrast between foreground and background colors meets WCAG 2 AA minimum contrast ratio thresholds",
+          "nodes": [
+            {
+              "target": [
+                ".muted"
+              ],
+              "summary": "Fix any of the following:\n  Element has insufficient color contrast of 2.62 (foreground color: #685346, background color: #1a0e08, font size: 12.0pt (16px), font weight: normal). Expected contrast ratio of 4.5:1"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "path": "/",
+      "width": 390,
+      "status": 200,
+      "viewport": 390,
+      "scrollWidth": 390,
+      "title": "shopupu",
+      "overflows": [],
+      "violations": [
+        {
+          "id": "color-contrast",
+          "impact": "serious",
+          "description": "Ensure the contrast between foreground and background colors meets WCAG 2 AA minimum contrast ratio thresholds",
+          "nodes": [
+            {
+              "target": [
+                "p"
+              ],
+              "summary": "Fix any of the following:\n  Element has insufficient color contrast of 2.62 (foreground color: #685346, background color: #1a0e08, font size: 12.0pt (16px), font weight: normal). Expected contrast ratio of 4.5:1"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "path": "/catalog",
+      "width": 390,
+      "status": 200,
+      "viewport": 390,
+      "scrollWidth": 390,
+      "title": "shopupu",
+      "overflows": [],
+      "violations": [
+        {
+          "id": "color-contrast",
+          "impact": "serious",
+          "description": "Ensure the contrast between foreground and background colors meets WCAG 2 AA minimum contrast ratio thresholds",
+          "nodes": [
+            {
+              "target": [
+                "p"
+              ],
+              "summary": "Fix any of the following:\n  Element has insufficient color contrast of 2.62 (foreground color: #685346, background color: #1a0e08, font size: 12.0pt (16px), font weight: normal). Expected contrast ratio of 4.5:1"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "path": "/products/2",
+      "width": 390,
+      "status": 200,
+      "viewport": 390,
+      "scrollWidth": 390,
+      "title": "shopupu",
+      "overflows": [],
+      "violations": [
+        {
+          "id": "color-contrast",
+          "impact": "serious",
+          "description": "Ensure the contrast between foreground and background colors meets WCAG 2 AA minimum contrast ratio thresholds",
+          "nodes": [
+            {
+              "target": [
+                ".footerCols > .stack > .muted"
+              ],
+              "summary": "Fix any of the following:\n  Element has insufficient color contrast of 2.62 (foreground color: #685346, background color: #1a0e08, font size: 12.0pt (16px), font weight: normal). Expected contrast ratio of 4.5:1"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "path": "/login",
+      "width": 390,
+      "status": 200,
+      "viewport": 390,
+      "scrollWidth": 390,
+      "title": "shopupu",
+      "overflows": [],
+      "violations": [
+        {
+          "id": "color-contrast",
+          "impact": "serious",
+          "description": "Ensure the contrast between foreground and background colors meets WCAG 2 AA minimum contrast ratio thresholds",
+          "nodes": [
+            {
+              "target": [
+                "p"
+              ],
+              "summary": "Fix any of the following:\n  Element has insufficient color contrast of 2.62 (foreground color: #685346, background color: #1a0e08, font size: 12.0pt (16px), font weight: normal). Expected contrast ratio of 4.5:1"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "path": "/cart",
+      "width": 390,
+      "status": 200,
+      "viewport": 390,
+      "scrollWidth": 390,
+      "title": "shopupu",
+      "overflows": [],
+      "violations": [
+        {
+          "id": "color-contrast",
+          "impact": "serious",
+          "description": "Ensure the contrast between foreground and background colors meets WCAG 2 AA minimum contrast ratio thresholds",
+          "nodes": [
+            {
+              "target": [
+                ".muted"
+              ],
+              "summary": "Fix any of the following:\n  Element has insufficient color contrast of 2.62 (foreground color: #685346, background color: #1a0e08, font size: 12.0pt (16px), font weight: normal). Expected contrast ratio of 4.5:1"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "path": "/orders",
+      "width": 390,
+      "status": 200,
+      "viewport": 390,
+      "scrollWidth": 390,
+      "title": "shopupu",
+      "overflows": [],
+      "violations": [
+        {
+          "id": "color-contrast",
+          "impact": "serious",
+          "description": "Ensure the contrast between foreground and background colors meets WCAG 2 AA minimum contrast ratio thresholds",
+          "nodes": [
+            {
+              "target": [
+                ".muted"
+              ],
+              "summary": "Fix any of the following:\n  Element has insufficient color contrast of 2.62 (foreground color: #685346, background color: #1a0e08, font size: 12.0pt (16px), font weight: normal). Expected contrast ratio of 4.5:1"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "path": "/",
+      "width": 320,
+      "status": 200,
+      "viewport": 320,
+      "scrollWidth": 320,
+      "title": "shopupu",
+      "overflows": [],
+      "violations": [
+        {
+          "id": "color-contrast",
+          "impact": "serious",
+          "description": "Ensure the contrast between foreground and background colors meets WCAG 2 AA minimum contrast ratio thresholds",
+          "nodes": [
+            {
+              "target": [
+                "p"
+              ],
+              "summary": "Fix any of the following:\n  Element has insufficient color contrast of 2.62 (foreground color: #685346, background color: #1a0e08, font size: 12.0pt (16px), font weight: normal). Expected contrast ratio of 4.5:1"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "path": "/catalog",
+      "width": 320,
+      "status": 200,
+      "viewport": 320,
+      "scrollWidth": 320,
+      "title": "shopupu",
+      "overflows": [],
+      "violations": [
+        {
+          "id": "color-contrast",
+          "impact": "serious",
+          "description": "Ensure the contrast between foreground and background colors meets WCAG 2 AA minimum contrast ratio thresholds",
+          "nodes": [
+            {
+              "target": [
+                "p"
+              ],
+              "summary": "Fix any of the following:\n  Element has insufficient color contrast of 2.62 (foreground color: #685346, background color: #1a0e08, font size: 12.0pt (16px), font weight: normal). Expected contrast ratio of 4.5:1"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "path": "/products/2",
+      "width": 320,
+      "status": 200,
+      "viewport": 320,
+      "scrollWidth": 320,
+      "title": "shopupu",
+      "overflows": [],
+      "violations": [
+        {
+          "id": "color-contrast",
+          "impact": "serious",
+          "description": "Ensure the contrast between foreground and background colors meets WCAG 2 AA minimum contrast ratio thresholds",
+          "nodes": [
+            {
+              "target": [
+                ".footerCols > .stack > .muted"
+              ],
+              "summary": "Fix any of the following:\n  Element has insufficient color contrast of 2.62 (foreground color: #685346, background color: #1a0e08, font size: 12.0pt (16px), font weight: normal). Expected contrast ratio of 4.5:1"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "path": "/login",
+      "width": 320,
+      "status": 200,
+      "viewport": 320,
+      "scrollWidth": 320,
+      "title": "shopupu",
+      "overflows": [],
+      "violations": [
+        {
+          "id": "color-contrast",
+          "impact": "serious",
+          "description": "Ensure the contrast between foreground and background colors meets WCAG 2 AA minimum contrast ratio thresholds",
+          "nodes": [
+            {
+              "target": [
+                "p"
+              ],
+              "summary": "Fix any of the following:\n  Element has insufficient color contrast of 2.62 (foreground color: #685346, background color: #1a0e08, font size: 12.0pt (16px), font weight: normal). Expected contrast ratio of 4.5:1"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "path": "/cart",
+      "width": 320,
+      "status": 200,
+      "viewport": 320,
+      "scrollWidth": 320,
+      "title": "shopupu",
+      "overflows": [],
+      "violations": [
+        {
+          "id": "color-contrast",
+          "impact": "serious",
+          "description": "Ensure the contrast between foreground and background colors meets WCAG 2 AA minimum contrast ratio thresholds",
+          "nodes": [
+            {
+              "target": [
+                ".muted"
+              ],
+              "summary": "Fix any of the following:\n  Element has insufficient color contrast of 2.62 (foreground color: #685346, background color: #1a0e08, font size: 12.0pt (16px), font weight: normal). Expected contrast ratio of 4.5:1"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "path": "/orders",
+      "width": 320,
+      "status": 200,
+      "viewport": 320,
+      "scrollWidth": 320,
+      "title": "shopupu",
+      "overflows": [],
+      "violations": [
+        {
+          "id": "color-contrast",
+          "impact": "serious",
+          "description": "Ensure the contrast between foreground and background colors meets WCAG 2 AA minimum contrast ratio thresholds",
+          "nodes": [
+            {
+              "target": [
+                ".muted"
+              ],
+              "summary": "Fix any of the following:\n  Element has insufficient color contrast of 2.62 (foreground color: #685346, background color: #1a0e08, font size: 12.0pt (16px), font weight: normal). Expected contrast ratio of 4.5:1"
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "routes": [
+    {
+      "path": "/missing-audit-route",
+      "status": 404,
+      "heading": [
+        "404"
+      ],
+      "title": "shopupu"
+    },
+    {
+      "path": "/products/99999999",
+      "status": 200,
+      "heading": [],
+      "title": "shopupu"
+    },
+    {
+      "path": "/robots.txt",
+      "status": 404,
+      "heading": [
+        "404"
+      ],
+      "title": "shopupu"
+    },
+    {
+      "path": "/sitemap.xml",
+      "status": 404,
+      "heading": [
+        "404"
+      ],
+      "title": "shopupu"
+    },
+    {
+      "path": "/favicon.ico",
+      "status": 404,
+      "heading": [
+        "404"
+      ],
+      "title": "shopupu"
+    },
+    {
+      "path": "/.env",
+      "status": 404,
+      "heading": [
+        "404"
+      ],
+      "title": "shopupu"
+    },
+    {
+      "path": "/.git/config",
+      "status": 404,
+      "heading": [
+        "404"
+      ],
+      "title": "shopupu"
+    }
+  ],
+  "pageErrors": []
+}

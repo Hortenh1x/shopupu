@@ -1,0 +1,13 @@
+
+> shopupu-web@0.1.0 test
+> vitest run
+
+
+ RUN  v4.1.10 /tmp/shopupu-web-audit-8187sof7
+
+
+ Test Files  4 passed (4)
+      Tests  22 passed (22)
+   Start at  16:05:55
+   Duration  1.36s (transform 350ms, setup 472ms, import 511ms, tests 371ms, environment 2.51s)
+

@@ -1,0 +1,8 @@
+{
+  "probe": "concurrent-refresh-of-same-token",
+  "httpStatuses": [
+    200,
+    200
+  ],
+  "distinctNewRefreshTokens": 2
+}

@@ -1,0 +1,24 @@
+{
+  "terminatedAuditProcesses": [
+    {
+      "pid": 1734438,
+      "cwd": "/tmp/shopupu-web-audit-8187sof7"
+    },
+    {
+      "pid": 1734525,
+      "cwd": "/tmp/shopupu-web-audit-8187sof7"
+    },
+    {
+      "pid": 1737667,
+      "cwd": "/tmp/shopupu-backend-audit-luppxvtc"
+    },
+    {
+      "pid": 1737688,
+      "cwd": "/tmp/shopupu-backend-audit-luppxvtc"
+    }
+  ],
+  "auditDatabaseStopExitCode": 0,
+  "auditDatabaseRemoveExitCode": 0,
+  "temporaryTokenStateRemoved": true,
+  "existingApplicationContainersModified": false
+}

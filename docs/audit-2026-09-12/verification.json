@@ -1,0 +1,72 @@
+{
+  "date": "2026-09-12",
+  "backendCommit": "d0b389f27cb349c4de7175bb6f1ab44bba3ce82b",
+  "frontendCommit": "8920ae07bb45b3b6b8dd12ca68f092db90e9e037",
+  "environment": {
+    "backend": "isolated clean tracked source copy, JDK 26.0.2.1, Maven wrapper, target Java 25",
+    "frontend": "isolated clean tracked source copy, Node 22.22.2, Next 16.2.4",
+    "db": "isolated pgvector/pgvector:pg18 Testcontainers and separate diagnostic container",
+    "diagnosticBackend": "127.0.0.1:18080, prod profile, AI disabled, stub providers, synthetic credentials",
+    "diagnosticFrontend": "127.0.0.1:13000, production build, Chromium",
+    "liveRuntime": "read-only metadata and aggregates only; image revision label unavailable"
+  },
+  "commands": [
+    {
+      "command": "./mvnw -B clean verify",
+      "exitCode": 0,
+      "durationSeconds": 48.945,
+      "surefireTests": 206,
+      "failsafeTests": 23,
+      "failed": 0,
+      "skipped": 0,
+      "spotless": "PASS",
+      "jacocoGate": "PASS (40% floor)",
+      "lineCoverage": {
+        "covered": 2200,
+        "missed": 1448,
+        "percent": 60.31
+      },
+      "branchCoverage": {
+        "covered": 594,
+        "missed": 671,
+        "percent": 46.96
+      }
+    },
+    {
+      "command": "npm ci",
+      "exitCode": 0
+    },
+    {
+      "command": "npm run typecheck",
+      "exitCode": 0
+    },
+    {
+      "command": "npm test",
+      "exitCode": 0,
+      "tests": 22,
+      "files": 4
+    },
+    {
+      "command": "NEXT_PUBLIC_API_BASE_URL=http://127.0.0.1:18080 npm run build",
+      "exitCode": 0
+    },
+    {
+      "command": "npx playwright test --config=/tmp/shopupu-audit-playwright.config.cjs",
+      "exitCode": 0,
+      "tests": 1,
+      "durationSeconds": 6.7
+    },
+    {
+      "command": "npx playwright test --config=/tmp/shopupu-audit-playwright-mobile.config.cjs",
+      "exitCode": 0,
+      "tests": 1,
+      "durationSeconds": 6.0
+    }
+  ],
+  "notes": [
+    "Initial verify on the working tree passed with stale JaCoCo mapper mismatch warnings; clean source copy removed these warnings.",
+    "One diagnostic payload initially missed required passwordConfirm and returned expected 400; corrected registration result is in final-probes.json.",
+    "Initial browser harness networkidle wait timed out; rerun used DOM ready and condition waits. Anonymous and authenticated browser scans have separate coverage.",
+    "No paid provider calls, outgoing email, publication, app configuration or source changes were performed."
+  ]
+}

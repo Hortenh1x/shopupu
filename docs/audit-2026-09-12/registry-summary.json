@@ -1,0 +1,16 @@
+{
+  "standardVersion": "0.3",
+  "standardRequirements": 71,
+  "applicationRequirements": 4,
+  "standardStatusCounts": {
+    "PASS": 5,
+    "PARTIAL": 32,
+    "BLOCKED": 2,
+    "FAIL": 23,
+    "N/A": 4,
+    "UNVERIFIED": 5
+  },
+  "planVersion": "1.0",
+  "planApproval": "NOT_RECEIVED",
+  "verdict": "NOT_READY"
+}

@@ -1,0 +1,49 @@
+[
+  {
+    "probe": "concurrent-distinct-success-events",
+    "httpStatuses": [
+      204,
+      204
+    ],
+    "inventoryBefore": "98|6",
+    "inventoryAfter": "96|4",
+    "expectedDecrement": 1
+  },
+  {
+    "probe": "stylist-rate-limit-35-local-stub-requests",
+    "httpStatuses": {
+      "200": 35
+    }
+  },
+  {
+    "probe": "account-erasure-shipping-and-export",
+    "deleteStatus": 204,
+    "retainedShippingAddressCount": 1,
+    "exportTopLevelFields": [
+      "profile",
+      "addresses",
+      "orders",
+      "reviews",
+      "exportedAt"
+    ]
+  },
+  {
+    "probe": "erased-account-old-access-token",
+    "status": 401,
+    "problemKeys": [
+      "type",
+      "title",
+      "status",
+      "detail"
+    ]
+  },
+  {
+    "probe": "auth-limit-forwarded-header-under-prod-profile",
+    "baseline": {
+      "401": 10,
+      "429": 2
+    },
+    "withChangedForwardedFor": 401,
+    "limitation": "Only relevant if clients can reach an origin accepting unsanitized forwarding headers"
+  }
+]

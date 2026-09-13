@@ -1,0 +1,79 @@
+[
+  {
+    "path": "/does-not-exist-audit-20260912",
+    "status": 404,
+    "headers": {
+      "Content-Security-Policy": "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: http://127.0.0.1:18080; font-src 'self'; connect-src 'self' http://127.0.0.1:18080; frame-ancestors 'none'; base-uri 'self'; form-action 'self'; object-src 'none'",
+      "X-Frame-Options": "DENY",
+      "X-Content-Type-Options": "nosniff",
+      "Strict-Transport-Security": "max-age=63072000; includeSubDomains",
+      "Content-Type": "text/html; charset=utf-8"
+    }
+  },
+  {
+    "path": "/products/99999999",
+    "status": 200,
+    "headers": {
+      "Content-Security-Policy": "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: http://127.0.0.1:18080; font-src 'self'; connect-src 'self' http://127.0.0.1:18080; frame-ancestors 'none'; base-uri 'self'; form-action 'self'; object-src 'none'",
+      "X-Frame-Options": "DENY",
+      "X-Content-Type-Options": "nosniff",
+      "Strict-Transport-Security": "max-age=63072000; includeSubDomains",
+      "Content-Type": "text/html; charset=utf-8"
+    }
+  },
+  {
+    "path": "/favicon.ico",
+    "status": 404,
+    "headers": {
+      "Content-Security-Policy": "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: http://127.0.0.1:18080; font-src 'self'; connect-src 'self' http://127.0.0.1:18080; frame-ancestors 'none'; base-uri 'self'; form-action 'self'; object-src 'none'",
+      "X-Frame-Options": "DENY",
+      "X-Content-Type-Options": "nosniff",
+      "Strict-Transport-Security": "max-age=63072000; includeSubDomains",
+      "Content-Type": "text/html; charset=utf-8"
+    }
+  },
+  {
+    "path": "/.env",
+    "status": 404,
+    "headers": {
+      "Content-Security-Policy": "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: http://127.0.0.1:18080; font-src 'self'; connect-src 'self' http://127.0.0.1:18080; frame-ancestors 'none'; base-uri 'self'; form-action 'self'; object-src 'none'",
+      "X-Frame-Options": "DENY",
+      "X-Content-Type-Options": "nosniff",
+      "Strict-Transport-Security": "max-age=63072000; includeSubDomains",
+      "Content-Type": "text/html; charset=utf-8"
+    }
+  },
+  {
+    "path": "/.git/config",
+    "status": 404,
+    "headers": {
+      "Content-Security-Policy": "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: http://127.0.0.1:18080; font-src 'self'; connect-src 'self' http://127.0.0.1:18080; frame-ancestors 'none'; base-uri 'self'; form-action 'self'; object-src 'none'",
+      "X-Frame-Options": "DENY",
+      "X-Content-Type-Options": "nosniff",
+      "Strict-Transport-Security": "max-age=63072000; includeSubDomains",
+      "Content-Type": "text/html; charset=utf-8"
+    }
+  },
+  {
+    "path": "/robots.txt",
+    "status": 404,
+    "headers": {
+      "Content-Security-Policy": "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: http://127.0.0.1:18080; font-src 'self'; connect-src 'self' http://127.0.0.1:18080; frame-ancestors 'none'; base-uri 'self'; form-action 'self'; object-src 'none'",
+      "X-Frame-Options": "DENY",
+      "X-Content-Type-Options": "nosniff",
+      "Strict-Transport-Security": "max-age=63072000; includeSubDomains",
+      "Content-Type": "text/html; charset=utf-8"
+    }
+  },
+  {
+    "path": "/sitemap.xml",
+    "status": 404,
+    "headers": {
+      "Content-Security-Policy": "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: http://127.0.0.1:18080; font-src 'self'; connect-src 'self' http://127.0.0.1:18080; frame-ancestors 'none'; base-uri 'self'; form-action 'self'; object-src 'none'",
+      "X-Frame-Options": "DENY",
+      "X-Content-Type-Options": "nosniff",
+      "Strict-Transport-Security": "max-age=63072000; includeSubDomains",
+      "Content-Type": "text/html; charset=utf-8"
+    }
+  }
+]

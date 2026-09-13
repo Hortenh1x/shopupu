@@ -1,0 +1,75 @@
+[
+  {
+    "probe": "fresh-common-password-registration",
+    "status": 201,
+    "accessTokenIssued": true,
+    "limitation": "Earlier malformed diagnostic payload omitted passwordConfirm and correctly returned 400; this result uses the required confirmation"
+  },
+  {
+    "probe": "invalid-jwt",
+    "status": 401
+  },
+  {
+    "probe": "anonymous-public-path",
+    "path": "/.env",
+    "status": 401,
+    "fieldNames": [
+      "type",
+      "title",
+      "status",
+      "detail"
+    ]
+  },
+  {
+    "probe": "anonymous-public-path",
+    "path": "/.git/config",
+    "status": 401,
+    "fieldNames": [
+      "type",
+      "title",
+      "status",
+      "detail"
+    ]
+  },
+  {
+    "probe": "anonymous-public-path",
+    "path": "/application.yml",
+    "status": 401,
+    "fieldNames": [
+      "type",
+      "title",
+      "status",
+      "detail"
+    ]
+  },
+  {
+    "probe": "anonymous-public-path",
+    "path": "/actuator/env",
+    "status": 401,
+    "fieldNames": [
+      "type",
+      "title",
+      "status",
+      "detail"
+    ]
+  },
+  {
+    "probe": "anonymous-public-path",
+    "path": "/actuator/health",
+    "status": 200,
+    "fieldNames": [
+      "groups",
+      "status"
+    ]
+  },
+  {
+    "probe": "manually-signed-active-control",
+    "status": 200,
+    "limitation": "Synthetic account and isolated signing key; issuer/audience match the application. Only expiration differs between control and expired JWT."
+  },
+  {
+    "probe": "expired-signed-jwt",
+    "status": 401,
+    "limitation": "Synthetic account and isolated signing key; issuer/audience match the application. Only expiration differs between control and expired JWT."
+  }
+]

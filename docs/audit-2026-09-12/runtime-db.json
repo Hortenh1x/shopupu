@@ -1,0 +1,7 @@
+{
+  "readOnly": true,
+  "sql": "SELECT current_user,rolsuper,rolcreatedb,rolcreaterole FROM pg_roles WHERE rolname=current_user; SELECT count(*) FROM reviews r JOIN users u ON u.id=r.user_id WHERE u.email LIKE 'demo-review-%@shopupu.local' AND r.status='APPROVED'; SELECT datcollversion, pg_database_collation_actual_version(oid) FROM pg_database WHERE datname=current_database();",
+  "exitCode": 0,
+  "stdout": "shopupu|t|t|t\n317\n2.41|2.36\n",
+  "stderr": "WARNING:  database \"shopupu\" has a collation version mismatch\nDETAIL:  The database was created using collation version 2.41, but the operating system provides version 2.36.\nHINT:  Rebuild all objects in this database that use the default collation and run ALTER DATABASE shopupu REFRESH COLLATION VERSION, or build PostgreSQL with the right library version.\n"
+}

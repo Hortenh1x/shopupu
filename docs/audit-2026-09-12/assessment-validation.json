@@ -1,0 +1,15 @@
+{
+  "checks": {
+    "all71StandardIdsPresent": true,
+    "registry75UniqueIds": true,
+    "beforeAndNowEqual": true,
+    "applicabilityStatusConsistent": true,
+    "allUnclosedMandatoryRowsHaveQueue": true,
+    "allLocalLinksExist": true,
+    "allEvidenceAnchorsExist": true,
+    "allEvidenceJsonParses": true,
+    "all19QueueItemsPlanned": true,
+    "trackedApplicationFilesUnchanged": true
+  },
+  "passed": true
+}

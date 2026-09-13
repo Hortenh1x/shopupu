@@ -1,0 +1,112 @@
+[
+  {
+    "probe": "unverified-account-profile",
+    "status": 200,
+    "emailVerified": false
+  },
+  {
+    "probe": "anonymous-orders",
+    "status": 401,
+    "problemKeys": [
+      "detail",
+      "status",
+      "title",
+      "type"
+    ],
+    "requestIdHeader": true
+  },
+  {
+    "probe": "customer-admin",
+    "status": 403,
+    "problemKeys": [
+      "detail",
+      "status",
+      "title",
+      "type"
+    ],
+    "requestIdHeader": true
+  },
+  {
+    "probe": "prometheus-admin",
+    "status": 404,
+    "problemKeys": [
+      "code",
+      "detail",
+      "instance",
+      "requestId",
+      "status",
+      "title",
+      "type"
+    ],
+    "requestIdHeader": true
+  },
+  {
+    "probe": "metrics-admin",
+    "status": 404,
+    "problemKeys": [
+      "code",
+      "detail",
+      "instance",
+      "requestId",
+      "status",
+      "title",
+      "type"
+    ],
+    "requestIdHeader": true
+  },
+  {
+    "probe": "unverified-account-checkout",
+    "status": 201,
+    "orderId": 2
+  },
+  {
+    "probe": "payment-created-without-delivery-address",
+    "status": 201,
+    "paymentId": 2,
+    "address": null
+  },
+  {
+    "probe": "cross-user-payment-get",
+    "status": 403
+  },
+  {
+    "probe": "cross-user-payment-idempotency-replay",
+    "status": 201,
+    "returnedOrderId": 2,
+    "returnedPaymentId": 2
+  },
+  {
+    "probe": "callback-audit-paid-2",
+    "status": 204
+  },
+  {
+    "probe": "callback-audit-paid-2",
+    "status": 204
+  },
+  {
+    "probe": "callback-audit-refunded-2",
+    "status": 204
+  },
+  {
+    "probe": "refund-callback-order-consistency",
+    "status": 200,
+    "paymentStatus": "REFUNDED",
+    "orderStatus": "PAID"
+  },
+  {
+    "probe": "forged-webhook",
+    "status": 403
+  },
+  {
+    "probe": "cors-preflight",
+    "status": 200,
+    "origin": "http://127.0.0.1:13000",
+    "allowOrigin": "http://127.0.0.1:13000"
+  },
+  {
+    "probe": "cors-preflight",
+    "status": 403,
+    "origin": "https://untrusted.example",
+    "allowOrigin": null
+  }
+]

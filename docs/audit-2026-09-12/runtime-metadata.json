@@ -1,0 +1,28 @@
+{
+  "container": "shopupu-app-1",
+  "read_only": true,
+  "settings": {
+    "SPRING_PROFILES_ACTIVE": "prod",
+    "PAYMENTS_DEFAULT_PROVIDER": "stub",
+    "AI_ENABLED": "true",
+    "AI_LLM_PROVIDER": "deepseek",
+    "AI_EMBEDDING_PROVIDER": "ollama",
+    "SERVER_FORWARD_HEADERS_STRATEGY": null,
+    "PAYMENT_CURRENCY": null,
+    "DB_USERNAME": "shopupu"
+  },
+  "secretsPresent": {
+    "JWT_SECRET": true,
+    "PAYMENT_CALLBACK_SECRET": false,
+    "RESEND_API_KEY": false,
+    "GOOGLE_CLIENT_ID": false,
+    "MONOBANK_TOKEN": false,
+    "FONDY_SECRET": false,
+    "DEEPSEEK_API_KEY": true,
+    "SPRING_MAIL_HOST": false
+  },
+  "databaseUsesDocumentedDevelopmentPassword": true,
+  "releaseLabels": null,
+  "networkMode": "host",
+  "mailPropertyNamesPresent": []
+}

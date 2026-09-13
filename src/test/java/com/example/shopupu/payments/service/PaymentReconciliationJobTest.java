@@ -9,10 +9,7 @@ import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
-import com.example.shopupu.identity.entity.User;
-import com.example.shopupu.orders.entity.Order;
-import com.example.shopupu.orders.entity.OrderStatus;
-import com.example.shopupu.payments.entity.Payment;
+import com.example.shopupu.payments.dto.PaymentReconciliationCandidate;
 import com.example.shopupu.payments.entity.PaymentStatus;
 import com.example.shopupu.payments.gateway.PaymentGatewayClient;
 import com.example.shopupu.payments.repository.PaymentRepository;
@@ -42,16 +39,19 @@ class PaymentReconciliationJobTest {
     @BeforeEach
     void setUp() {
         meterRegistry = new SimpleMeterRegistry();
-        job = new PaymentReconciliationJob(paymentRepository, paymentGatewayClient, meterRegistry);
+        var properties = new com.example.shopupu.config.PaymentProperties();
+        properties.setDefaultProvider("stub");
+        job = new PaymentReconciliationJob(paymentRepository, paymentGatewayClient, meterRegistry, properties);
     }
 
     @Test
     void countsMismatchWhenProviderSucceededButLocalIsPending() {
-        Payment payment = payment(10L, PaymentStatus.PENDING, "inv-1");
-        when(paymentRepository.findTop100ByStatusInAndExternalIdIsNotNullAndCreatedAtBetween(
-                anyCollection(), any(Instant.class), any(Instant.class)))
+        PaymentReconciliationCandidate payment = payment(10L, PaymentStatus.PENDING, "inv-1");
+        when(paymentRepository.findReconciliationCandidates(
+                org.mockito.ArgumentMatchers.eq("stub"), anyCollection(), any(Instant.class), any(Instant.class),
+                org.mockito.ArgumentMatchers.anyLong(), any(org.springframework.data.domain.Pageable.class)))
                 .thenReturn(List.of(payment));
-        when(paymentGatewayClient.fetchPaymentStatus("inv-1"))
+        when(paymentGatewayClient.fetchPaymentStatus(any(com.example.shopupu.payments.gateway.PaymentGatewayStatusRequest.class)))
                 .thenReturn(Optional.of(PaymentStatus.SUCCEEDED));
 
         job.reconcilePayments();
@@ -61,11 +61,12 @@ class PaymentReconciliationJobTest {
 
     @Test
     void countsMismatchWhenLocallyExpiredPaymentSucceededAtProvider() {
-        Payment payment = payment(11L, PaymentStatus.EXPIRED, "inv-2");
-        when(paymentRepository.findTop100ByStatusInAndExternalIdIsNotNullAndCreatedAtBetween(
-                anyCollection(), any(Instant.class), any(Instant.class)))
+        PaymentReconciliationCandidate payment = payment(11L, PaymentStatus.EXPIRED, "inv-2");
+        when(paymentRepository.findReconciliationCandidates(
+                org.mockito.ArgumentMatchers.eq("stub"), anyCollection(), any(Instant.class), any(Instant.class),
+                org.mockito.ArgumentMatchers.anyLong(), any(org.springframework.data.domain.Pageable.class)))
                 .thenReturn(List.of(payment));
-        when(paymentGatewayClient.fetchPaymentStatus("inv-2"))
+        when(paymentGatewayClient.fetchPaymentStatus(any(com.example.shopupu.payments.gateway.PaymentGatewayStatusRequest.class)))
                 .thenReturn(Optional.of(PaymentStatus.SUCCEEDED));
 
         job.reconcilePayments();
@@ -75,11 +76,12 @@ class PaymentReconciliationJobTest {
 
     @Test
     void inFlightSkewIsNotAMismatch() {
-        Payment payment = payment(12L, PaymentStatus.CREATED, "inv-3");
-        when(paymentRepository.findTop100ByStatusInAndExternalIdIsNotNullAndCreatedAtBetween(
-                anyCollection(), any(Instant.class), any(Instant.class)))
+        PaymentReconciliationCandidate payment = payment(12L, PaymentStatus.CREATED, "inv-3");
+        when(paymentRepository.findReconciliationCandidates(
+                org.mockito.ArgumentMatchers.eq("stub"), anyCollection(), any(Instant.class), any(Instant.class),
+                org.mockito.ArgumentMatchers.anyLong(), any(org.springframework.data.domain.Pageable.class)))
                 .thenReturn(List.of(payment));
-        when(paymentGatewayClient.fetchPaymentStatus("inv-3"))
+        when(paymentGatewayClient.fetchPaymentStatus(any(com.example.shopupu.payments.gateway.PaymentGatewayStatusRequest.class)))
                 .thenReturn(Optional.of(PaymentStatus.PENDING));
 
         job.reconcilePayments();
@@ -89,11 +91,12 @@ class PaymentReconciliationJobTest {
 
     @Test
     void providerWithoutStatusApiIsSkipped() {
-        Payment payment = payment(13L, PaymentStatus.PENDING, "inv-4");
-        when(paymentRepository.findTop100ByStatusInAndExternalIdIsNotNullAndCreatedAtBetween(
-                anyCollection(), any(Instant.class), any(Instant.class)))
+        PaymentReconciliationCandidate payment = payment(13L, PaymentStatus.PENDING, "inv-4");
+        when(paymentRepository.findReconciliationCandidates(
+                org.mockito.ArgumentMatchers.eq("stub"), anyCollection(), any(Instant.class), any(Instant.class),
+                org.mockito.ArgumentMatchers.anyLong(), any(org.springframework.data.domain.Pageable.class)))
                 .thenReturn(List.of(payment));
-        when(paymentGatewayClient.fetchPaymentStatus("inv-4")).thenReturn(Optional.empty());
+        when(paymentGatewayClient.fetchPaymentStatus(any(com.example.shopupu.payments.gateway.PaymentGatewayStatusRequest.class))).thenReturn(Optional.empty());
 
         job.reconcilePayments();
 
@@ -102,13 +105,48 @@ class PaymentReconciliationJobTest {
 
     @Test
     void noCandidatesMeansNoProviderCalls() {
-        when(paymentRepository.findTop100ByStatusInAndExternalIdIsNotNullAndCreatedAtBetween(
-                anyCollection(), any(Instant.class), any(Instant.class)))
+        when(paymentRepository.findReconciliationCandidates(
+                org.mockito.ArgumentMatchers.eq("stub"), anyCollection(), any(Instant.class), any(Instant.class),
+                org.mockito.ArgumentMatchers.anyLong(), any(org.springframework.data.domain.Pageable.class)))
                 .thenReturn(List.of());
 
         job.reconcilePayments();
 
-        verify(paymentGatewayClient, never()).fetchPaymentStatus(any());
+        verify(paymentGatewayClient, never()).fetchPaymentStatus(any(com.example.shopupu.payments.gateway.PaymentGatewayStatusRequest.class));
+    }
+
+    @Test
+    void failedLookupDoesNotAbortLaterCandidatesAndNeverQueriesAnotherProvider() {
+        var foreign = new PaymentReconciliationCandidate(1L, 101L, "stripe", "foreign", BigDecimal.TEN, "EUR", PaymentStatus.PENDING);
+        when(paymentRepository.findReconciliationCandidates(org.mockito.ArgumentMatchers.eq("stub"), anyCollection(),
+                any(Instant.class), any(Instant.class), org.mockito.ArgumentMatchers.anyLong(), any(org.springframework.data.domain.Pageable.class)))
+                .thenReturn(List.of(foreign, payment(2L, PaymentStatus.PENDING, "fails"), payment(3L, PaymentStatus.PENDING, "works")));
+        when(paymentGatewayClient.fetchPaymentStatus(any(com.example.shopupu.payments.gateway.PaymentGatewayStatusRequest.class)))
+                .thenThrow(new IllegalStateException("private provider body"))
+                .thenReturn(Optional.of(PaymentStatus.SUCCEEDED));
+        job.reconcilePayments();
+        verify(paymentGatewayClient, org.mockito.Mockito.times(2)).fetchPaymentStatus(any(com.example.shopupu.payments.gateway.PaymentGatewayStatusRequest.class));
+        assertEquals(1.0, mismatchCount());
+    }
+
+    @Test
+    void cursorAdvancesBeyondAFullUnknownBatchAndWrapsWithoutUnboundedScan() {
+        var firstBatch = java.util.stream.LongStream.rangeClosed(1, 100)
+                .mapToObj(id -> payment(id, PaymentStatus.PENDING, "pending-" + id)).toList();
+        when(paymentRepository.findReconciliationCandidates(org.mockito.ArgumentMatchers.eq("stub"), anyCollection(),
+                any(Instant.class), any(Instant.class), org.mockito.ArgumentMatchers.anyLong(), any(org.springframework.data.domain.Pageable.class)))
+                .thenReturn(firstBatch, List.of(payment(101L, PaymentStatus.PENDING, "known")), List.of(), List.of());
+        when(paymentGatewayClient.fetchPaymentStatus(any(com.example.shopupu.payments.gateway.PaymentGatewayStatusRequest.class)))
+                .thenAnswer(call -> ((com.example.shopupu.payments.gateway.PaymentGatewayStatusRequest) call.getArgument(0)).paymentId() == 101L
+                        ? Optional.of(PaymentStatus.SUCCEEDED) : Optional.empty());
+        job.reconcilePayments();
+        job.reconcilePayments();
+        job.reconcilePayments();
+        var cursors = org.mockito.ArgumentCaptor.forClass(Long.class);
+        verify(paymentRepository, org.mockito.Mockito.times(4)).findReconciliationCandidates(org.mockito.ArgumentMatchers.eq("stub"),
+                anyCollection(), any(Instant.class), any(Instant.class), cursors.capture(), any(org.springframework.data.domain.Pageable.class));
+        assertEquals(List.of(0L, 100L, 101L, 0L), cursors.getAllValues());
+        assertEquals(1.0, mismatchCount());
     }
 
     @Test
@@ -132,22 +170,7 @@ class PaymentReconciliationJobTest {
         return meterRegistry.counter("shopupu.payments", "result", "reconciliation_mismatch").count();
     }
 
-    private Payment payment(Long id, PaymentStatus status, String externalId) {
-        Order order = new Order();
-        order.setId(id + 100);
-        order.setOrderNumber("ORD-20260810-R" + id);
-        order.setUser(User.builder().id(1L).email("user@example.com").build());
-        order.setStatus(OrderStatus.PENDING_PAYMENT);
-        order.setPaymentAmount(new BigDecimal("24.99"));
-        return Payment.builder()
-                .id(id)
-                .order(order)
-                .amount(order.getPaymentAmount())
-                .currency("UAH")
-                .provider("monobank")
-                .status(status)
-                .externalId(externalId)
-                .idempotencyKey("key-" + id)
-                .build();
+    private PaymentReconciliationCandidate payment(Long id, PaymentStatus status, String externalId) {
+        return new PaymentReconciliationCandidate(id, id + 100, "stub", externalId, new BigDecimal("24.99"), "EUR", status);
     }
 }

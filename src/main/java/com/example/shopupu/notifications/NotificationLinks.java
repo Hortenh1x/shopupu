@@ -1,5 +1,6 @@
 package com.example.shopupu.notifications;
 
+import com.example.shopupu.common.i18n.SupportedLocales;
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
 import org.springframework.beans.factory.annotation.Value;
@@ -20,11 +21,16 @@ public class NotificationLinks {
     }
 
     public String resetPasswordUrl(String token) {
-        return frontendBaseUrl + "/reset-password?token=" + encode(token);
+        return frontendBaseUrl + "/reset-password?token=" + encode(token) + langParam();
     }
 
     public String verifyEmailUrl(String token) {
-        return frontendBaseUrl + "/verify-email?token=" + encode(token);
+        return frontendBaseUrl + "/verify-email?token=" + encode(token) + langParam();
+    }
+
+    /** The storefront reads {@code lang} from email links so the landing page opens in the email's language. */
+    private static String langParam() {
+        return "&lang=" + SupportedLocales.current().getLanguage();
     }
 
     private static String encode(String value) {

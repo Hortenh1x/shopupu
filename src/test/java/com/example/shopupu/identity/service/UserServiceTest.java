@@ -36,6 +36,9 @@ class UserServiceTest {
     @Mock
     private PasswordEncoder passwordEncoder;
 
+    @Mock
+    private com.example.shopupu.auth.service.PasswordPolicy passwordPolicy;
+
     @InjectMocks
     private UserService userService;
 
@@ -86,8 +89,9 @@ class UserServiceTest {
     // handles changePassword.
     @Test
     void changePasswordVerifiesCurrentPassword() {
-        User user = User.builder().email("user@example.com").passwordHash("old-hash").build();
-        when(userRepository.findByEmail("user@example.com")).thenReturn(Optional.of(user));
+        User user = User.builder().id(1L).email("user@example.com").passwordHash("old-hash").build();
+        when(userRepository.findIdByEmail("user@example.com")).thenReturn(Optional.of(1L));
+        when(userRepository.findByIdForUpdate(1L)).thenReturn(Optional.of(user));
         when(passwordEncoder.matches("current", "old-hash")).thenReturn(true);
         when(passwordEncoder.encode("newPassword1")).thenReturn("new-hash");
         when(userRepository.save(any(User.class))).thenAnswer(invocation -> invocation.getArgument(0));
@@ -100,8 +104,9 @@ class UserServiceTest {
     // handles changePassword.
     @Test
     void changePasswordRejectsWrongCurrentPassword() {
-        User user = User.builder().email("user@example.com").passwordHash("old-hash").build();
-        when(userRepository.findByEmail("user@example.com")).thenReturn(Optional.of(user));
+        User user = User.builder().id(1L).email("user@example.com").passwordHash("old-hash").build();
+        when(userRepository.findIdByEmail("user@example.com")).thenReturn(Optional.of(1L));
+        when(userRepository.findByIdForUpdate(1L)).thenReturn(Optional.of(user));
         when(passwordEncoder.matches("wrong", "old-hash")).thenReturn(false);
 
         assertThrows(com.example.shopupu.common.exception.UnauthorizedException.class,

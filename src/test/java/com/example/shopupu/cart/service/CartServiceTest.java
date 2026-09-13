@@ -3,6 +3,7 @@ package com.example.shopupu.cart.service;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
@@ -53,6 +54,9 @@ class CartServiceTest {
     @Mock
     private UserRepository userRepository;
 
+    @Mock
+    private com.example.shopupu.identity.service.AccountDataGuard accountDataGuard;
+
     private CartService cartService;
     private User user;
     private Cart cart;
@@ -62,8 +66,9 @@ class CartServiceTest {
     // handles setUp.
     @BeforeEach
     void setUp() {
-        cartService = new CartService(cartRepository, cartItemRepository, variantRepository, inventoryService, userRepository);
+        cartService = new CartService(cartRepository, cartItemRepository, variantRepository, inventoryService, userRepository, accountDataGuard);
         user = User.builder().id(1L).email("user@example.com").build();
+        org.mockito.Mockito.lenient().when(userRepository.findIdByEmail("user@example.com")).thenReturn(Optional.of(1L));
         cart = Cart.builder().id(10L).user(user).items(new ArrayList<>()).build();
         product = product(1L, true, false);
         variant = variant(100L, product, true);
@@ -93,8 +98,7 @@ class CartServiceTest {
     // handles getOrCreateCart.
     @Test
     void getOrCreateCartRejectsMissingUser() {
-        when(cartRepository.findByUser_Email("missing@example.com")).thenReturn(Optional.empty());
-        when(userRepository.findByEmail("missing@example.com")).thenReturn(Optional.empty());
+        when(userRepository.findIdByEmail("missing@example.com")).thenReturn(Optional.empty());
 
         assertThrows(ResourceNotFoundException.class, () -> cartService.getOrCreateCart("missing@example.com"));
     }
@@ -106,14 +110,12 @@ class CartServiceTest {
         when(variantRepository.findWithProductById(100L)).thenReturn(Optional.of(variant));
         when(inventoryService.availableFor(100L)).thenReturn(10);
         when(cartItemRepository.findByCart_IdAndVariant_Id(10L, 100L)).thenReturn(Optional.empty());
-        when(cartItemRepository.save(any(CartItem.class))).thenAnswer(invocation -> {
-            CartItem item = invocation.getArgument(0);
-            cart.getItems().add(item);
-            return item;
-        });
+        when(cartItemRepository.save(any(CartItem.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
         var response = cartService.addItem(CartService.CartKey.user("user@example.com"), 100L, 2);
 
+        // the new line is attached to the cart the reply is mapped from
+        assertEquals(1, cart.getItems().size());
         assertEquals(2, response.totalItems());
         assertEquals(new BigDecimal("20.00"), response.subtotal());
         var itemDto = response.items().get(0);
@@ -209,7 +211,8 @@ class CartServiceTest {
 
         var removed = cartService.setQuantity(CartService.CartKey.user("user@example.com"), 100L, 0);
         verify(cartItemRepository).delete(item);
-        assertEquals(3, removed.totalItems());
+        assertEquals(0, removed.totalItems());
+        assertTrue(cart.getItems().isEmpty(), "quantity 0 must drop the line from the cart the reply is built from");
     }
 
     // handles setQuantity.
@@ -238,11 +241,28 @@ class CartServiceTest {
     // handles removeItem.
     @Test
     void removeItemDeletesItemByCartAndVariant() {
+        CartItem item = CartItem.builder().cart(cart).variant(variant).quantity(2).build();
+        cart.getItems().add(item);
         when(cartRepository.findByUser_Email("user@example.com")).thenReturn(Optional.of(cart));
+        when(cartItemRepository.findByCart_IdAndVariant_Id(10L, 100L)).thenReturn(Optional.of(item));
 
-        cartService.removeItem(CartService.CartKey.user("user@example.com"), 100L);
+        var response = cartService.removeItem(CartService.CartKey.user("user@example.com"), 100L);
 
-        verify(cartItemRepository).deleteByCart_IdAndVariant_Id(10L, 100L);
+        verify(cartItemRepository).delete(item);
+        assertTrue(cart.getItems().isEmpty(), "the removed line must leave the owning collection, or the cascade re-persists it");
+        assertEquals(0, response.totalItems());
+    }
+
+    // handles removeItem.
+    @Test
+    void removeItemIsIdempotentForMissingLine() {
+        when(cartRepository.findByUser_Email("user@example.com")).thenReturn(Optional.of(cart));
+        when(cartItemRepository.findByCart_IdAndVariant_Id(10L, 100L)).thenReturn(Optional.empty());
+
+        var response = cartService.removeItem(CartService.CartKey.user("user@example.com"), 100L);
+
+        verify(cartItemRepository, never()).delete(any(CartItem.class));
+        assertEquals(0, response.totalItems());
     }
 
     // handles clear.

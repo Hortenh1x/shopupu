@@ -48,7 +48,7 @@ public class SemanticSearchService {
                     return productQueryService.findListItemsByIds(ids);
                 }
             } catch (Exception ex) {
-                log.warn("Semantic search failed, falling back to keyword search", ex);
+                log.warn("Semantic search unavailable; using keyword search");
             }
         }
         meterRegistry.counter("shopupu.ai", "op", "semantic_search", "result", "fallback").increment();
@@ -75,19 +75,32 @@ public class SemanticSearchService {
                     var distanceById = scored.stream().collect(java.util.stream.Collectors.toMap(
                             com.example.shopupu.ai.repository.ProductEmbeddingRepository.ScoredProductId::productId,
                             com.example.shopupu.ai.repository.ProductEmbeddingRepository.ScoredProductId::distance));
-                    return productQueryService.findListItemsByIds(scored.stream()
+                    ProductFilter available = new ProductFilter();
+                    available.enabled = Boolean.TRUE;
+                    available.inStock = Boolean.TRUE;
+                    return productQueryService.findListItemsByIdsMatching(scored.stream()
                                     .map(com.example.shopupu.ai.repository.ProductEmbeddingRepository.ScoredProductId::productId)
-                                    .toList())
+                                    .toList(), available)
                             .stream()
                             .map(item -> new ScoredItem(item, distanceById.get(item.id())))
                             .toList();
                 }
             } catch (Exception ex) {
-                log.warn("Scored semantic search failed, falling back to keyword search", ex);
+                log.warn("Scored semantic search unavailable; using keyword search");
             }
         }
         meterRegistry.counter("shopupu.ai", "op", "semantic_search", "result", "fallback").increment();
-        return keywordFallback(q, limit).stream().map(item -> new ScoredItem(item, null)).toList();
+        return keywordSearchScored(q, limit);
+    }
+
+    /** Deterministic stylist fallback: database only, without any embedding call. */
+    public List<ScoredItem> keywordSearchScored(String q, int limit) {
+        ProductFilter available = new ProductFilter();
+        available.q = q;
+        available.enabled = Boolean.TRUE;
+        available.inStock = Boolean.TRUE;
+        return productQueryService.findProducts(available, PageRequest.of(0, limit)).getContent().stream()
+                .map(item -> new ScoredItem(item, null)).toList();
     }
 
     /** A search hit plus its cosine distance (null when relevance is unknown). */
@@ -107,12 +120,19 @@ public class SemanticSearchService {
         ProductFilter filter = new ProductFilter();
         filter.enabled = Boolean.TRUE;
         filter.q = q;
+        ParsedProductQuery hardConstraints = StubLlmClient.keywordParse(q);
+        apply(hardConstraints, filter, q);
         if (aiProperties.isEnabled()) {
             // deterministic backstop: with the LLM down the parse would yield no
             // attributes at all, and the vector path would rank items that cost more
             // than the shopper asked for instead of honouring the budget
             apply(nlQueryParser.parse(normalize(q))
-                    .orElseGet(() -> StubLlmClient.keywordParse(q)), filter, q);
+                    .orElse(hardConstraints), filter, q);
+            if (hardConstraints.gender() != null) filter.gender = hardConstraints.gender();
+            if (hardConstraints.maxPrice() != null) {
+                filter.maxPrice = filter.maxPrice == null ? hardConstraints.maxPrice()
+                        : filter.maxPrice.min(hardConstraints.maxPrice());
+            }
             Page<ProductListItem> semantic = semanticPage(filter, pageable);
             if (semantic != null) {
                 meterRegistry.counter("shopupu.ai", "op", "nl_search", "result", "ok").increment();
@@ -157,7 +177,7 @@ public class SemanticSearchService {
             List<ProductListItem> matches = productQueryService.findListItemsByIdsMatching(ids, attributesOf(filter));
             return matches.isEmpty() ? null : pageOf(matches, pageable);
         } catch (Exception ex) {
-            log.warn("NL semantic search failed, falling back to keyword search", ex);
+            log.warn("NL semantic search unavailable; using keyword search");
             return null;
         }
     }

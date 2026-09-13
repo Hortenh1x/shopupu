@@ -42,7 +42,13 @@ public class JwtAuthFilter extends OncePerRequestFilter {
         }
 
         if (username != null && SecurityContextHolder.getContext().getAuthentication() == null) {
-            UserDetails userDetails = userDetailsService.loadUserByUsername(username);
+            UserDetails userDetails;
+            try {
+                userDetails = userDetailsService.loadUserByUsername(username);
+            } catch (org.springframework.security.core.userdetails.UsernameNotFoundException ex) {
+                filterChain.doFilter(request, response);
+                return;
+            }
 
             // disabled/anonymized accounts must not authenticate even with a live token
             if (userDetails.isEnabled() && jwtTokenProvider.isTokenValid(jwt, userDetails)) {

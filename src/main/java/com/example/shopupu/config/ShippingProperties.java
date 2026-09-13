@@ -1,5 +1,6 @@
 package com.example.shopupu.config;
 
+import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Pattern;
@@ -17,13 +18,14 @@ import org.springframework.validation.annotation.Validated;
 public class ShippingProperties {
 
     @NotBlank
-    @Pattern(regexp = "[A-Z]{3}", message = "shipping.currency must be a 3-letter ISO code")
+    @Pattern(regexp = "EUR", message = "This single-currency demo requires EUR")
     private String currency = "EUR";
 
     @NotNull
     @PositiveOrZero
     private BigDecimal freeShippingThreshold = new BigDecimal("100.00");
 
+    @Valid
     @NotNull
     private Rates rates = new Rates();
 

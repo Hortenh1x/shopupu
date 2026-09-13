@@ -1,5 +1,6 @@
 package com.example.shopupu.reviews.dto;
 
+import com.example.shopupu.reviews.entity.ReviewSource;
 import com.example.shopupu.reviews.entity.ReviewStatus;
 import java.time.Instant;
 
@@ -16,6 +17,7 @@ public record AdminReviewResponse(
         String body,
         ReviewStatus status,
         Instant createdAt,
-        Instant updatedAt
+        Instant updatedAt,
+        ReviewSource source
 ) {
 }

@@ -1,0 +1,35 @@
+groups:
+  - name: shopupu-demo
+    rules:
+      - alert: ShopupuUnavailable
+        expr: up{job="shopupu"} == 0
+        for: 2m
+        labels:
+          severity: critical
+        annotations:
+          summary: Shopupu scrape or application is unavailable
+          description: Check application health and the scraper authentication path; see docs/runbook.md.
+      - alert: ShopupuPaymentNeedsReconciliation
+        expr: sum(increase(shopupu_payments_total{result=~"create_unknown|refund_unknown|reconciliation_mismatch|reconciliation_lookup_failed"}[10m])) > 0
+        for: 1m
+        labels:
+          severity: warning
+        annotations:
+          summary: A test payment needs reconciliation
+          description: Preserve the operation key and reservation; verify the bound Stripe test object before retrying.
+      - alert: ShopupuEmailFailed
+        expr: sum(increase(shopupu_notification_delivery_total{outcome="failed"}[10m])) > 0
+        for: 1m
+        labels:
+          severity: warning
+        annotations:
+          summary: Demo email delivery exhausted retries or its queue
+          description: Check sender availability and provider status; never include one-time tokens in diagnostics.
+      - alert: ShopupuApiErrors
+        expr: sum(rate(http_server_requests_seconds_count{status=~"5.."}[5m])) / clamp_min(sum(rate(http_server_requests_seconds_count[5m])), 0.001) > 0.05
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: Demo API 5xx rate exceeds five percent
+          description: Correlate request IDs and dependency health. Missing provider setup can intentionally return 503.

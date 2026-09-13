@@ -1,5 +1,6 @@
 package com.example.shopupu.ai.gateway;
 
+import com.example.shopupu.ai.guard.AiUsageGuard;
 import com.example.shopupu.ai.model.ChatMessage;
 import com.example.shopupu.ai.model.OutfitPlan;
 import com.example.shopupu.ai.model.ParsedProductQuery;
@@ -15,6 +16,7 @@ import java.time.Duration;
 import java.util.List;
 import java.util.Optional;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.http.MediaType;
 import org.springframework.http.client.JdkClientHttpRequestFactory;
@@ -92,22 +94,30 @@ public class DeepSeekLlmClient implements LlmClient {
     private final AiProperties aiProperties;
     private final RestClient restClient;
     private final ObjectMapper objectMapper;
+    private final AiUsageGuard usageGuard;
 
-    public DeepSeekLlmClient(AiProperties aiProperties, ObjectMapper objectMapper) {
+    @Autowired
+    public DeepSeekLlmClient(AiProperties aiProperties, ObjectMapper objectMapper, AiUsageGuard usageGuard) {
+        this(aiProperties, objectMapper, usageGuard, null);
+    }
+
+    DeepSeekLlmClient(AiProperties aiProperties, ObjectMapper objectMapper,
+            AiUsageGuard usageGuard, RestClient.Builder builder) {
         this.aiProperties = aiProperties;
+        this.usageGuard = usageGuard;
         this.objectMapper = objectMapper.copy()
                 .configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false)
                 .configure(DeserializationFeature.READ_UNKNOWN_ENUM_VALUES_AS_NULL, true)
                 .configure(MapperFeature.ACCEPT_CASE_INSENSITIVE_ENUMS, true);
-        required(aiProperties.getLlmApiKey(), "ai.llm-api-key");
+        if (aiProperties.isEnabled()) required(aiProperties.getLlmApiKey(), "ai.llm-api-key");
         Duration timeout = Duration.ofSeconds(aiProperties.getRequestTimeoutSeconds());
         var requestFactory = new JdkClientHttpRequestFactory(
                 HttpClient.newBuilder().connectTimeout(timeout).build());
         requestFactory.setReadTimeout(timeout);
         String baseUrl = aiProperties.getLlmBaseUrl();
-        this.restClient = RestClient.builder()
+        RestClient.Builder configured = builder == null ? RestClient.builder().requestFactory(requestFactory) : builder;
+        this.restClient = configured
                 .baseUrl(baseUrl == null || baseUrl.isBlank() ? DEFAULT_BASE_URL : baseUrl)
-                .requestFactory(requestFactory)
                 .build();
     }
 
@@ -140,12 +150,15 @@ public class DeepSeekLlmClient implements LlmClient {
     }
 
     private <T> Optional<T> completeMessages(Class<T> type, List<Message> messages) {
-        try {
+        try (var permit = usageGuard.tryAcquire(messages.stream().map(Message::content).toList(),
+                aiProperties.getMaxOutputTokens())) {
+            if (permit == null) return Optional.empty();
             ChatRequest request = new ChatRequest(
                     aiProperties.getLlmModel(),
                     messages,
                     new ResponseFormat("json_object"),
                     new Thinking("disabled"),
+                    aiProperties.getMaxOutputTokens(),
                     0.0,
                     false);
             ChatResponse response = restClient.post()
@@ -153,18 +166,19 @@ public class DeepSeekLlmClient implements LlmClient {
                     .header("Authorization", "Bearer " + aiProperties.getLlmApiKey())
                     .contentType(MediaType.APPLICATION_JSON)
                     .body(request)
-                    .retrieve()
-                    .body(ChatResponse.class);
+                    .exchange((httpRequest, httpResponse) -> AiHttpResponse.read(
+                            httpResponse, aiProperties.getMaxResponseBytes(), ChatResponse.class));
             if (response == null || response.choices() == null || response.choices().isEmpty()) {
                 return Optional.empty();
             }
+            if (response.choices().get(0).message() == null) return Optional.empty();
             String content = response.choices().get(0).message().content();
             if (content == null || content.isBlank()) {
                 return Optional.empty();
             }
             return Optional.of(objectMapper.readValue(content, type));
         } catch (Exception ex) {
-            log.warn("DeepSeek call failed for {}: {}", type.getSimpleName(), ex.getMessage());
+            log.warn("AI generation unavailable for {}", type.getSimpleName());
             return Optional.empty();
         }
     }
@@ -180,6 +194,7 @@ public class DeepSeekLlmClient implements LlmClient {
             List<Message> messages,
             @JsonProperty("response_format") ResponseFormat responseFormat,
             Thinking thinking,
+            @JsonProperty("max_tokens") int maxTokens,
             double temperature,
             boolean stream
     ) {

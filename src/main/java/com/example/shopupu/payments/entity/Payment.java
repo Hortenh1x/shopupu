@@ -81,6 +81,21 @@ public class Payment {
     private String idempotencyKey;
 
 
+    /** Opaque secret-free provider create body, frozen before the first HTTP request. */
+    @Column(name = "provider_request_context", columnDefinition = "text")
+    private String providerRequestContext;
+
+    /** Persisted before provider HTTP; never replaced on retries or unknown outcomes. */
+    @Column(name = "refund_operation_key", length = 64, unique = true)
+    private String refundOperationKey;
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "refund_status", length = 32)
+    private com.example.shopupu.payments.gateway.PaymentGatewayRefundStatus refundStatus;
+
+    @Column(name = "refund_external_id", length = 128)
+    private String refundExternalId;
+
     @CreationTimestamp
     private Instant createdAt;
 

@@ -13,7 +13,7 @@ import org.springframework.web.bind.annotation.RestController;
 /**
  * Public stylist chat (guest-friendly, like the other AI catalog reads).
  * POST because a conversation travels in the body; explicitly whitelisted in
- * SecurityConfig and covered by the global rate limiter.
+ * SecurityConfig and covered by the AI request-budget interceptor.
  */
 @RestController
 @RequiredArgsConstructor

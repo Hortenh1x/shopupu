@@ -44,6 +44,8 @@ class StylistServiceTest {
     @BeforeEach
     void setUp() {
         AiProperties aiProperties = new AiProperties();
+        aiProperties.setEnabled(true);
+        aiProperties.setLlmProvider("deepseek");
         service = new StylistService(aiProperties, llmClient, semanticSearchService, new SimpleMeterRegistry());
     }
 
@@ -71,11 +73,11 @@ class StylistServiceTest {
     @Test
     void fallsBackToKeywordPlanWhenLlmUnavailable() {
         when(llmClient.planOutfit(any(), anyString())).thenReturn(Optional.empty());
-        when(semanticSearchService.semanticSearchScored(eq("tailored wool blazer"), anyInt()))
+        when(semanticSearchService.keywordSearchScored(eq("tailored wool blazer"), anyInt()))
                 .thenReturn(List.of(scored(8L, "Tailored Wool Blazer", "184.00", Gender.MEN, NEAR)));
-        when(semanticSearchService.semanticSearchScored(eq("pleated formal trousers"), anyInt()))
+        when(semanticSearchService.keywordSearchScored(eq("pleated formal trousers"), anyInt()))
                 .thenReturn(List.of(scored(12L, "Pleated Wide Trousers", "104.00", Gender.WOMEN, NEAR)));
-        when(semanticSearchService.semanticSearchScored(eq("crisp oxford shirt"), anyInt()))
+        when(semanticSearchService.keywordSearchScored(eq("crisp oxford shirt"), anyInt()))
                 .thenReturn(List.of(scored(17L, "Oversized Oxford Shirt", "76.00", Gender.UNISEX, NEAR)));
 
         StylistChatResponse response =

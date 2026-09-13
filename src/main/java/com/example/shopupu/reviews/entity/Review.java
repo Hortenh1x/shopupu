@@ -48,6 +48,10 @@ public class Review {
     @Column(nullable = false, length = 32)
     private ReviewStatus status = ReviewStatus.PENDING;
 
+    @Enumerated(EnumType.STRING)
+    @Column(nullable = false, length = 32)
+    private ReviewSource source = ReviewSource.CUSTOMER_SUBMITTED;
+
     @CreationTimestamp
     @Column(name = "created_at", nullable = false, updatable = false)
     private Instant createdAt;

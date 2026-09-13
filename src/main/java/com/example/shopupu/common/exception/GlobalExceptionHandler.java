@@ -1,5 +1,7 @@
 package com.example.shopupu.common.exception;
 
+import com.example.shopupu.common.i18n.LocalizedMessages;
+import com.example.shopupu.common.i18n.SupportedLocales;
 import jakarta.servlet.http.HttpServletRequest;
 import java.net.URI;
 import java.util.ArrayList;
@@ -23,12 +25,25 @@ import org.springframework.web.servlet.resource.NoResourceFoundException;
 @RestControllerAdvice
 public class GlobalExceptionHandler {
 
+    @ExceptionHandler(ServiceUnavailableException.class)
+    public ProblemDetail handleUnavailable(ServiceUnavailableException ex, HttpServletRequest request) {
+        return baseProblem(HttpStatus.SERVICE_UNAVAILABLE, ex.getMessage(), ex.getCode(), request);
+    }
+
+    @ExceptionHandler(com.example.shopupu.auth.service.AuthRateLimitException.class)
+    public ProblemDetail handleAuthRateLimit(com.example.shopupu.auth.service.AuthRateLimitException ex,
+            HttpServletRequest request, jakarta.servlet.http.HttpServletResponse response) {
+        response.setHeader("Retry-After", Long.toString(ex.retryAfterSeconds()));
+        return baseProblem(HttpStatus.TOO_MANY_REQUESTS, ex.getMessage(), "AUTH_RATE_LIMITED", request);
+    }
+
     @ExceptionHandler(MethodArgumentNotValidException.class)
     public ProblemDetail handleValidation(MethodArgumentNotValidException ex, HttpServletRequest request) {
         ProblemDetail problem = baseProblem(HttpStatus.BAD_REQUEST, "validation failed", "VALIDATION_FAILED", request);
         List<Map<String, String>> errors = new ArrayList<>();
         for (FieldError error : ex.getBindingResult().getFieldErrors()) {
-            errors.add(fieldError(error));
+            errors.add(Map.of("field", error.getField(), "message", LocalizedMessages.fieldError(error,
+                    SupportedLocales.fromHeader(request.getHeader("Accept-Language")))));
         }
         problem.setProperty("errors", errors);
         return problem;
@@ -95,9 +110,11 @@ public class GlobalExceptionHandler {
     }
 
     private ProblemDetail baseProblem(HttpStatus status, String detail, String code, HttpServletRequest request) {
-        ProblemDetail problem = ProblemDetail.forStatusAndDetail(status, detail);
-        problem.setTitle(status.name().replace('_', ' ').toLowerCase());
-        problem.setType(URI.create("urn:shopupu:error:" + code.toLowerCase().replace('_', '-')));
+        var locale = SupportedLocales.fromHeader(request.getHeader("Accept-Language"));
+        ProblemDetail problem = ProblemDetail.forStatusAndDetail(status, LocalizedMessages.detail(code, detail, locale));
+        problem.setTitle(LocalizedMessages.title(status, locale));
+        problem.setType(URI.create("urn:shopupu:error:" + code.toLowerCase(java.util.Locale.ROOT).replace('_', '-')));
+        problem.setProperty("locale", locale.getLanguage());
         problem.setProperty("code", code);
         problem.setInstance(URI.create(request.getRequestURI()));
         String requestId = MDC.get("requestId");
@@ -110,10 +127,4 @@ public class GlobalExceptionHandler {
         return problem;
     }
 
-    private Map<String, String> fieldError(FieldError error) {
-        return Map.of(
-                "field", error.getField(),
-                "message", error.getDefaultMessage() == null ? "invalid value" : error.getDefaultMessage()
-        );
-    }
 }

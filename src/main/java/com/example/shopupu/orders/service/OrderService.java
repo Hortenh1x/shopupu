@@ -27,7 +27,6 @@ import java.util.List;
 import java.util.Optional;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
@@ -43,6 +42,7 @@ public class OrderService {
             EnumSet.of(OrderStatus.CREATED, OrderStatus.PENDING_PAYMENT);
 
     private final OrderRepository orderRepository;
+    private final com.example.shopupu.identity.service.AccountDataGuard accountDataGuard;
     private final OrderStatusHistoryRepository statusHistoryRepository;
     private final CartItemRepository cartItemRepository;
     private final CartRepository cartRepository;
@@ -55,6 +55,39 @@ public class OrderService {
     private final com.example.shopupu.common.audit.AuditService auditService;
     private final io.micrometer.core.instrument.MeterRegistry meterRegistry;
     private final com.example.shopupu.orders.mapper.OrderMapper orderMapper;
+    private final org.springframework.transaction.support.TransactionTemplate transactionTemplate;
+
+    @Transactional
+    public com.example.shopupu.orders.dto.OrderDto createOrderResponse(User user, String idempotencyKey, String promoCode) {
+        Order order = createOrderFromCart(user, idempotencyKey, promoCode);
+        orderRepository.flush();
+        return orderMapper.toDto(order);
+    }
+
+    @Transactional(readOnly = true)
+    public com.example.shopupu.orders.dto.OrderDto getOrderResponse(Long id) {
+        return orderMapper.toDto(getOrderForCurrentUser(id));
+    }
+
+    @Transactional
+    public com.example.shopupu.orders.dto.OrderDto cancelOrderResponse(Long id) {
+        Order order = cancelOrder(id);
+        orderRepository.flush();
+        return orderMapper.toDto(order);
+    }
+
+    @Transactional
+    public com.example.shopupu.orders.dto.OrderDto updateStatusResponse(Long id, OrderStatus status) {
+        Order order = updateStatus(id, status);
+        orderRepository.flush();
+        return orderMapper.toDto(order);
+    }
+
+    @Transactional(readOnly = true)
+    public List<com.example.shopupu.orders.dto.OrderStatusHistoryDto> getStatusHistoryResponses(Long id) {
+        accessControlService.requireAdmin();
+        return getStatusHistory(id).stream().map(orderMapper::toDto).toList();
+    }
 
     @Transactional
     public Order createOrderFromCart(User user, String idempotencyKey) {
@@ -67,9 +100,15 @@ public class OrderService {
      */
     @Transactional
     public Order createOrderFromCart(User user, String idempotencyKey, String promoCode) {
+        accountDataGuard.lockActive(user.getId());
+        orderRepository.lockCheckoutUser(user.getId());
         if (idempotencyKey != null && !idempotencyKey.isBlank()) {
             Optional<Order> existing = orderRepository.findByUserAndIdempotencyKey(user, idempotencyKey);
             if (existing.isPresent()) {
+                if (!java.util.Objects.equals(normalizePromo(existing.get().getPromoCode()), normalizePromo(promoCode))) {
+                    throw new com.example.shopupu.common.exception.ConflictException(
+                            "Idempotency-Key belongs to a checkout with a different promo code");
+                }
                 return existing.get();
             }
         }
@@ -90,7 +129,7 @@ public class OrderService {
 
         BigDecimal subtotal = BigDecimal.ZERO;
         List<OrderItem> items = new ArrayList<>();
-        for (CartItem cartItem : cartItems) {
+        for (CartItem cartItem : cartItems.stream().sorted(java.util.Comparator.comparing(i -> i.getVariant().getId())).toList()) {
             ProductVariant variant = cartItem.getVariant();
             Product product = variant.getProduct();
             validateSellable(variant);
@@ -134,16 +173,7 @@ public class OrderService {
         order.setDiscountAmount(discount);
         order.setPaymentAmount(subtotal.subtract(discount).max(BigDecimal.ZERO));
 
-        Order savedOrder;
-        try {
-            savedOrder = orderRepository.save(order);
-        } catch (DataIntegrityViolationException e) {
-            // concurrent request with the same idempotency key won the race
-            if (idempotencyKey != null) {
-                throw new BusinessRuleException("Order for this Idempotency-Key is already being created");
-            }
-            throw e;
-        }
+        Order savedOrder = orderRepository.save(order);
         recordHistory(savedOrder, null, OrderStatus.CREATED, user.getEmail());
         if (promo != null) {
             promoService.redeem(promo, user, savedOrder);
@@ -190,7 +220,11 @@ public class OrderService {
     @Transactional
     public Order updateStatus(Long id, OrderStatus newStatus) {
         accessControlService.requireAdmin();
-        Order order = getOrder(id);
+        Order order = getLockedOrder(id);
+        if (newStatus == OrderStatus.PAID || newStatus == OrderStatus.REFUNDED) {
+            throw new BusinessRuleException("Payment and refund status must be confirmed through the payment flow");
+        }
+        ensureNoUnsettledPayment(order);
         Order updated = applyStatus(order, newStatus, accessControlService.currentEmail());
         auditService.record(accessControlService.currentEmail(), "ORDER_STATUS_CHANGED",
                 "order", updated.getOrderNumber(), "-> " + newStatus);
@@ -200,25 +234,26 @@ public class OrderService {
     /** Customer/admin cancellation; releases the inventory reservation (ORD-06). */
     @Transactional
     public Order cancelOrder(Long id) {
-        Order order = getOrder(id);
+        Order order = getLockedOrder(id);
         accessControlService.requireOrderOwnerOrAdmin(order);
         if (!RESERVED_STATES.contains(order.getStatus())) {
             throw new BusinessRuleException("Order can no longer be cancelled; request a refund instead");
         }
+        ensureNoUnsettledPayment(order);
         return applyStatus(order, OrderStatus.CANCELLED, accessControlService.currentEmail());
     }
 
     /** Payment webhook confirmed: reservation becomes a sale. */
     @Transactional
     public Order markPaidFromPayment(Long id) {
-        Order order = getOrder(id);
+        Order order = getLockedOrder(id);
         return applyStatus(order, OrderStatus.PAID, "payment-callback");
     }
 
     /** Payment initiated: hold the order for the payment flow. */
     @Transactional
     public Order markPendingPayment(Long id) {
-        Order order = getOrder(id);
+        Order order = getLockedOrder(id);
         if (order.getStatus() == OrderStatus.PENDING_PAYMENT) {
             return order;
         }
@@ -228,7 +263,7 @@ public class OrderService {
     /** Payment failed/expired: return the order to CREATED so the user can retry. */
     @Transactional
     public Order onPaymentFailed(Long id) {
-        Order order = getOrder(id);
+        Order order = getLockedOrder(id);
         if (order.getStatus() != OrderStatus.PENDING_PAYMENT) {
             return order;
         }
@@ -238,17 +273,21 @@ public class OrderService {
     /** Refund: money returned, goods go back to stock (ORD-07). */
     @Transactional
     public Order markRefunded(Long id, String actor) {
-        Order order = getOrder(id);
+        Order order = getLockedOrder(id);
         return applyStatus(order, OrderStatus.REFUNDED, actor);
     }
 
     @Transactional
     public Order updateShippingAmount(Long id, BigDecimal shippingAmount) {
-        Order order = getOrder(id);
-        if (!RESERVED_STATES.contains(order.getStatus())) {
+        Order order = getLockedOrder(id);
+        if (order.getStatus() != OrderStatus.CREATED) {
             throw new BusinessRuleException("Shipping can only be changed before payment");
         }
+        ensureNoUnsettledPayment(order);
         BigDecimal normalizedShipping = shippingAmount == null ? BigDecimal.ZERO : shippingAmount;
+        if (normalizedShipping.signum() < 0) {
+            throw new BusinessRuleException("Shipping amount cannot be negative");
+        }
         order.setShippingAmount(normalizedShipping);
 
         // FREE_SHIPPING promos discount the shipping cost, so recalc here (ORD-04)
@@ -262,15 +301,33 @@ public class OrderService {
         return orderRepository.save(order);
     }
 
-    /** Auto-cancel unpaid orders whose reservation TTL ran out (INV-02, CART-04 cousin). */
-    @Transactional
+    /** Each candidate is rechecked in its own transaction after taking the order lock. */
     public int expireStaleOrders() {
         Instant cutoff = Instant.now().minus(checkoutProperties.getPendingPaymentTtlMin(), ChronoUnit.MINUTES);
-        List<Order> stale = orderRepository.findTop100ByStatusInAndCreatedAtBefore(RESERVED_STATES, cutoff);
-        for (Order order : stale) {
-            applyStatus(order, OrderStatus.CANCELLED, "system:expiration");
+        int expired = 0;
+        for (Long id : orderRepository.findStaleUnpaidIds(cutoff)) {
+            Boolean changed = transactionTemplate.execute(tx -> {
+                Order order = getLockedOrder(id);
+                if (!RESERVED_STATES.contains(order.getStatus()) || orderRepository.hasUnsettledPayment(id)) {
+                    return false;
+                }
+                applyStatus(order, OrderStatus.CANCELLED, "system:expiration");
+                return true;
+            });
+            if (Boolean.TRUE.equals(changed)) expired++;
         }
-        return stale.size();
+        return expired;
+    }
+
+    private Order getLockedOrder(Long id) {
+        return orderRepository.findLockedById(id)
+                .orElseThrow(() -> new ResourceNotFoundException("Order not found - " + id));
+    }
+
+    private void ensureNoUnsettledPayment(Order order) {
+        if (orderRepository.hasUnsettledPayment(order.getId())) {
+            throw new BusinessRuleException("A payment or refund is unresolved; wait for provider confirmation");
+        }
     }
 
     private Order applyStatus(Order order, OrderStatus newStatus, String actor) {
@@ -308,7 +365,8 @@ public class OrderService {
     }
 
     private void forEachItem(Order order, ItemEffect effect) {
-        for (OrderItem item : order.getItems()) {
+        for (OrderItem item : order.getItems().stream().filter(i -> i.getVariantId() != null)
+                .sorted(java.util.Comparator.comparing(OrderItem::getVariantId)).toList()) {
             if (item.getVariantId() != null) {
                 effect.apply(item.getVariantId(), item.getQuantity());
             }
@@ -326,6 +384,10 @@ public class OrderService {
                 .toStatus(to)
                 .changedBy(actor)
                 .build());
+    }
+
+    private String normalizePromo(String code) {
+        return code == null || code.isBlank() ? null : code.trim().toUpperCase(java.util.Locale.ROOT);
     }
 
     private void validateSellable(ProductVariant variant) {

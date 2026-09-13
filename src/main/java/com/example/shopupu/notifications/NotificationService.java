@@ -1,10 +1,13 @@
 package com.example.shopupu.notifications;
 
 /**
- * Customer notification port (NOTIF-01). The default implementation only logs;
- * plug an SMTP/provider implementation without touching callers.
+ * Customer notification port. Disabled by default; availability means a real sender is configured.
+ * Invoke delivery only from post-commit listeners, outside database transactions.
  */
 public interface NotificationService {
+
+    /** True means a real sender is configured, not proven inbox deliverability. */
+    default boolean isAvailable() { return false; }
 
     void sendOrderStatusUpdate(String email, String orderNumber, String newStatus);
 

@@ -11,9 +11,12 @@ RUN mvn -q -B package -DskipTests
 
 # --- Runtime stage ------------------------------------------------------------
 FROM eclipse-temurin:25-jre
+ARG VCS_REF=unknown
+LABEL org.opencontainers.image.revision=$VCS_REF
 WORKDIR /app
 
 RUN groupadd --system shopupu && useradd --system --gid shopupu shopupu
+RUN mkdir -p /app/uploads && chown shopupu:shopupu /app/uploads
 USER shopupu:shopupu
 
 COPY --from=build /workspace/target/*.jar app.jar

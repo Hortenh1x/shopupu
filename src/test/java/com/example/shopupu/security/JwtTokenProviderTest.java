@@ -117,4 +117,26 @@ class JwtTokenProviderTest {
         UserDetails hacker = new User("evil", "pass", Collections.emptyList());
         assertFalse(jwtTokenProvider.isTokenValid(token, hacker));
     }
+    @Test
+    void passwordVersionChangeImmediatelyInvalidatesAccessToken() {
+        var user = com.example.shopupu.identity.entity.User.builder().email("version@example.com").passwordHash("hash").build();
+        String token = jwtTokenProvider.generateToken(new ShopUserDetails(user));
+        assertTrue(jwtTokenProvider.isTokenValid(token, new ShopUserDetails(user)));
+        user.setAuthVersion(1);
+        assertFalse(jwtTokenProvider.isTokenValid(token, new ShopUserDetails(user)));
+    }
+
+    @Test
+    void privilegedTokensNeedEnrolledFactorAndRecentOriginalAssurance() {
+        var user = com.example.shopupu.identity.entity.User.builder().email("admin@example.com").passwordHash("hash")
+                .roles(java.util.Set.of(com.example.shopupu.identity.entity.Role.builder().name("ADMIN").build())).build();
+        assertFalse(jwtTokenProvider.isTokenValid(jwtTokenProvider.generateToken(new ShopUserDetails(user)), new ShopUserDetails(user)));
+        user.setMfaSecretCiphertext("encrypted-test-fixture");
+        var principal = new ShopUserDetails(user);
+        String recent = jwtTokenProvider.generateToken(principal, java.time.Instant.now().minusSeconds(60));
+        assertTrue(jwtTokenProvider.isTokenValid(recent, principal));
+        String stale = jwtTokenProvider.generateToken(principal, java.time.Instant.now().minusSeconds(12 * 3600 + 1));
+        assertFalse(jwtTokenProvider.isTokenValid(stale, principal));
+    }
+
 }

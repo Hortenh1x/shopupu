@@ -1,109 +1,100 @@
 package com.example.shopupu.identity.service;
 
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertFalse;
-import static org.junit.jupiter.api.Assertions.assertNotNull;
-import static org.junit.jupiter.api.Assertions.assertNull;
-import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.anyString;
-import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.when;
+import static org.junit.jupiter.api.Assertions.*;
+import static org.mockito.ArgumentMatchers.*;
+import static org.mockito.Mockito.*;
 
-import com.example.shopupu.auth.service.RefreshTokenService;
-import com.example.shopupu.cart.repository.CartRepository;
-import com.example.shopupu.common.audit.AuditService;
+import com.example.shopupu.catalog.entity.Product;
+import com.example.shopupu.identity.entity.Gender;
 import com.example.shopupu.identity.entity.User;
+import com.example.shopupu.identity.repository.PersonalDataRepository;
 import com.example.shopupu.identity.repository.UserAddressRepository;
 import com.example.shopupu.identity.repository.UserRepository;
-import com.example.shopupu.identity.repository.WishlistItemRepository;
 import com.example.shopupu.orders.repository.OrderRepository;
 import com.example.shopupu.reviews.entity.Review;
 import com.example.shopupu.reviews.entity.ReviewStatus;
 import com.example.shopupu.reviews.repository.ReviewRepository;
+import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.cache.CacheManager;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.security.crypto.password.PasswordEncoder;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 
 @ExtendWith(MockitoExtension.class)
 class GdprServiceTest {
+    @Mock UserRepository userRepository;
+    @Mock UserAddressRepository addressRepository;
+    @Mock OrderRepository orderRepository;
+    @Mock ReviewRepository reviewRepository;
+    @Mock PersonalDataRepository personalDataRepository;
+    @Mock PasswordEncoder passwordEncoder;
+    @Mock ApplicationEventPublisher eventPublisher;
+    @Mock CacheManager cacheManager;
+    @Mock com.example.shopupu.common.audit.AuditService auditService;
+    @InjectMocks GdprService gdprService;
 
-    @Mock
-    private UserRepository userRepository;
-
-    @Mock
-    private UserAddressRepository addressRepository;
-
-    @Mock
-    private WishlistItemRepository wishlistItemRepository;
-
-    @Mock
-    private CartRepository cartRepository;
-
-    @Mock
-    private OrderRepository orderRepository;
-
-    @Mock
-    private ReviewRepository reviewRepository;
-
-    @Mock
-    private RefreshTokenService refreshTokenService;
-
-    @Mock
-    private PasswordEncoder passwordEncoder;
-
-    @Mock
-    private AuditService auditService;
-
-    @InjectMocks
-    private GdprService gdprService;
+    @BeforeEach void transaction() { TransactionSynchronizationManager.initSynchronization(); }
+    @AfterEach void cleanup() { TransactionSynchronizationManager.clearSynchronization(); }
 
     @Test
-    void anonymizeWipesPiiAndRevokesSessions() {
-        User user = User.builder()
-                .id(7L)
-                .email("customer@example.com")
-                .username("customer")
-                .firstName("Jane")
-                .lastName("Doe")
-                .phone("+380001112233")
-                .passwordHash("hash")
-                .enabled(true)
-                .build();
+    void erasureUsesLockedFreshAccountAndErasesOptionalProfileAndMfaState() {
+        User stale = User.builder().id(7L).email("old@example.invalid").build();
+        User current = User.builder().id(7L).email("customer@example.com").username("customer")
+                .firstName("Jane").lastName("Doe").phone("123").gender(Gender.FEMALE)
+                .preferredSize("S").passwordHash("hash").authVersion(8).mfaSecretCiphertext("secret")
+                .mfaLastAcceptedStep(123).enabled(true).build();
+        Product product = new Product();
+        product.setId(2L);
         Review review = new Review();
-        review.setBody("Great hoodie");
+        review.setProduct(product);
+        review.setBody("Private review");
         review.setStatus(ReviewStatus.APPROVED);
+        when(userRepository.findByIdForUpdate(7L)).thenReturn(Optional.of(current));
         when(reviewRepository.findByUserId(7L)).thenReturn(List.of(review));
-        when(cartRepository.findByUser(user)).thenReturn(Optional.empty());
         when(passwordEncoder.encode(anyString())).thenReturn("random-hash");
-        when(userRepository.save(any(User.class))).thenAnswer(invocation -> invocation.getArgument(0));
-        when(reviewRepository.save(any(Review.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
-        gdprService.anonymizeAccount(user);
+        gdprService.anonymizeAccount(stale);
 
-        assertEquals("deleted-7@anonymized.invalid", user.getEmail());
-        assertNull(user.getUsername());
-        assertNull(user.getFirstName());
-        assertNull(user.getLastName());
-        assertNull(user.getPhone());
-        assertFalse(user.isEnabled());
-        assertNotNull(user.getDeletedAt());
-        assertEquals("random-hash", user.getPasswordHash());
-
+        assertTrue(current.getEmail().startsWith("deleted-7-"));
+        assertTrue(current.getEmail().endsWith("@anonymized.invalid"));
+        assertNull(current.getUsername());
+        assertNull(current.getGender());
+        assertNull(current.getMfaSecretCiphertext());
+        assertEquals(-1, current.getMfaLastAcceptedStep());
+        assertEquals(9, current.getAuthVersion());
+        assertNull(current.getFirstName());
+        assertNull(current.getLastName());
+        assertNull(current.getPhone());
+        assertNull(current.getPreferredSize());
+        assertFalse(current.isEnabled());
+        assertNotNull(current.getDeletedAt());
         assertEquals(ReviewStatus.DELETED, review.getStatus());
         assertEquals("[deleted]", review.getBody());
-
-        verify(addressRepository).deleteByUser(user);
-        verify(wishlistItemRepository).deleteByUser(user);
-        verify(refreshTokenService).revokeAll(user);
-        verify(auditService).record(eqActor(), any(), any(), any(), any());
+        verify(auditService).record(eq("deleted-user:7"), eq("GDPR_ACCOUNT_ERASED"), eq("user"), eq("7"), anyString());
+        var ordered = inOrder(userRepository, personalDataRepository, reviewRepository);
+        ordered.verify(userRepository).findByIdForUpdate(7L);
+        ordered.verify(personalDataRepository).lockOrders(7L);
+        ordered.verify(reviewRepository).findByUserId(7L);
+        ordered.verify(reviewRepository).saveAll(List.of(review));
+        ordered.verify(reviewRepository).flush();
+        ordered.verify(personalDataRepository).deleteReviewSummaries(List.of(2L));
+        ordered.verify(personalDataRepository).eraseRelatedData(7L, "customer@example.com", "customer");
     }
 
-    private static String eqActor() {
-        return org.mockito.ArgumentMatchers.eq("customer@example.com");
+    @Test
+    void erasureReplayDoesNotRewriteAuditOrRotatePseudonym() {
+        User deleted = User.builder().id(7L).email("deleted-7@anonymized.invalid").deletedAt(Instant.now()).build();
+        when(userRepository.findByIdForUpdate(7L)).thenReturn(Optional.of(deleted));
+        gdprService.anonymizeAccount(deleted);
+        verifyNoInteractions(personalDataRepository, passwordEncoder, reviewRepository, auditService);
     }
 }

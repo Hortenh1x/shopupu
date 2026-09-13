@@ -6,9 +6,9 @@ import java.util.List;
 /**
  * Stylist answer: a short reply plus outfit slots resolved to real products.
  * {@code unavailable} honestly names requested garments the catalog does not
- * carry (declared by the LLM plan or caught by the relevance gate).
- * {@code degraded} is true when the LLM was unavailable and the keyword
- * fallback produced the plan.
+ * carry or cannot offer within the shopper's constraints.
+ * {@code degraded} is true when AI is disabled, stubbed or unavailable and a
+ * deterministic keyword plan and database-only lookup produced the answer.
  */
 public record StylistChatResponse(
         String reply,

@@ -1,137 +1,62 @@
 package com.example.shopupu.auth.service;
 
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertFalse;
-import static org.junit.jupiter.api.Assertions.assertNotEquals;
-import static org.junit.jupiter.api.Assertions.assertNotNull;
-import static org.junit.jupiter.api.Assertions.assertSame;
-import static org.junit.jupiter.api.Assertions.assertThrows;
-import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.Mockito.lenient;
-import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.when;
+import static org.mockito.Mockito.*;
 
 import com.example.shopupu.auth.entity.RefreshToken;
 import com.example.shopupu.auth.repository.RefreshTokenRepository;
 import com.example.shopupu.common.exception.UnauthorizedException;
 import com.example.shopupu.config.JwtProperties;
 import com.example.shopupu.identity.entity.User;
+import com.example.shopupu.identity.repository.UserRepository;
 import java.time.Instant;
 import java.util.Optional;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.extension.ExtendWith;
-import org.mockito.Mock;
-import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.support.SimpleTransactionStatus;
 
-@ExtendWith(MockitoExtension.class)
 class RefreshTokenServiceTest {
-
-    @Mock
-    private RefreshTokenRepository refreshTokenRepository;
-
-    private RefreshTokenService refreshTokenService;
-
-    private User user;
-
-    @BeforeEach
-    void setUp() {
-        JwtProperties props = new JwtProperties();
-        props.setSecret("MySuperLongSecretKeyThatIsDefinitelySecure1234567890");
-        props.setRefreshTokenTtlDays(7);
-        PlatformTransactionManager transactionManager = mock(PlatformTransactionManager.class);
-        lenient().when(transactionManager.getTransaction(any())).thenReturn(new SimpleTransactionStatus());
-        refreshTokenService = new RefreshTokenService(refreshTokenRepository, props, transactionManager);
-        user = User.builder().id(1L).email("user@example.com").passwordHash("hash").build();
+    private final RefreshTokenRepository tokens = mock(RefreshTokenRepository.class);
+    private final UserRepository users = mock(UserRepository.class);
+    private final PlatformTransactionManager tx = mock(PlatformTransactionManager.class);
+    private final User user = User.builder().id(1L).email("user@example.com").passwordHash("hash").build();
+    private RefreshTokenService service;
+    @BeforeEach void setup() { service = new RefreshTokenService(tokens, new JwtProperties(), tx, users); }
+    private void lock() { when(users.findByIdForUpdate(1L)).thenReturn(Optional.of(user)); }
+    private void rotation(RefreshToken token) {
+        lock(); when(tx.getTransaction(any())).thenReturn(new SimpleTransactionStatus());
+        when(tokens.findUserIdByToken(RefreshTokenService.hash("raw"))).thenReturn(Optional.of(1L));
+        when(tokens.findByToken(RefreshTokenService.hash("raw"))).thenReturn(Optional.of(token));
     }
-
-    @Test
-    void mintStoresHashNotRawToken() {
-        when(refreshTokenRepository.save(any(RefreshToken.class))).thenAnswer(invocation -> invocation.getArgument(0));
-
-        var minted = refreshTokenService.mint(user);
-
-        assertSame(user, minted.entity().getUser());
-        assertNotNull(minted.rawToken());
-        // raw token must never equal the persisted value
+    @Test void mintStoresHashAndCurrentSecurityVersion() {
+        lock(); user.setAuthVersion(8); when(tokens.save(any())).thenAnswer(i -> i.getArgument(0));
+        var minted = service.mint(user);
         assertNotEquals(minted.rawToken(), minted.entity().getToken());
         assertEquals(RefreshTokenService.hash(minted.rawToken()), minted.entity().getToken());
-        assertFalse(minted.entity().isRevoked());
-        assertTrue(minted.entity().getExpiresAt().isAfter(Instant.now()));
+        assertEquals(8, minted.entity().getAuthVersion());
     }
-
-    @Test
-    void verifyActiveReturnsTokenWhenValid() {
-        RefreshToken token = token(false, Instant.now().plusSeconds(60));
-        when(refreshTokenRepository.findByToken(RefreshTokenService.hash("refresh"))).thenReturn(Optional.of(token));
-
-        assertSame(token, refreshTokenService.verifyActive("refresh"));
+    @Test void reuseCommitsAllSessionRevocationBeforeUnauthorized() {
+        rotation(token(true));
+        assertThrows(UnauthorizedException.class, () -> service.rotate("raw"));
+        verify(tokens).revokeAllByUser(user); verify(tx).commit(any()); verify(tx, never()).rollback(any());
+        assertEquals(1, user.getAuthVersion());
     }
-
-    @Test
-    void verifyActiveRejectsMissingAndExpiredTokens() {
-        when(refreshTokenRepository.findByToken(RefreshTokenService.hash("missing"))).thenReturn(Optional.empty());
-        assertThrows(UnauthorizedException.class, () -> refreshTokenService.verifyActive("missing"));
-
-        when(refreshTokenRepository.findByToken(RefreshTokenService.hash("expired")))
-                .thenReturn(Optional.of(token(false, Instant.now().minusSeconds(60))));
-        assertThrows(UnauthorizedException.class, () -> refreshTokenService.verifyActive("expired"));
+    @Test void guardedConsumeFailureCannotMintSuccessor() {
+        rotation(token(false)); when(tokens.consume(any(), any())).thenReturn(0);
+        assertThrows(UnauthorizedException.class, () -> service.rotate("raw"));
+        verify(tokens, never()).save(any());
     }
-
-    @Test
-    void reusedRevokedTokenRevokesWholeChain() {
-        RefreshToken revoked = token(true, Instant.now().plusSeconds(60));
-        when(refreshTokenRepository.findByToken(RefreshTokenService.hash("stolen"))).thenReturn(Optional.of(revoked));
-
-        assertThrows(UnauthorizedException.class, () -> refreshTokenService.verifyActive("stolen"));
-
-        verify(refreshTokenRepository).revokeAllByUser(user);
+    @Test void rotationPreservesMfaAssuranceTimestamp() {
+        RefreshToken old = token(false); Instant verified = Instant.now().minusSeconds(90); old.setMfaVerifiedAt(verified);
+        rotation(old); when(tokens.consume(any(), any())).thenReturn(1); when(tokens.save(any())).thenAnswer(i -> i.getArgument(0));
+        assertEquals(verified, service.rotate("raw").entity().getMfaVerifiedAt());
     }
-
-    @Test
-    void rotateRevokesOldTokenAndCreatesNewToken() {
-        RefreshToken oldToken = token(false, Instant.now().plusSeconds(60));
-        when(refreshTokenRepository.save(any(RefreshToken.class))).thenAnswer(invocation -> invocation.getArgument(0));
-
-        var newToken = refreshTokenService.rotate(oldToken);
-
-        assertTrue(oldToken.isRevoked());
-        assertNotNull(newToken.rawToken());
-        verify(refreshTokenRepository).save(oldToken);
+    @Test void logoutCannotRevokeAnotherAccountToken() {
+        lock(); when(tokens.findUserIdByToken(RefreshTokenService.hash("raw"))).thenReturn(Optional.of(1L));
+        service.logout("raw", "someone-else@example.com"); verify(tokens, never()).findByToken(any());
     }
-
-    @Test
-    void revokeAllRevokesTokensForUser() {
-        refreshTokenService.revokeAll(user);
-
-        verify(refreshTokenRepository).revokeAllByUser(user);
-    }
-
-    @Test
-    void logoutRevokesKnownTokenAndIgnoresUnknown() {
-        RefreshToken token = token(false, Instant.now().plusSeconds(60));
-        when(refreshTokenRepository.findByToken(RefreshTokenService.hash("known"))).thenReturn(Optional.of(token));
-        when(refreshTokenRepository.findByToken(RefreshTokenService.hash("unknown"))).thenReturn(Optional.empty());
-        when(refreshTokenRepository.save(any(RefreshToken.class))).thenAnswer(invocation -> invocation.getArgument(0));
-
-        refreshTokenService.logout("known");
-        refreshTokenService.logout("unknown");
-
-        assertTrue(token.isRevoked());
-    }
-
-    private RefreshToken token(boolean revoked, Instant expiresAt) {
-        return RefreshToken.builder()
-                .id(1L)
-                .user(user)
-                .token("stored-hash")
-                .revoked(revoked)
-                .createdAt(Instant.now())
-                .expiresAt(expiresAt)
-                .build();
-    }
+    private RefreshToken token(boolean revoked) { return RefreshToken.builder().id(1L).user(user)
+            .expiresAt(Instant.now().plusSeconds(60)).revoked(revoked).build(); }
 }

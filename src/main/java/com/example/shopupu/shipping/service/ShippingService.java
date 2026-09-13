@@ -25,6 +25,8 @@ import org.springframework.transaction.annotation.Transactional;
 @RequiredArgsConstructor
 public class ShippingService {
 
+    private final com.example.shopupu.identity.service.AccountDataGuard accountDataGuard;
+
     private final OrderRepository orderRepository;
     private final ShipmentRepository shipmentRepository;
     private final ShippingAddressRepository addressRepository;
@@ -35,7 +37,8 @@ public class ShippingService {
 
     @Transactional
     public ShipmentDto setAddress(SetShippingAddressRequest req) {
-        Order order = findOrder(req.orderId());
+        accountDataGuard.lockOrderOwner(req.orderId());
+        Order order = findLockedOrder(req.orderId());
         accessControlService.requireOrderOwnerOrAdmin(order);
         ensureOrderCanChangeShipping(order);
         validateAddress(req);
@@ -68,7 +71,8 @@ public class ShippingService {
 
     @Transactional
     public ShipmentDto setMethod(SetShippingMethodRequest req) {
-        Order order = findOrder(req.orderId());
+        accountDataGuard.lockOrderOwner(req.orderId());
+        Order order = findLockedOrder(req.orderId());
         accessControlService.requireOrderOwnerOrAdmin(order);
         ensureOrderCanChangeShipping(order);
 
@@ -99,7 +103,8 @@ public class ShippingService {
 
     @Transactional
     public ShipmentDto updateStatus(Long orderId, ShippingStatus newStatus, String trackingNumber) {
-        Order order = findOrder(orderId);
+        accountDataGuard.lockOrderOwner(orderId);
+        Order order = findLockedOrder(orderId);
         accessControlService.requireAdmin();
 
         Shipment shipment = shipmentRepository.findByOrder(order)
@@ -182,6 +187,11 @@ public class ShippingService {
         if (order.getStatus() != OrderStatus.CREATED) {
             throw new BusinessRuleException("Shipping can only be changed for orders awaiting payment setup");
         }
+    }
+
+    private Order findLockedOrder(Long orderId) {
+        return orderRepository.findLockedById(orderId)
+                .orElseThrow(() -> new ResourceNotFoundException("Order not found"));
     }
 
     private Order findOrder(Long orderId) {

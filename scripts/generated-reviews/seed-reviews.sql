@@ -326,7 +326,7 @@ with seed(email, username, product_id, rating, body, created_at) as (
 ),
 ins_users as (
   insert into users (email, password_hash, username, enabled, email_verified)
-  select email, '!synthetic-review-author-no-login!', username, true, true
+  select email, '!synthetic-review-author-no-login!', username, false, false
   from seed
   on conflict do nothing
   returning id, email
@@ -338,8 +338,8 @@ resolved as (
   left join ins_users iu on iu.email = s.email
   left join users     u  on u.email  = s.email
 )
-insert into reviews (user_id, product_id, order_id, rating, body, status, created_at, updated_at)
-select user_id, product_id, null, rating, body, 'APPROVED',
+insert into reviews (user_id, product_id, order_id, rating, body, status, source, created_at, updated_at)
+select user_id, product_id, null, rating, body, 'APPROVED', 'SYNTHETIC_DEMO',
        created_at::timestamptz, created_at::timestamptz
 from resolved
 on conflict (user_id, product_id) do nothing;

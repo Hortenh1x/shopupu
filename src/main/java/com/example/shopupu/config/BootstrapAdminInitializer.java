@@ -21,6 +21,7 @@ public class BootstrapAdminInitializer implements ApplicationRunner {
     private final UserRepository userRepository;
     private final RoleRepository roleRepository;
     private final PasswordEncoder passwordEncoder;
+    private final com.example.shopupu.auth.service.PasswordPolicy passwordPolicy;
 
     @Override
     // handles run.
@@ -35,6 +36,7 @@ public class BootstrapAdminInitializer implements ApplicationRunner {
             return;
         }
 
+        passwordPolicy.validate(properties.getPassword());
         var adminRole = roleRepository.findByName("ADMIN")
                 .orElseThrow(() -> new IllegalStateException("ADMIN role not found"));
         var customerRole = roleRepository.findByName("CUSTOMER")

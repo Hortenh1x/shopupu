@@ -17,6 +17,8 @@ import org.springframework.transaction.annotation.Transactional;
 @RequiredArgsConstructor
 public class ConsentService {
 
+    private final AccountDataGuard accountDataGuard;
+
     private final UserConsentRepository consentRepository;
 
     /** Latest decision per consent type. */
@@ -32,6 +34,7 @@ public class ConsentService {
 
     @Transactional
     public ConsentResponse recordConsent(User user, ConsentRequest request) {
+        accountDataGuard.lockActive(user.getId());
         UserConsent consent = consentRepository.save(UserConsent.builder()
                 .user(user)
                 .consentType(request.consentType())

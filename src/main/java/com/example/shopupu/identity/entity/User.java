@@ -52,6 +52,16 @@ public class User {
     @Column(name = "email_verified", nullable = false)
     private boolean emailVerified = false;
 
+    @Column(name = "auth_version", nullable = false)
+    private long authVersion;
+
+    @Column(name = "mfa_secret_ciphertext", length = 512)
+    private String mfaSecretCiphertext;
+
+    @Builder.Default
+    @Column(name = "mfa_last_accepted_step", nullable = false)
+    private long mfaLastAcceptedStep = -1;
+
     @Builder.Default
     private boolean enabled = true;
 

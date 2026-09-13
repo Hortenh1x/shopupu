@@ -24,6 +24,12 @@ public class ReviewSummaryRepository {
     private final JdbcClient jdbcClient;
     private final ObjectMapper objectMapper;
 
+    /** Shared serialization point for summary capture/apply and review invalidation; caller owns the TX. */
+    public boolean lockProduct(Long productId) {
+        return jdbcClient.sql("select id from products where id = :productId for update")
+                .param("productId", productId).query(Long.class).optional().isPresent();
+    }
+
     public void upsert(Long productId, ReviewSummary summary, int basedOnReviews, String model) {
         jdbcClient.sql("""
                         insert into product_review_summary

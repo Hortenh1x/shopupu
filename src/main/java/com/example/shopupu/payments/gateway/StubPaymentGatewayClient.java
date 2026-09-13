@@ -26,6 +26,33 @@ public class StubPaymentGatewayClient implements PaymentGatewayClient {
     }
 
     @Override
+    public PaymentGatewayRefundResponse refundPayment(PaymentGatewayRefundRequest request) {
+        return refundOutcome(request);
+    }
+
+    /**
+     * The local stub has no external money movement: a persisted operation defines
+     * its deterministic full refund. Recovery also covers a crash before create/response apply.
+     */
+    @Override
+    public java.util.Optional<PaymentGatewayRefundResponse> fetchRefundStatus(
+            PaymentGatewayRefundRequest request, String externalRefundId) {
+        PaymentGatewayRefundResponse outcome = refundOutcome(request);
+        if (externalRefundId != null && !externalRefundId.isBlank()
+                && !outcome.externalRefundId().equals(externalRefundId)) {
+            throw new IllegalArgumentException("Refund identity does not match the stub operation");
+        }
+        return java.util.Optional.of(outcome);
+    }
+
+    private PaymentGatewayRefundResponse refundOutcome(PaymentGatewayRefundRequest request) {
+        if (request.idempotencyKey() == null || request.idempotencyKey().isBlank()) {
+            throw new IllegalArgumentException("A stable refund operation key is required");
+        }
+        return new PaymentGatewayRefundResponse("stub-refund-" + request.idempotencyKey(), PaymentGatewayRefundStatus.SUCCEEDED);
+    }
+
+    @Override
     // stub provider accepts every refund so the flow is testable locally
     public boolean refundPayment(String externalPaymentId) {
         return true;

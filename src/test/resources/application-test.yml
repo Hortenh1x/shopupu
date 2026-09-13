@@ -6,6 +6,10 @@ spring:
   flyway:
     enabled: true
 
+auth:
+  mfa:
+    encryption-key: AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=
+
 jwt:
   secret: test-secret-key-test-secret-key-test-secret-key-test-secret-key
   access-token-ttl-min: 15

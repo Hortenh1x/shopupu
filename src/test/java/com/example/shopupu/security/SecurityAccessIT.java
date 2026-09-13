@@ -3,6 +3,8 @@ package com.example.shopupu.security;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.user;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import com.example.shopupu.identity.entity.User;
@@ -67,8 +69,11 @@ class SecurityAccessIT extends PostgresContainerSupport {
     @Test
     void unknownEndpointRequiresAuthentication() throws Exception {
         // deny-by-default: anything not whitelisted must not be public
-        mockMvc.perform(get("/api/v1/orders"))
-                .andExpect(status().isUnauthorized());
+        mockMvc.perform(get("/api/v1/orders").header("X-Request-Id", "security-test-123"))
+                .andExpect(status().isUnauthorized())
+                .andExpect(jsonPath("$.code").value("UNAUTHORIZED"))
+                .andExpect(jsonPath("$.requestId").value("security-test-123"))
+                .andExpect(header().string("X-Request-Id", "security-test-123"));
         mockMvc.perform(get("/api/v1/users/me/profile"))
                 .andExpect(status().isUnauthorized());
     }
@@ -88,7 +93,12 @@ class SecurityAccessIT extends PostgresContainerSupport {
                 .andExpect(status().isUnauthorized());
         mockMvc.perform(get("/actuator/metrics")
                         .with(customer(stranger)))
-                .andExpect(status().isForbidden());
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.code").value("FORBIDDEN"))
+                .andExpect(jsonPath("$.requestId").isNotEmpty());
+        mockMvc.perform(get("/actuator/prometheus")).andExpect(status().isUnauthorized());
+        mockMvc.perform(get("/actuator/prometheus").with(user("admin@example.test").roles("ADMIN")))
+                .andExpect(status().isOk());
     }
 
     @Test

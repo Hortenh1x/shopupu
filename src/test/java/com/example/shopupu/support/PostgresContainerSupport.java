@@ -22,7 +22,11 @@ public abstract class PostgresContainerSupport {
             DockerImageName.parse("pgvector/pgvector:pg18").asCompatibleSubstituteFor("postgres"))
             .withDatabaseName("shopupu_test")
             .withUsername("shopupu")
-            .withPassword("shopupu");
+            .withPassword("shopupu")
+            .withCreateContainerCmdModifier(command -> command.getHostConfig()
+                    .withMemory(512L * 1024 * 1024)
+                    .withMemorySwap(512L * 1024 * 1024)
+                    .withNanoCPUs(1_000_000_000L));
 
     @DynamicPropertySource
     // handles registerPostgresProperties. Starts the container lazily, so a machine

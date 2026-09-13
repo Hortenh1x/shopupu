@@ -49,11 +49,25 @@ spring:
     caffeine:
       spec: maximumSize=2000,expireAfterWrite=10m
 
+  mail:
+    host: ${SMTP_HOST:}
+    port: ${SMTP_PORT:587}
+    username: ${SMTP_USERNAME:}
+    password: ${SMTP_PASSWORD:}
+    properties:
+      mail.smtp:
+        auth: ${SMTP_AUTH:true}
+        starttls.enable: ${SMTP_STARTTLS:true}
+        starttls.required: ${SMTP_STARTTLS:true}
+        connectiontimeout: 10000
+        timeout: 10000
+        writetimeout: 10000
+
 server:
   port: ${SERVER_PORT:8080}
   shutdown: graceful
-  # Behind a trusted reverse proxy / Cloudflare tunnel set this to "framework" so
-  # X-Forwarded-Proto/Host/For are honored (correct https URLs + real client IP).
+  # Enable forwarding only after the edge strips client-supplied headers and
+  # the origin is isolated; framework does not authenticate the proxy chain.
   # Default "none" = trust nothing (safe when exposed directly).
   forward-headers-strategy: ${SERVER_FORWARD_HEADERS_STRATEGY:none}
   compression:
@@ -72,6 +86,12 @@ management:
         enabled: true
       show-details: when_authorized
       roles: ADMIN
+  health:
+    mail:
+      # Boot registers the SMTP probe whenever spring.mail.host is present, even empty, and a
+      # failed probe turns the whole /actuator/health DOWN. With notifications.provider=disabled
+      # (the default) that is noise; opt in once SMTP is the selected, verified sender.
+      enabled: ${MAIL_HEALTH_ENABLED:false}
 
 # Sign in with Google (AUTH-13). Blank client id => the feature stays off and the
 # frontend hides the button; the OAuth Client ID is the same value used by the SPA.
@@ -79,11 +99,14 @@ google:
   client-id: ${GOOGLE_CLIENT_ID:}
 
 notifications:
-  # Resend HTTP email provider. Blank api-key => falls back to SMTP (spring.mail.host)
-  # or the dev logging sender. Paste the key to go live; nothing else required.
+  provider: ${NOTIFICATION_PROVIDER:disabled}
+  from: ${SMTP_FROM:}
+  max-attempts: 3
+  # Sender selection is explicit. Credentials alone never enable delivery.
+  # Owner must configure and verify SMTP/Resend before selecting its provider.
   resend:
     api-key: ${RESEND_API_KEY:}
-    from: ${NOTIFICATIONS_FROM_EMAIL:Shopupu <onboarding@resend.dev>}
+    from: ${NOTIFICATIONS_FROM_EMAIL:}
     timeout-seconds: ${RESEND_TIMEOUT_SECONDS:10}
 
 jwt:
@@ -94,6 +117,11 @@ jwt:
   refresh-token-ttl-days: ${JWT_REFRESH_TTL_DAYS:7}
   issuer: ${JWT_ISSUER:shopupu}
   audience: ${JWT_AUDIENCE:shopupu-api}
+
+auth:
+  mfa:
+    encryption-key: ${MFA_ENCRYPTION_KEY:}
+    issuer: ${MFA_ISSUER:Shopupu Demo}
 
 logging:
   level:
@@ -108,6 +136,10 @@ payments:
   callback-secret: ${PAYMENT_CALLBACK_SECRET:}
   callback-url: ${PAYMENT_CALLBACK_URL:http://localhost:8080/api/v1/payments/callback}
   request-timeout-seconds: ${PAYMENT_REQUEST_TIMEOUT_SECONDS:10}
+  stripe:
+    secret-key: ${STRIPE_SECRET_KEY:}
+    webhook-secret: ${STRIPE_WEBHOOK_SECRET:}
+    frontend-base-url: ${FRONTEND_BASE_URL:http://localhost:3000}
   monobank:
     api-base-url: ${MONOBANK_API_BASE_URL:https://api.monobank.ua}
     token: ${MONOBANK_TOKEN:}
@@ -150,6 +182,19 @@ shipping:
 
 ai:
   enabled: ${AI_ENABLED:false}
+  max-concurrent-calls: ${AI_MAX_CONCURRENT_CALLS:2}
+  external-calls-per-minute: ${AI_EXTERNAL_CALLS_PER_MINUTE:30}
+  external-calls-per-day: ${AI_EXTERNAL_CALLS_PER_DAY:500}
+  external-tokens-per-minute: ${AI_EXTERNAL_TOKENS_PER_MINUTE:60000}
+  external-tokens-per-day: ${AI_EXTERNAL_TOKENS_PER_DAY:500000}
+  max-input-bytes: ${AI_MAX_INPUT_BYTES:24000}
+  max-output-tokens: ${AI_MAX_OUTPUT_TOKENS:800}
+  max-response-bytes: ${AI_MAX_RESPONSE_BYTES:262144}
+  requests-per-minute: ${AI_REQUESTS_PER_MINUTE:20}
+  requests-per-day: ${AI_REQUESTS_PER_DAY:200}
+  max-tracked-clients: ${AI_MAX_TRACKED_CLIENTS:10000}
+  query-cache-entries: ${AI_QUERY_CACHE_ENTRIES:256}
+  query-cache-minutes: ${AI_QUERY_CACHE_MINUTES:10}
   # embeddings: stub | ollama (local, :11434) | local (TEI) | voyage
   embedding-provider: ${AI_EMBEDDING_PROVIDER:ollama}
   embedding-model: ${AI_EMBEDDING_MODEL:bge-m3}
@@ -169,3 +214,8 @@ ai:
   nl-search-max-distance: ${AI_NL_SEARCH_MAX_DISTANCE:0.62}
   nl-search-distance-margin: ${AI_NL_SEARCH_DISTANCE_MARGIN:0.05}
   nl-search-candidates: ${AI_NL_SEARCH_CANDIDATES:60}
+
+springdoc:
+  # Deterministic /v3/api-docs: springdoc otherwise emits Page schema properties (first/last/...) in
+  # reflection order, which flips between JVM runs and makes the committed api.d.ts comparison flap.
+  writer-with-order-by-keys: true

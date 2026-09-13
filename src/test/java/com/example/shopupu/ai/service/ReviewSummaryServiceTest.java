@@ -68,6 +68,7 @@ class ReviewSummaryServiceTest {
         aiProperties.setReviewSummaryMinReviews(2);
         lenient().when(transactionTemplate.execute(any())).thenAnswer(invocation ->
                 invocation.<TransactionCallback<Object>>getArgument(0).doInTransaction(null));
+        lenient().when(summaryRepository.lockProduct(any())).thenReturn(true);
         service = new ReviewSummaryService(aiProperties, llmClient, summaryRepository,
                 reviewRepository, productRepository, transactionTemplate, cacheManager,
                 new SimpleMeterRegistry());
@@ -157,6 +158,51 @@ class ReviewSummaryServiceTest {
         when(summaryRepository.findByProductId(1L)).thenReturn(Optional.empty());
 
         assertThrows(ResourceNotFoundException.class, () -> service.getSummary(1L));
+    }
+
+    @Test
+    void lateGenerationCannotRestoreSummaryAfterReviewErasure() {
+        when(productRepository.findById(1L)).thenReturn(Optional.of(product()));
+        when(reviewRepository.findByProductIdAndStatus(eq(1L), eq(ReviewStatus.APPROVED), any()))
+                .thenReturn(new PageImpl<>(List.of(review(5, "Synthetic private phrase"), review(4, "Good"))),
+                        new PageImpl<>(List.of()));
+        when(llmClient.summarizeReviews(anyString(), any())).thenReturn(Optional.of(new ReviewSummary(
+                "Synthetic private phrase", List.of(), List.of(), ReviewSummary.Sentiment.POSITIVE)));
+
+        service.regenerate(1L);
+
+        verify(summaryRepository, never()).upsert(any(), any(), anyInt(), any());
+    }
+
+    @Test
+    void sameReviewCountWithChangedTextIsNotTheSameApprovedSnapshot() {
+        when(productRepository.findById(1L)).thenReturn(Optional.of(product()));
+        when(reviewRepository.findByProductIdAndStatus(eq(1L), eq(ReviewStatus.APPROVED), any()))
+                .thenReturn(new PageImpl<>(List.of(review(5, "Old text"), review(4, "Good"))),
+                        new PageImpl<>(List.of(review(5, "Edited text"), review(4, "Good"))));
+        when(llmClient.summarizeReviews(anyString(), any())).thenReturn(Optional.of(new ReviewSummary(
+                "Old text", List.of(), List.of(), ReviewSummary.Sentiment.POSITIVE)));
+
+        service.regenerate(1L);
+
+        verify(summaryRepository, never()).upsert(any(), any(), anyInt(), any());
+    }
+
+    @Test
+    void successfulApplyLocksProductBeforeRecheckingSnapshotAndWriting() {
+        when(productRepository.findById(1L)).thenReturn(Optional.of(product()));
+        when(reviewRepository.findByProductIdAndStatus(eq(1L), eq(ReviewStatus.APPROVED), any()))
+                .thenReturn(new PageImpl<>(List.of(review(5, "Great"), review(4, "Good"))));
+        ReviewSummary summary = new ReviewSummary("Good", List.of(), List.of(), ReviewSummary.Sentiment.POSITIVE);
+        when(llmClient.summarizeReviews(anyString(), any())).thenReturn(Optional.of(summary));
+        service.regenerate(1L);
+        var order = org.mockito.Mockito.inOrder(summaryRepository, reviewRepository, llmClient);
+        order.verify(summaryRepository).lockProduct(1L);
+        order.verify(reviewRepository).findByProductIdAndStatus(eq(1L), eq(ReviewStatus.APPROVED), any());
+        order.verify(llmClient).summarizeReviews(anyString(), any());
+        order.verify(summaryRepository).lockProduct(1L);
+        order.verify(reviewRepository).findByProductIdAndStatus(eq(1L), eq(ReviewStatus.APPROVED), any());
+        order.verify(summaryRepository).upsert(1L, summary, 2, aiProperties.getLlmModel());
     }
 
     private Product product() {

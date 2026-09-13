@@ -1,32 +1,16 @@
 package com.example.shopupu.notifications;
 
-import lombok.extern.slf4j.Slf4j;
+import com.example.shopupu.common.exception.ServiceUnavailableException;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Service;
 
-/** Dev/no-op sender: keeps the notification pipeline testable without SMTP. */
-@Slf4j
+/** Explicitly disabled mail; never claim a reset/verification notification was delivered. */
 @Service
-@org.springframework.boot.autoconfigure.condition.ConditionalOnProperty(
-        name = "spring.mail.host", havingValue = "never-matches", matchIfMissing = true)
+@ConditionalOnProperty(name = "notifications.provider", havingValue = "disabled", matchIfMissing = true)
 public class LoggingNotificationService implements NotificationService {
-
-    @Override
-    public void sendOrderStatusUpdate(String email, String orderNumber, String newStatus) {
-        // no PII beyond the recipient needed here; body templates live with real senders
-        log.info("Notification: order {} status changed to {} (recipient hash={})",
-                orderNumber, newStatus, Integer.toHexString(email == null ? 0 : email.hashCode()));
-    }
-
-    @Override
-    public void sendPasswordReset(String email, String token) {
-        // tokens are secrets: never log them, even in the dev sender
-        log.info("Notification: password reset requested (recipient hash={})",
-                Integer.toHexString(email == null ? 0 : email.hashCode()));
-    }
-
-    @Override
-    public void sendEmailVerification(String email, String token) {
-        log.info("Notification: email verification issued (recipient hash={})",
-                Integer.toHexString(email == null ? 0 : email.hashCode()));
-    }
+    @Override public boolean isAvailable() { return false; }
+    @Override public void sendOrderStatusUpdate(String email, String orderNumber, String status) { unavailable(); }
+    @Override public void sendPasswordReset(String email, String token) { unavailable(); }
+    @Override public void sendEmailVerification(String email, String token) { unavailable(); }
+    private void unavailable() { throw new ServiceUnavailableException("EMAIL_DELIVERY_UNAVAILABLE", "Email delivery is unavailable"); }
 }

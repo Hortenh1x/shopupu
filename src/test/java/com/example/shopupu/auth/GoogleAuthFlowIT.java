@@ -75,7 +75,7 @@ class GoogleAuthFlowIT extends PostgresContainerSupport {
         mockMvc.perform(post("/api/v1/auth/register")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
-                                {"email":"%s","password":"Password123!","passwordConfirm":"Password123!"}
+                                {"email":"%s","password":"Google linking fixture 2026!","passwordConfirm":"Google linking fixture 2026!"}
                                 """.formatted(email)))
                 .andExpect(status().isCreated());
         Long localId = userRepository.findByEmail(email).orElseThrow().getId();

@@ -55,7 +55,7 @@ public class AuthController {
     public ResponseEntity<Void> resendVerification(Authentication authentication) {
         var user = userService.getByEmail(authentication.getName())
                 .orElseThrow(() -> new ResourceNotFoundException("User not found"));
-        authService.sendEmailVerification(user);
+        authService.resendEmailVerification(user);
         return ResponseEntity.noContent().build();
     }
 
@@ -73,11 +73,10 @@ public class AuthController {
     }
 
     @PostMapping("/login")
-    public ResponseEntity<TokenPairResponse> login(
+    public ResponseEntity<com.example.shopupu.auth.dto.LoginResponse> login(
             @RequestHeader(value = "X-Cart-Token", required = false) String guestCartToken,
             @Valid @RequestBody LoginRequest req) {
-        var pair = authService.login(req.email(), req.password(), guestCartToken);
-        return ResponseEntity.ok(new TokenPairResponse(pair.accessToken(), pair.refreshToken()));
+        return ResponseEntity.ok(authService.login(req.email(), req.password(), guestCartToken));
     }
 
     @PostMapping("/refresh")
@@ -87,17 +86,16 @@ public class AuthController {
     }
 
     @PostMapping("/google")
-    public ResponseEntity<TokenPairResponse> google(
+    public ResponseEntity<com.example.shopupu.auth.dto.LoginResponse> google(
             @RequestHeader(value = "X-Cart-Token", required = false) String guestCartToken,
             @Valid @RequestBody GoogleLoginRequest req) {
-        var pair = authService.loginWithGoogle(req.idToken(), guestCartToken);
-        return ResponseEntity.ok(new TokenPairResponse(pair.accessToken(), pair.refreshToken()));
+        return ResponseEntity.ok(authService.loginWithGoogle(req.idToken(), guestCartToken));
     }
 
     @PostMapping("/logout")
     @PreAuthorize("isAuthenticated()")
-    public ResponseEntity<Void> logout(@Valid @RequestBody RefreshRequest req) {
-        authService.logout(req.refreshToken());
+    public ResponseEntity<Void> logout(Authentication authentication, @Valid @RequestBody RefreshRequest req) {
+        authService.logout(req.refreshToken(), authentication.getName());
         return ResponseEntity.noContent().build();
     }
 

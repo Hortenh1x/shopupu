@@ -149,6 +149,10 @@ Payment provider is selected by `PAYMENTS_DEFAULT_PROVIDER` (`stub` for local de
   repositories in `ai/repository`, keeping vector types out of Hibernate's `validate`.
 - `verify` fails on Spotless violations and on the JaCoCo coverage floor — run `spotless:apply` first.
 - Image uploads are validated by **magic bytes**, not the client `Content-Type`; filenames are generated.
+- **Cart lines live in `Cart.items` (cascade ALL, orphanRemoval).** Deleting a `CartItem` through its
+  repository while the loaded cart still references it gets *un-scheduled at flush* — the line silently
+  survives and the reply (mapped from that collection) is stale. Add/remove through the collection
+  (`CartService.detach`); `CartLinesIT` guards this against a real Postgres because mocks cannot see it.
 - Refresh tokens are stored **hashed** with rotation + reuse-detection (reuse revokes the whole chain).
 - The `controllers/`, `dtos/`, `entities/`, `repositories/`, `services/` dirs at the repo root are empty
   legacy stubs — the real code is under `src/main/java/com/example/shopupu/`.

@@ -1,0 +1,11 @@
+# Dependency remediation, 12 September 2026
+
+Selection is implemented; **resolved dependency scan, compilation and artifact checks remain pending** until recorded in the remediation evidence. Historical audit files are retained unchanged. Package presence alone does not prove exploitability.
+
+- Spring Boot 4.0.7 → 4.0.8 stays on the same supported minor line. Its published BOM updates Log4j to 2.25.5 and pgJDBC to 42.7.13. [Boot 4.0 dependency management](https://docs.spring.io/spring-boot/4.0/appendix/dependency-versions/index.html).
+- Override embedded Tomcat to 11.0.25, beyond the 4.0.8 BOM's 11.0.24, for the published HTTP/2 and conditional container fixes. Servlet example apps, container FORM/DIGEST/Realm auth and WebSocket sessions are not used by this stateless JWT API, but the whole embedded family stays on one patched version. [Apache Tomcat 11 security](https://tomcat.apache.org/security-11.html).
+- Jackson 2 and 3 BOMs use same-line patch versions 2.21.6 and 3.1.6. The original findings involve specific unwrapped/view binding; DTOs and authorization must continue to prevent mass assignment independently of library patches. [Maintainer advisory](https://github.com/FasterXML/jackson-databind/security/advisories/GHSA-5gvw-p9qm-jgwh).
+- jsoup 1.18.3 → 1.23.2; re-run review HTML sanitization regressions. [Maintainer releases](https://jsoup.org/news/).
+- Next.js 16.2.4 → 16.3.5, above the 16.3.3 August security release. Keep the Linux artifact and restrictive image/URL policy; do not infer Windows-only findings are reachable here. React/React DOM stay paired on 19.2.8. Vitest stays on patched 4.1.11 rather than changing its major version. The lockfile must be regenerated and scanned, including transitive js-yaml, brace-expansion, image and build dependencies. [Next.js August security release](https://nextjs.org/blog/august-2026-security-release).
+
+Versions were checked against the publishers' Maven Central/npm metadata. Maven and npm scans must run against the **resolved** final artifacts, not only these declarations. Overrides can be removed when a later compatible Boot BOM supplies equivalent or newer fixes. Do not report a clean scan until the final scan artifact exists.

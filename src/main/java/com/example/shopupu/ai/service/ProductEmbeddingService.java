@@ -74,7 +74,7 @@ public class ProductEmbeddingService {
                     indexProduct(id);
                     indexed++;
                 } catch (Exception ex) {
-                    log.warn("Embedding backfill failed for product {}", id, ex);
+                    log.warn("Embedding backfill unavailable for product {}", id);
                 }
             }
             afterId = ids.get(ids.size() - 1);

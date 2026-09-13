@@ -31,4 +31,22 @@ class StubPaymentGatewayClientTest {
         assertNotNull(response.paymentUrl());
         assertNotNull(response.clientToken());
     }
+
+    @Test
+    void refundRecoveryWithoutResponseIdIsDeterministicAcrossInstances() {
+        var request = new PaymentGatewayRefundRequest(1L, 2L, "stub-payment-1-test", new BigDecimal("10.00"), "EUR", "stable-operation");
+        var recoveredBeforePost = new StubPaymentGatewayClient().fetchRefundStatus(request, null).orElseThrow();
+        var submitted = new StubPaymentGatewayClient().refundPayment(request);
+        var recoveredAfterRestart = new StubPaymentGatewayClient().fetchRefundStatus(request, submitted.externalRefundId()).orElseThrow();
+        assertEquals(PaymentGatewayRefundStatus.SUCCEEDED, recoveredBeforePost.status());
+        assertEquals(submitted, recoveredBeforePost);
+        assertEquals(submitted, recoveredAfterRestart);
+    }
+
+    @Test
+    void refundRecoveryRejectsAnUnrelatedRefundIdentity() {
+        var request = new PaymentGatewayRefundRequest(1L, 2L, "stub-payment-1-test", new BigDecimal("10.00"), "EUR", "stable-operation");
+        org.junit.jupiter.api.Assertions.assertThrows(IllegalArgumentException.class,
+                () -> new StubPaymentGatewayClient().fetchRefundStatus(request, "other-refund"));
+    }
 }

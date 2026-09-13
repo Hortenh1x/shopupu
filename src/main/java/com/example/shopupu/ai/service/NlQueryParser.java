@@ -2,9 +2,11 @@ package com.example.shopupu.ai.service;
 
 import com.example.shopupu.ai.gateway.LlmClient;
 import com.example.shopupu.ai.model.ParsedProductQuery;
+import com.example.shopupu.config.AiProperties;
+import com.github.benmanes.caffeine.cache.Cache;
+import com.github.benmanes.caffeine.cache.Caffeine;
+import java.time.Duration;
 import java.util.Optional;
-import lombok.RequiredArgsConstructor;
-import org.springframework.cache.annotation.Cacheable;
 import org.springframework.stereotype.Service;
 
 /**
@@ -12,13 +14,27 @@ import org.springframework.stereotype.Service;
  * parsed once, not per request.
  */
 @Service
-@RequiredArgsConstructor
 public class NlQueryParser {
 
     private final LlmClient llmClient;
+    private final AiProperties properties;
+    private final Cache<String, Optional<ParsedProductQuery>> cache;
 
-    @Cacheable(cacheNames = "aiNlQuery", key = "#query")
+    public NlQueryParser(LlmClient llmClient, AiProperties properties) {
+        this.llmClient = llmClient;
+        this.properties = properties;
+        this.cache = Caffeine.newBuilder().maximumSize(properties.getQueryCacheEntries())
+                .expireAfterWrite(Duration.ofMinutes(properties.getQueryCacheMinutes())).build();
+    }
+
     public Optional<ParsedProductQuery> parse(String query) {
-        return llmClient.parseCatalogQuery(query);
+        if (!properties.isEnabled() || query == null || query.isBlank() || query.length() > 500) {
+            return Optional.empty();
+        }
+        try {
+            return cache.get(query, llmClient::parseCatalogQuery);
+        } catch (RuntimeException exception) {
+            return Optional.empty();
+        }
     }
 }

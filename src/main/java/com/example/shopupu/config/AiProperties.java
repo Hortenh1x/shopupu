@@ -65,6 +65,48 @@ public class AiProperties {
     @Max(60)
     private Integer requestTimeoutSeconds = 15;
 
+    /** Single-instance guardrails, reserved before any provider call. */
+    @NotNull @Min(1) @Max(8)
+    private Integer maxConcurrentCalls = 2;
+
+    @NotNull @Min(1) @Max(1000)
+    private Integer externalCallsPerMinute = 30;
+
+    @NotNull @Min(1) @Max(100000)
+    private Integer externalCallsPerDay = 500;
+
+    /** Conservative token units: UTF-8 input bytes plus framing and maximum output. */
+    @NotNull @Min(1) @Max(10000000)
+    private Long externalTokensPerMinute = 60000L;
+
+    @NotNull @Min(1) @Max(100000000)
+    private Long externalTokensPerDay = 500000L;
+
+    @NotNull @Min(256) @Max(64000)
+    private Integer maxInputBytes = 24000;
+
+    @NotNull @Min(64) @Max(2048)
+    private Integer maxOutputTokens = 800;
+
+    @NotNull @Min(1024) @Max(1048576)
+    private Integer maxResponseBytes = 262144;
+
+    /** Applies independently to socket peer and authenticated account. */
+    @NotNull @Min(1) @Max(1000)
+    private Integer requestsPerMinute = 20;
+
+    @NotNull @Min(1) @Max(100000)
+    private Integer requestsPerDay = 200;
+
+    @NotNull @Min(1) @Max(100000)
+    private Integer maxTrackedClients = 10000;
+
+    @NotNull @Min(1) @Max(2000)
+    private Integer queryCacheEntries = 256;
+
+    @NotNull @Min(1) @Max(60)
+    private Integer queryCacheMinutes = 10;
+
     /** Products with fewer approved reviews than this get no summary. */
     @NotNull
     @Min(1)

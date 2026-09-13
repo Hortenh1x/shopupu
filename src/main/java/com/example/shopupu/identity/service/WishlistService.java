@@ -17,6 +17,8 @@ import org.springframework.transaction.annotation.Transactional;
 @RequiredArgsConstructor
 public class WishlistService {
 
+    private final AccountDataGuard accountDataGuard;
+
     private final WishlistItemRepository wishlistItemRepository;
     private final ProductRepository productRepository;
 
@@ -27,6 +29,7 @@ public class WishlistService {
 
     @Transactional
     public void add(User user, Long productId) {
+        accountDataGuard.lockActive(user.getId());
         Product product = productRepository.findById(productId)
                 .filter(p -> !p.isDeleted())
                 .orElseThrow(() -> new ResourceNotFoundException("Product with id " + productId + " not found"));
@@ -38,6 +41,7 @@ public class WishlistService {
 
     @Transactional
     public void remove(User user, Long productId) {
+        accountDataGuard.lockActive(user.getId());
         wishlistItemRepository.deleteByUserAndProduct_Id(user, productId);
     }
 

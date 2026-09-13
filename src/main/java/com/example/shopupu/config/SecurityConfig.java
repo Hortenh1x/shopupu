@@ -1,11 +1,13 @@
 package com.example.shopupu.config;
 
+import com.example.shopupu.common.web.SecurityProblemWriter;
 import com.example.shopupu.security.JwtAuthFilter;
 import com.example.shopupu.security.RateLimitFilter;
 import lombok.RequiredArgsConstructor;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.http.HttpMethod;
+import org.springframework.http.HttpStatus;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.config.Customizer;
 import org.springframework.security.config.annotation.authentication.configuration.AuthenticationConfiguration;
@@ -36,6 +38,7 @@ public class SecurityConfig {
 
     private final JwtAuthFilter jwtAuthFilter;
     private final RateLimitFilter rateLimitFilter;
+    private final SecurityProblemWriter problemWriter;
 
     @Bean
     public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
@@ -64,27 +67,30 @@ public class SecurityConfig {
                         .requestMatchers(HttpMethod.POST,
                                 "/api/v1/auth/register", "/api/v1/auth/login", "/api/v1/auth/refresh",
                                 "/api/v1/auth/forgot-password", "/api/v1/auth/reset-password",
-                                "/api/v1/auth/verify-email", "/api/v1/auth/google").permitAll()
-                        .requestMatchers(HttpMethod.GET, "/api/v1/catalog/**").permitAll()
+                                "/api/v1/auth/verify-email", "/api/v1/auth/google",
+                                "/api/v1/auth/mfa/enrollment/start", "/api/v1/auth/mfa/enrollment/confirm",
+                                "/api/v1/auth/mfa/verify").permitAll()
+                        .requestMatchers(HttpMethod.GET, "/api/v1/catalog/**", "/api/v1/storefront/config").permitAll()
                         // stylist chat is a public catalog read; POST only because the
                         // conversation travels in the body (degrades to stub without AI)
                         .requestMatchers(HttpMethod.POST, "/api/v1/catalog/stylist/chat").permitAll()
                         // guest carts are scoped by an opaque X-Cart-Token (CART-01)
                         .requestMatchers("/api/v1/cart/**").permitAll()
                         // payment callbacks are authenticated by provider signature, not JWT
-                        .requestMatchers(HttpMethod.POST, "/api/v1/payments/callback").permitAll()
+                        .requestMatchers(HttpMethod.POST, "/api/v1/payments/callback", "/api/v1/payments/stripe/webhook").permitAll()
                         .requestMatchers("/swagger", "/swagger-ui/**", "/v3/api-docs/**").permitAll()
                         .requestMatchers("/actuator/health/**", "/actuator/health").permitAll()
                         .requestMatchers("/actuator/**").hasRole("ADMIN")
                         .requestMatchers("/api/v1/admin/users/**").hasRole("ADMIN")
+                        .requestMatchers("/api/v1/admin/orders/**", "/api/v1/admin/payments/**").hasRole("ADMIN")
                         .requestMatchers("/api/v1/admin/**").hasAnyRole("ADMIN", "MANAGER")
                         .anyRequest().authenticated()
                 )
                 .exceptionHandling(ex -> ex
                         .authenticationEntryPoint((request, response, e) ->
-                                writeProblem(response, 401, "Authentication required"))
+                                problemWriter.write(request, response, HttpStatus.UNAUTHORIZED, "UNAUTHORIZED", "Authentication required"))
                         .accessDeniedHandler((request, response, e) ->
-                                writeProblem(response, 403, "Access denied")))
+                                problemWriter.write(request, response, HttpStatus.FORBIDDEN, "FORBIDDEN", "Access denied")))
                 .addFilterBefore(jwtAuthFilter, UsernamePasswordAuthenticationFilter.class)
                 .addFilterBefore(rateLimitFilter, JwtAuthFilter.class)
                 .build();
@@ -102,16 +108,6 @@ public class SecurityConfig {
             boolean docs = uri.startsWith("/swagger") || uri.startsWith("/v3/api-docs");
             response.setHeader("Content-Security-Policy", docs ? DOCS_CSP : API_CSP);
         };
-    }
-
-    private static void writeProblem(jakarta.servlet.http.HttpServletResponse response, int status, String detail)
-            throws java.io.IOException {
-        response.setStatus(status);
-        response.setContentType("application/problem+json");
-        response.getWriter().write("{\"type\":\"urn:shopupu:error:"
-                + (status == 401 ? "unauthorized" : "forbidden")
-                + "\",\"title\":\"" + (status == 401 ? "unauthorized" : "forbidden")
-                + "\",\"status\":" + status + ",\"detail\":\"" + detail + "\"}");
     }
 
     @Bean

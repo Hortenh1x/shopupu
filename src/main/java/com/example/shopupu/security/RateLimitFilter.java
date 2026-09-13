@@ -1,5 +1,6 @@
 package com.example.shopupu.security;
 
+import com.example.shopupu.common.web.SecurityProblemWriter;
 import com.example.shopupu.config.RateLimitProperties;
 import com.github.benmanes.caffeine.cache.Cache;
 import com.github.benmanes.caffeine.cache.Caffeine;
@@ -13,7 +14,7 @@ import jakarta.servlet.http.HttpServletResponse;
 import java.io.IOException;
 import java.time.Duration;
 import lombok.RequiredArgsConstructor;
-import org.springframework.http.MediaType;
+import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Component;
 import org.springframework.web.filter.OncePerRequestFilter;
 
@@ -27,6 +28,7 @@ import org.springframework.web.filter.OncePerRequestFilter;
 public class RateLimitFilter extends OncePerRequestFilter {
 
     private final RateLimitProperties properties;
+    private final SecurityProblemWriter problemWriter;
 
     private final Cache<String, Bucket> buckets = Caffeine.newBuilder()
             .maximumSize(100_000)
@@ -61,10 +63,7 @@ public class RateLimitFilter extends OncePerRequestFilter {
         response.setStatus(429);
         response.setHeader("Retry-After", String.valueOf(retryAfterSec));
         response.setHeader("X-RateLimit-Remaining", "0");
-        response.setContentType(MediaType.APPLICATION_PROBLEM_JSON_VALUE);
-        response.getWriter().write("""
-                {"type":"urn:shopupu:error:rate-limit","title":"Too Many Requests","status":429,\
-                "detail":"Rate limit exceeded, retry later"}""");
+        problemWriter.write(request, response, HttpStatus.TOO_MANY_REQUESTS, "RATE_LIMITED", "Rate limit exceeded, retry later");
     }
 
     private enum Zone { AUTH, CHECKOUT, SEMANTIC, NONE }
@@ -119,9 +118,11 @@ public class RateLimitFilter extends OncePerRequestFilter {
      * value per request to mint a fresh token bucket every time, defeating the
      * brute-force limits on auth/checkout (SEC-05, AUTH-08). The proxy-trust
      * decision belongs to {@code server.forward-headers-strategy}: when set to
-     * {@code framework}/{@code native} behind a trusted proxy, Spring/Tomcat
-     * validate the proxy chain and set {@link HttpServletRequest#getRemoteAddr()}
-     * to the real client IP; when {@code none} (default / direct exposure) it is
+     * {@code framework}, the edge must strip untrusted forwarding headers and
+     * the origin must be unreachable except through that edge. The framework
+     * strategy does not validate the proxy chain itself. Native forwarding
+     * additionally requires an explicit Tomcat trusted-proxy configuration.
+     * With {@code none} (default / direct exposure), the address is
      * the unspoofable socket peer. Either way {@code getRemoteAddr()} is the
      * correct, trust-appropriate source.
      */

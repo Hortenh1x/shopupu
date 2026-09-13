@@ -6,6 +6,8 @@ import io.jsonwebtoken.ExpiredJwtException;
 import io.jsonwebtoken.Jwts;
 import io.jsonwebtoken.security.Keys;
 import java.nio.charset.StandardCharsets;
+import java.time.Duration;
+import java.time.Instant;
 import java.util.Date;
 import java.util.function.Function;
 import javax.crypto.SecretKey;
@@ -55,14 +57,17 @@ public class JwtTokenProvider {
     }
 
     public String generateToken(UserDetails userDetails) {
-        return generateTokenWithExpiration(userDetails, jwtExpiration);
+        return generateToken(userDetails, null);
     }
 
-    private String generateTokenWithExpiration(UserDetails userDetails, long expirationMs) {
+    public String generateToken(UserDetails userDetails, Instant mfaVerifiedAt) {
+        long expirationMs = Math.min(jwtExpiration, Duration.ofMinutes(15).toMillis());
         Date now = new Date(System.currentTimeMillis());
 
         return Jwts.builder()
                 .subject(userDetails.getUsername())
+                .claim("authVersion", userDetails instanceof ShopUserDetails principal ? principal.authVersion() : 0L)
+                .claim("mfaVerifiedAt", mfaVerifiedAt == null ? null : mfaVerifiedAt.getEpochSecond())
                 .issuer(issuer)
                 .audience().add(audience).and()
                 .issuedAt(now)
@@ -73,15 +78,23 @@ public class JwtTokenProvider {
 
     public boolean isTokenValid(String token, UserDetails userDetails) {
         try {
-            String username = extractUsername(token);
-            return username.equals(userDetails.getUsername()) && !isTokenExpired(token);
+            Claims claims = extractAllClaims(token);
+            if (!userDetails.isEnabled() || !claims.getSubject().equals(userDetails.getUsername())) return false;
+            Number version = claims.get("authVersion", Number.class);
+            long currentVersion = userDetails instanceof ShopUserDetails principal ? principal.authVersion() : 0;
+            if (version == null || version.longValue() != currentVersion) return false;
+            boolean privileged = userDetails.getAuthorities().stream().anyMatch(a ->
+                    a.getAuthority().equals("ROLE_ADMIN") || a.getAuthority().equals("ROLE_MANAGER"));
+            if (privileged) {
+                Number assurance = claims.get("mfaVerifiedAt", Number.class);
+                if (!(userDetails instanceof ShopUserDetails principal) || !principal.mfaEnrolled() || assurance == null) return false;
+                Instant verified = Instant.ofEpochSecond(assurance.longValue());
+                if (verified.isAfter(Instant.now()) || !verified.plus(Duration.ofHours(12)).isAfter(Instant.now())) return false;
+            }
+            return claims.getExpiration().after(new Date());
         } catch (Exception e) {
             return false;
         }
     }
 
-    private boolean isTokenExpired(String token) {
-        Date expiration = extractClaim(token, Claims::getExpiration);
-        return expiration.before(new Date());
-    }
 }

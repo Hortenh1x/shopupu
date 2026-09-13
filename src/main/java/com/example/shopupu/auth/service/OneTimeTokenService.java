@@ -30,11 +30,15 @@ public class OneTimeTokenService {
     private static final SecureRandom RANDOM = new SecureRandom();
 
     private final OneTimeTokenRepository tokenRepository;
+    private final com.example.shopupu.identity.repository.UserRepository userRepository;
 
     /** Returns the raw token to send to the user; only its hash is persisted. */
     @Transactional
     public String mint(User user, OneTimeToken.Purpose purpose) {
-        tokenRepository.invalidateAllFor(user.getId(), purpose, Instant.now());
+        User locked = userRepository.findByIdForUpdate(user.getId())
+                .orElseThrow(() -> new BusinessRuleException("Token is invalid or expired"));
+        if (!locked.isEnabled() || locked.getDeletedAt() != null) throw new BusinessRuleException("Account is disabled");
+        tokenRepository.invalidateAllFor(locked.getId(), purpose, Instant.now());
 
         byte[] bytes = new byte[32];
         RANDOM.nextBytes(bytes);
@@ -45,7 +49,7 @@ public class OneTimeTokenService {
                 : EMAIL_VERIFICATION_TTL;
 
         tokenRepository.save(OneTimeToken.builder()
-                .user(user)
+                .user(locked)
                 .tokenHash(hash(raw))
                 .purpose(purpose)
                 .expiresAt(Instant.now().plus(ttl))
@@ -56,14 +60,22 @@ public class OneTimeTokenService {
     /** Validates and burns the token; the same message for every failure mode. */
     @Transactional
     public User consume(String rawToken, OneTimeToken.Purpose purpose) {
-        OneTimeToken token = tokenRepository.findByTokenHashAndPurpose(hash(rawToken), purpose)
+        String tokenHash = hash(rawToken);
+        Long userId = tokenRepository.findUserId(tokenHash, purpose)
                 .orElseThrow(() -> new BusinessRuleException("Token is invalid or expired"));
-        if (token.getUsedAt() != null || token.getExpiresAt().isBefore(Instant.now())) {
+        User user = userRepository.findByIdForUpdate(userId)
+                .orElseThrow(() -> new BusinessRuleException("Token is invalid or expired"));
+        if (!user.isEnabled() || tokenRepository.consume(tokenHash, purpose, Instant.now()) != 1) {
             throw new BusinessRuleException("Token is invalid or expired");
         }
-        token.setUsedAt(Instant.now());
-        tokenRepository.save(token);
-        return token.getUser();
+        return user;
+    }
+
+    @Transactional
+    public void invalidatePasswordResets(User user) {
+        User locked = userRepository.findByIdForUpdate(user.getId())
+                .orElseThrow(() -> new BusinessRuleException("Account is unavailable"));
+        tokenRepository.invalidateAllFor(locked.getId(), OneTimeToken.Purpose.PASSWORD_RESET, Instant.now());
     }
 
     static String hash(String raw) {

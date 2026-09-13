@@ -1,9 +1,11 @@
 # Shopupu — Clothing Shop Backend
 
-Production-oriented Spring Boot REST API for an online clothing store: product
+Spring Boot REST API for a fictional clothing-store demo: product
 variants (size/color/SKU), inventory with reservations, an order state machine,
 idempotent checkout, promo codes, moderated reviews and pluggable payment
 gateways (monobank for UAH, Fondy for EUR, stub for local dev).
+
+**All products/reviews used as samples are fictional. Nothing is sold or shipped. Payments support local simulation and Stripe test mode only; live keys are rejected.** See [owner integration steps](docs/external-integrations.md), [database roles/recovery](docs/database-recovery.md) and [remediation plan](docs/remediation-plan-2026-09-12.md).
 
 API-only backend — the web frontend is a separate project (`../shopupu-web`).
 
@@ -19,7 +21,9 @@ API-only backend — the web frontend is a separate project (`../shopupu-web`).
 ## Quick Start (local)
 
 ```bash
-# 1. PostgreSQL
+# 1. Copy .env.example to .env and set a generated DB_PASSWORD.
+# Set DB_USERNAME=shopupu for the local bootstrap DB only.
+# PostgreSQL
 docker compose up -d db
 
 # 2. Run with the dev profile (provides a dev-only JWT secret)
@@ -31,13 +35,13 @@ Health: <http://localhost:8080/actuator/health>
 
 Without the `dev` profile the application **refuses to start unless `JWT_SECRET`
 is set** — this is intentional (no secrets ship in the repo). All environment
-variables are documented in [`.env.example`](.env).
+variables are documented in [`.env.example`](.env.example). Production also requires a restricted runtime DB role; privileged sign-in requires the MFA encryption key.
 
 Run tests (unit + Testcontainers integration; needs Docker):
 
 ```bash
-./mvnw test          # tests only
-./mvnw verify        # tests + JaCoCo coverage gate + Spotless check
+./mvnw test          # unit tests only
+./mvnw verify        # unit + PostgreSQL integration tests + coverage + formatting
 ```
 
 Build a production image:
@@ -69,10 +73,10 @@ domain module has the same internal shape (`controller` · `dto` · `entity` ·
 | `inventory` | stock / reserved per SKU, atomic movements, oversell prevention |
 | `cart` | user & guest carts (`X-Cart-Token`), merge on login |
 | `orders` | idempotent checkout, order state machine, status history, snapshots |
-| `payments` | monobank / Fondy / stub gateways, HMAC webhooks, refunds |
+| `payments` | local demo simulation / Stripe test checkout, native signed events, recoverable full test refunds |
 | `promo` | promo codes with atomic redemption accounting |
 | `shipping` | methods, rates, free-shipping threshold, address snapshot |
-| `reviews` | verified-purchase reviews, pre-moderation, sanitization |
+| `reviews` | demo-order reviews, explicit sample provenance, pre-moderation, sanitization |
 | `ai` | semantic search (pgvector), «похожие»/«с этим покупают», саммари отзывов |
 | `notifications` | domain events → async email (SMTP or logging fallback) |
 | `common` · `config` · `security` | cross-cutting: audit, errors, storage, JWT, rate limiting, properties |

@@ -4,6 +4,7 @@ import com.example.shopupu.auth.dto.UserProfile;
 import java.math.BigDecimal;
 import java.time.Instant;
 import java.util.List;
+import java.util.Map;
 
 /** GDPR data export payload (USER-05/COMPL-01). */
 public record UserDataExport(
@@ -11,7 +12,9 @@ public record UserDataExport(
         List<AddressResponse> addresses,
         List<ExportedOrder> orders,
         List<ExportedReview> reviews,
-        Instant exportedAt
+        Instant exportedAt,
+        Map<String, List<Map<String, Object>>> records,
+        List<String> scope
 ) {
     public record ExportedOrder(
             String orderNumber,
@@ -26,7 +29,8 @@ public record UserDataExport(
             Integer rating,
             String body,
             String status,
-            Instant createdAt
+            Instant createdAt,
+            String source
     ) {
     }
 }

@@ -74,6 +74,7 @@ public class CatalogAiController {
         if (q == null || q.isBlank()) {
             throw new BadRequestException("Query parameter 'q' must not be blank");
         }
+        if (q.length() > 500) throw new BadRequestException("Query parameter 'q' must be at most 500 characters");
         return q;
     }
 

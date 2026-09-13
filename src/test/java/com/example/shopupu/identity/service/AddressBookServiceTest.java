@@ -27,6 +27,9 @@ class AddressBookServiceTest {
     @Mock
     private UserAddressRepository addressRepository;
 
+    @Mock
+    private AccountDataGuard accountDataGuard;
+
     @InjectMocks
     private AddressBookService addressBookService;
 

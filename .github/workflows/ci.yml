@@ -22,6 +22,14 @@ jobs:
       - name: Build and verify
         run: ./mvnw -B verify
 
+      - name: Build the release image with the tested revision
+        run: docker build --build-arg VCS_REF="$GITHUB_SHA" -t shopupu:ci .
+
+      - name: Verify runtime JDK and revision label
+        run: |
+          docker run --rm --entrypoint java shopupu:ci -version
+          test "$(docker inspect --format '{{ index .Config.Labels "org.opencontainers.image.revision" }}' shopupu:ci)" = "$GITHUB_SHA"
+
       - name: Upload coverage report
         if: always()
         uses: actions/upload-artifact@v4

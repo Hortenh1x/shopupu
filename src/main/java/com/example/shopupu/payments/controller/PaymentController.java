@@ -34,6 +34,12 @@ public class PaymentController {
         return ResponseEntity.ok(paymentService.getPaymentForCurrentUser(id));
     }
 
+    @PostMapping("/{id}/simulate-success")
+    public ResponseEntity<PaymentResponse> simulateSuccess(@PathVariable Long id) {
+        // DemoProperties is validated as enabled at startup. The service enforces owner and stub provider.
+        return ResponseEntity.ok(paymentService.simulateSuccess(id));
+    }
+
     @PostMapping("/callback")
     public ResponseEntity<Void> handleCallback(
             @RequestBody String rawPayload,

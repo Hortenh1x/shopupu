@@ -8,25 +8,25 @@ import com.example.shopupu.ai.repository.ReviewSummaryRepository;
 import com.example.shopupu.catalog.repository.ProductRepository;
 import com.example.shopupu.common.exception.ResourceNotFoundException;
 import com.example.shopupu.config.AiProperties;
-import com.example.shopupu.reviews.entity.Review;
 import com.example.shopupu.reviews.entity.ReviewStatus;
 import com.example.shopupu.reviews.repository.ReviewRepository;
+import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.cache.CacheManager;
-import org.springframework.cache.annotation.Cacheable;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Sort;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.transaction.support.TransactionTemplate;
 
 /**
- * "What customers say" summaries. Only APPROVED (already Jsoup-sanitized,
- * PII-free) review texts reach the LLM, and the call follows the ADR-0003
+ * "What customers say" summaries. Only APPROVED, HTML-sanitized review texts
+ * reach the LLM (approval/sanitization do not prove absence of PII). Follows ADR-0003:
  * shape: TX(load snapshot) -> LLM HTTP outside any transaction -> TX(upsert).
  */
 @Slf4j
@@ -45,7 +45,6 @@ public class ReviewSummaryService {
     private final CacheManager cacheManager;
     private final io.micrometer.core.instrument.MeterRegistry meterRegistry;
 
-    @Cacheable(cacheNames = "reviewSummary", key = "#productId")
     @Transactional(readOnly = true)
     public ReviewSummaryResponse getSummary(Long productId) {
         if (!productRepository.existsById(productId)) {
@@ -56,29 +55,40 @@ public class ReviewSummaryService {
                         "Review summary for product " + productId + " is not available"));
     }
 
+    @Transactional(propagation = Propagation.NEVER)
     public void regenerate(Long productId) {
         if (!aiProperties.isEnabled()) {
             return;
         }
-        ReviewsSnapshot snapshot = transactionTemplate.execute(tx -> loadApprovedReviews(productId));
+        ReviewsSnapshot snapshot = transactionTemplate.execute(tx -> {
+            if (!summaryRepository.lockProduct(productId)) return null;
+            ReviewsSnapshot captured = loadApprovedReviews(productId);
+            if (captured != null && captured.reviews().size() < aiProperties.getReviewSummaryMinReviews()) {
+                summaryRepository.deleteByProductId(productId);
+                return null;
+            }
+            return captured;
+        });
+        // Reads no longer use a cache: a concurrent cache loader must not restore erased text.
+        evict(productId);
         if (snapshot == null) {
             return;
         }
-        if (snapshot.reviewLines().size() < aiProperties.getReviewSummaryMinReviews()) {
-            // too few approved reviews (or reviews were removed): drop any stale summary
-            summaryRepository.deleteByProductId(productId);
-            evict(productId);
-            return;
-        }
         summarize(snapshot).ifPresent(summary -> {
-            summaryRepository.upsert(productId, summary,
-                    snapshot.reviewLines().size(), aiProperties.getLlmModel());
-            evict(productId);
+            boolean applied = Boolean.TRUE.equals(transactionTemplate.execute(tx -> {
+                if (!aiProperties.isEnabled() || !summaryRepository.lockProduct(productId)) return false;
+                ReviewsSnapshot current = loadApprovedReviews(productId);
+                if (!snapshot.equals(current)) return false;
+                summaryRepository.upsert(productId, summary, snapshot.reviews().size(), aiProperties.getLlmModel());
+                return true;
+            }));
+            if (applied) evict(productId);
         });
     }
 
     @Async("aiExecutor")
     public void refreshAllAsync() {
+        if (!aiProperties.isEnabled()) return;
         List<Long> productIds = transactionTemplate.execute(tx ->
                 reviewRepository.findProductIdsWithApprovedCountAtLeast(
                         aiProperties.getReviewSummaryMinReviews()));
@@ -89,7 +99,7 @@ public class ReviewSummaryService {
             try {
                 regenerate(productId);
             } catch (Exception ex) {
-                log.warn("Review summary refresh failed for product {}", productId, ex);
+                log.warn("Review summary refresh unavailable for product {}", productId);
             }
         }
         log.info("Review summary refresh finished for {} products", productIds.size());
@@ -125,16 +135,13 @@ public class ReviewSummaryService {
     private ReviewsSnapshot loadApprovedReviews(Long productId) {
         return productRepository.findById(productId).map(product -> {
             var page = reviewRepository.findByProductIdAndStatus(productId, ReviewStatus.APPROVED,
-                    PageRequest.of(0, MAX_REVIEWS_PER_SUMMARY, Sort.by(Sort.Direction.DESC, "createdAt")));
-            List<String> lines = page.getContent().stream()
-                    .map(ReviewSummaryService::toReviewLine)
+                    PageRequest.of(0, MAX_REVIEWS_PER_SUMMARY, Sort.by(Sort.Direction.DESC, "createdAt", "id")));
+            List<ApprovedReviewSnapshot> reviews = page.getContent().stream()
+                    .map(review -> new ApprovedReviewSnapshot(review.getId(), review.getRating(),
+                            review.getBody(), review.getUpdatedAt()))
                     .toList();
-            return new ReviewsSnapshot(product.getTitle(), lines);
+            return new ReviewsSnapshot(product.getTitle(), page.getTotalElements(), reviews);
         }).orElse(null);
-    }
-
-    private static String toReviewLine(Review review) {
-        return "[" + review.getRating() + "/5] " + review.getBody();
     }
 
     private void evict(Long productId) {
@@ -144,6 +151,12 @@ public class ReviewSummaryService {
         }
     }
 
-    private record ReviewsSnapshot(String productTitle, List<String> reviewLines) {
+    private record ApprovedReviewSnapshot(Long id, Integer rating, String body, Instant updatedAt) {
+    }
+
+    private record ReviewsSnapshot(String productTitle, long approvedCount, List<ApprovedReviewSnapshot> reviews) {
+        List<String> reviewLines() {
+            return reviews.stream().map(review -> "[" + review.rating() + "/5] " + review.body()).toList();
+        }
     }
 }

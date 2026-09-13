@@ -4,7 +4,6 @@ import com.example.shopupu.orders.dto.OrderDto;
 import com.example.shopupu.orders.dto.OrderStatusHistoryDto;
 import com.example.shopupu.orders.dto.UpdateOrderStatusRequest;
 import com.example.shopupu.orders.entity.OrderStatus;
-import com.example.shopupu.orders.mapper.OrderMapper;
 import com.example.shopupu.orders.service.OrderService;
 import jakarta.validation.Valid;
 import java.util.List;
@@ -30,7 +29,6 @@ import org.springframework.web.bind.annotation.RestController;
 public class AdminOrderController {
 
     private final OrderService orderService;
-    private final OrderMapper orderMapper;
 
     @GetMapping
     public ResponseEntity<Page<OrderDto>> getOrders(
@@ -41,12 +39,12 @@ public class AdminOrderController {
 
     @GetMapping("/{id}")
     public ResponseEntity<OrderDto> getOrder(@PathVariable Long id) {
-        return ResponseEntity.ok(orderMapper.toDto(orderService.getOrder(id)));
+        return ResponseEntity.ok(orderService.getOrderResponse(id));
     }
 
     @GetMapping("/{id}/history")
     public ResponseEntity<List<OrderStatusHistoryDto>> getOrderHistory(@PathVariable Long id) {
-        var history = orderService.getStatusHistory(id).stream().map(orderMapper::toDto).toList();
+        var history = orderService.getStatusHistoryResponses(id);
         return ResponseEntity.ok(history);
     }
 
@@ -55,7 +53,6 @@ public class AdminOrderController {
             @PathVariable Long id,
             @Valid @RequestBody UpdateOrderStatusRequest request
     ) {
-        var updated = orderService.updateStatus(id, request.status());
-        return ResponseEntity.ok(orderMapper.toDto(updated));
+        return ResponseEntity.ok(orderService.updateStatusResponse(id, request.status()));
     }
 }

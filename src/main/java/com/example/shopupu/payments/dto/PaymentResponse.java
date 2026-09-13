@@ -19,5 +19,7 @@ public record PaymentResponse(
         String paymentUrl,
         String clientToken,
         Instant createdAt,
-        Instant updatedAt
+        Instant updatedAt,
+        com.example.shopupu.payments.gateway.PaymentGatewayRefundStatus refundStatus,
+        String refundOperationKey
 ) {}

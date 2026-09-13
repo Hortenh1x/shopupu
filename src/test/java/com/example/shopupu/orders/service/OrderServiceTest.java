@@ -37,7 +37,6 @@ import com.example.shopupu.orders.repository.OrderStatusHistoryRepository;
 import java.math.BigDecimal;
 import java.time.Instant;
 import java.util.ArrayList;
-import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
 import org.junit.jupiter.api.BeforeEach;
@@ -80,6 +79,9 @@ class OrderServiceTest {
     @Mock
     private com.example.shopupu.common.audit.AuditService auditService;
 
+    @Mock
+    private com.example.shopupu.identity.service.AccountDataGuard accountDataGuard;
+
     private OrderService orderService;
     private User user;
 
@@ -88,6 +90,7 @@ class OrderServiceTest {
         CheckoutProperties checkoutProperties = new CheckoutProperties();
         orderService = new OrderService(
                 orderRepository,
+                accountDataGuard,
                 statusHistoryRepository,
                 cartItemRepository,
                 cartRepository,
@@ -99,7 +102,7 @@ class OrderServiceTest {
                 eventPublisher,
                 auditService,
                 new io.micrometer.core.instrument.simple.SimpleMeterRegistry(),
-                new com.example.shopupu.orders.mapper.OrderMapperImpl()
+                new com.example.shopupu.orders.mapper.OrderMapperImpl(), transactionTemplate()
         );
         user = User.builder().id(1L).email("user@example.com").build();
     }
@@ -175,7 +178,7 @@ class OrderServiceTest {
     @Test
     void cancelFromCreatedReleasesReservation() {
         Order order = orderWithItem(7L, OrderStatus.CREATED);
-        when(orderRepository.findWithItemsById(7L)).thenReturn(Optional.of(order));
+        when(orderRepository.findLockedById(7L)).thenReturn(Optional.of(order));
         when(orderRepository.save(any(Order.class))).thenAnswer(invocation -> invocation.getArgument(0));
         when(accessControlService.currentEmail()).thenReturn("user@example.com");
 
@@ -190,7 +193,7 @@ class OrderServiceTest {
     @Test
     void cancelRejectedOncePaid() {
         Order order = orderWithItem(7L, OrderStatus.PAID);
-        when(orderRepository.findWithItemsById(7L)).thenReturn(Optional.of(order));
+        when(orderRepository.findLockedById(7L)).thenReturn(Optional.of(order));
 
         assertThrows(BusinessRuleException.class, () -> orderService.cancelOrder(7L));
         verify(inventoryService, never()).release(anyLong(), anyInt(), anyString());
@@ -199,7 +202,7 @@ class OrderServiceTest {
     @Test
     void markPaidCommitsSale() {
         Order order = orderWithItem(7L, OrderStatus.PENDING_PAYMENT);
-        when(orderRepository.findWithItemsById(7L)).thenReturn(Optional.of(order));
+        when(orderRepository.findLockedById(7L)).thenReturn(Optional.of(order));
         when(orderRepository.save(any(Order.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
         Order paid = orderService.markPaidFromPayment(7L);
@@ -211,7 +214,7 @@ class OrderServiceTest {
     @Test
     void markRefundedRestocksItems() {
         Order order = orderWithItem(7L, OrderStatus.PAID);
-        when(orderRepository.findWithItemsById(7L)).thenReturn(Optional.of(order));
+        when(orderRepository.findLockedById(7L)).thenReturn(Optional.of(order));
         when(orderRepository.save(any(Order.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
         Order refunded = orderService.markRefunded(7L, "admin@example.com");
@@ -229,7 +232,7 @@ class OrderServiceTest {
     @Test
     void illegalTransitionRejected() {
         Order order = orderWithItem(7L, OrderStatus.CREATED);
-        when(orderRepository.findWithItemsById(7L)).thenReturn(Optional.of(order));
+        when(orderRepository.findLockedById(7L)).thenReturn(Optional.of(order));
 
         assertThrows(BusinessRuleException.class,
                 () -> orderService.updateStatus(7L, OrderStatus.SHIPPED));
@@ -239,7 +242,7 @@ class OrderServiceTest {
     @Test
     void adminStatusUpdateRecordsActor() {
         Order order = orderWithItem(7L, OrderStatus.PAID);
-        when(orderRepository.findWithItemsById(7L)).thenReturn(Optional.of(order));
+        when(orderRepository.findLockedById(7L)).thenReturn(Optional.of(order));
         when(orderRepository.save(any(Order.class))).thenAnswer(invocation -> invocation.getArgument(0));
         when(accessControlService.currentEmail()).thenReturn("admin@example.com");
 
@@ -257,14 +260,14 @@ class OrderServiceTest {
     void updateShippingAmountOnlyBeforePayment() {
         Order created = orderWithItem(7L, OrderStatus.CREATED);
         created.setSubtotalAmount(new BigDecimal("50.00"));
-        when(orderRepository.findWithItemsById(7L)).thenReturn(Optional.of(created));
+        when(orderRepository.findLockedById(7L)).thenReturn(Optional.of(created));
         when(orderRepository.save(any(Order.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
         Order updated = orderService.updateShippingAmount(7L, new BigDecimal("4.99"));
         assertEquals(new BigDecimal("54.99"), updated.getPaymentAmount());
 
         Order paid = orderWithItem(8L, OrderStatus.PAID);
-        when(orderRepository.findWithItemsById(8L)).thenReturn(Optional.of(paid));
+        when(orderRepository.findLockedById(8L)).thenReturn(Optional.of(paid));
         assertThrows(BusinessRuleException.class,
                 () -> orderService.updateShippingAmount(8L, new BigDecimal("4.99")));
     }
@@ -272,8 +275,8 @@ class OrderServiceTest {
     @Test
     void expireStaleOrdersCancelsAndReleases() {
         Order stale = orderWithItem(9L, OrderStatus.PENDING_PAYMENT);
-        when(orderRepository.findTop100ByStatusInAndCreatedAtBefore(any(Collection.class), any(Instant.class)))
-                .thenReturn(List.of(stale));
+        when(orderRepository.findStaleUnpaidIds(any(Instant.class))).thenReturn(List.of(9L));
+        when(orderRepository.findLockedById(9L)).thenReturn(Optional.of(stale));
         when(orderRepository.save(any(Order.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
         int expired = orderService.expireStaleOrders();
@@ -281,6 +284,12 @@ class OrderServiceTest {
         assertEquals(1, expired);
         assertEquals(OrderStatus.CANCELLED, stale.getStatus());
         verify(inventoryService).release(eq(100L), eq(2), anyString());
+    }
+
+    private org.springframework.transaction.support.TransactionTemplate transactionTemplate() {
+        var manager = org.mockito.Mockito.mock(org.springframework.transaction.PlatformTransactionManager.class);
+        org.mockito.Mockito.lenient().when(manager.getTransaction(any())).thenReturn(new org.springframework.transaction.support.SimpleTransactionStatus());
+        return new org.springframework.transaction.support.TransactionTemplate(manager);
     }
 
     private ProductVariant variant(Long id, String sku, String size, String color, BigDecimal price) {

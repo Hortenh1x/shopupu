@@ -9,6 +9,7 @@ import com.example.shopupu.ai.model.OutfitPlan;
 import com.example.shopupu.ai.model.TextScript;
 import com.example.shopupu.catalog.dto.ProductListItem;
 import com.example.shopupu.catalog.entity.Gender;
+import java.math.BigDecimal;
 import java.util.ArrayList;
 import java.util.List;
 import lombok.RequiredArgsConstructor;
@@ -50,10 +51,18 @@ public class StylistService {
 
     public StylistChatResponse chat(StylistChatRequest request) {
         List<ChatMessage> conversation = toConversation(request);
+        StylistConstraints constraints = StylistConstraints.from(request);
 
         // LLM HTTP call first, no transaction open (ADR-0003)
-        OutfitPlan plan = llmClient.planOutfit(conversation, CATALOG_CONTEXT).orElse(null);
-        boolean degraded = plan == null || plan.slots() == null || plan.slots().isEmpty();
+        OutfitPlan plan = null;
+        if (aiProperties.isEnabled() && !"stub".equals(aiProperties.getLlmProvider())) {
+            try {
+                plan = llmClient.planOutfit(conversation, CATALOG_CONTEXT).orElse(null);
+            } catch (RuntimeException exception) {
+                log.warn("Stylist generation unavailable; using offline selection");
+            }
+        }
+        boolean degraded = !validPlan(plan);
         if (degraded) {
             plan = StubLlmClient.keywordPlan(request.message());
         }
@@ -68,9 +77,14 @@ public class StylistService {
         List<StylistChatResponse.StylistSlot> slots = new ArrayList<>();
         java.util.Set<Long> alreadyRecommended = new java.util.HashSet<>();
         TextScript replyScript = TextScript.of(plan.reply());
+        BigDecimal remainingBudget = constraints.maxTotalPrice();
         for (OutfitPlan.OutfitSlot slot : plan.slots().stream().limit(MAX_SLOTS).toList()) {
-            SlotResolution resolution = resolveSlot(slot, alreadyRecommended);
+            SlotResolution resolution = resolveSlot(slot, alreadyRecommended, constraints.gender(), remainingBudget, degraded);
             if (!resolution.products().isEmpty()) {
+                if (remainingBudget != null) {
+                    remainingBudget = remainingBudget.subtract(resolution.products().stream()
+                            .map(ProductListItem::price).reduce(BigDecimal.ZERO, BigDecimal::add));
+                }
                 resolution.products().forEach(item -> alreadyRecommended.add(item.id()));
                 slots.add(new StylistChatResponse.StylistSlot(
                         slotLabel(slot, resolution.products(), replyScript), resolution.products()));
@@ -80,16 +94,34 @@ public class StylistService {
                 unavailable.add(slot.slot());
             }
         }
-        return new StylistChatResponse(plan.reply(), slots, List.copyOf(unavailable), degraded);
+        String reply = slots.isEmpty()
+                ? "No matching products are available for these constraints. Try changing the budget or requested pieces."
+                : unavailable.isEmpty() ? plan.reply()
+                : "These available pieces fit your constraints. Some requested pieces have no eligible match.";
+        if (degraded) reply = "AI assistance is unavailable. Using an offline catalog selection. " + reply;
+        return new StylistChatResponse(reply, slots, List.copyOf(unavailable), degraded);
+    }
+
+    private boolean validPlan(OutfitPlan plan) {
+        if (plan == null || plan.reply() == null || plan.reply().isBlank() || plan.reply().length() > 1000
+                || plan.slots() == null || plan.slots().isEmpty() || plan.slots().size() > MAX_SLOTS) return false;
+        if (plan.unavailable() != null && (plan.unavailable().size() > 10
+                || plan.unavailable().stream().anyMatch(value -> value == null || value.length() > 80))) return false;
+        return plan.slots().stream().allMatch(slot -> slot != null
+                && slot.slot() != null && !slot.slot().isBlank() && slot.slot().length() <= 80
+                && slot.query() != null && !slot.query().isBlank() && slot.query().length() <= 300
+                && (slot.maxPrice() == null || slot.maxPrice().signum() >= 0));
     }
 
     /** Semantic search per slot, post-filtered by the plan's constraints; a product never repeats across slots. */
-    private SlotResolution resolveSlot(OutfitPlan.OutfitSlot slot, java.util.Set<Long> alreadyRecommended) {
+    private SlotResolution resolveSlot(OutfitPlan.OutfitSlot slot, java.util.Set<Long> alreadyRecommended,
+            Gender requestedGender, BigDecimal remainingBudget, boolean offline) {
         if (slot == null || slot.query() == null || slot.query().isBlank()) {
             return new SlotResolution(List.of(), false);
         }
         List<SemanticSearchService.ScoredItem> hits =
-                semanticSearchService.semanticSearchScored(slot.query(), CANDIDATES_PER_SLOT);
+                offline ? semanticSearchService.keywordSearchScored(slot.query(), CANDIDATES_PER_SLOT)
+                        : semanticSearchService.semanticSearchScored(slot.query(), CANDIDATES_PER_SLOT);
         // relevance gate BEFORE dedupe: "taken by another slot" is not "not in catalog"
         List<SemanticSearchService.ScoredItem> relevant = hits.stream()
                 .filter(hit -> hit.distance() == null
@@ -98,24 +130,26 @@ public class StylistService {
         if (relevant.isEmpty()) {
             // non-empty hits here means every hit carried a distance above the gate:
             // nothing in the catalog is actually this garment — say so, don't fake it
-            return new SlotResolution(List.of(), !hits.isEmpty());
+            return new SlotResolution(List.of(), true);
         }
         List<ProductListItem> candidates = relevant.stream()
                 .map(SemanticSearchService.ScoredItem::item)
+                .filter(item -> item != null && item.id() != null && Boolean.TRUE.equals(item.enabled()))
                 .filter(item -> !alreadyRecommended.contains(item.id()))
                 .toList();
         List<ProductListItem> filtered = candidates.stream()
-                .filter(item -> genderMatches(slot.gender(), item.gender()))
+                .filter(item -> genderMatches(requestedGender == null ? slot.gender() : requestedGender, item.gender()))
+                .filter(item -> item.price() != null && item.price().signum() >= 0)
+                .filter(item -> remainingBudget == null || item.price().compareTo(remainingBudget) <= 0)
                 .filter(item -> slot.maxPrice() == null
-                        || item.price() == null
                         || item.price().compareTo(slot.maxPrice()) <= 0)
                 .limit(PRODUCTS_PER_SLOT)
                 .toList();
         if (!filtered.isEmpty()) {
             return new SlotResolution(filtered, false);
         }
-        // constraints filtered everything out: better a close match than an empty slot
-        return new SlotResolution(candidates.stream().limit(PRODUCTS_PER_SLOT).toList(), false);
+        // A hard constraint can remove the last candidate. Never put it back.
+        return new SlotResolution(List.of(), !candidates.isEmpty());
     }
 
     private record SlotResolution(List<ProductListItem> products, boolean notInCatalog) {
@@ -140,10 +174,8 @@ public class StylistService {
     }
 
     private boolean genderMatches(Gender wanted, Gender actual) {
-        if (wanted == null || actual == null || wanted == Gender.UNISEX) {
-            return true;
-        }
-        return actual == wanted || actual == Gender.UNISEX;
+        if (wanted == null) return true;
+        return actual == wanted || ((wanted == Gender.MEN || wanted == Gender.WOMEN) && actual == Gender.UNISEX);
     }
 
     private List<ChatMessage> toConversation(StylistChatRequest request) {

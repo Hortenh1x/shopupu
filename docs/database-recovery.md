@@ -1,0 +1,42 @@
+# Database roles, backups and recovery
+
+Prepared for this demo remediation, 12 September 2026. **No running database, password, container or collation was changed.** Commands below require the operator's selected target and credentials. Runtime and restore-drill evidence will be recorded separately; the existence of a script is not a successful drill.
+
+## Roles and migration boundary
+
+Production now defaults to Flyway disabled in the application. A separate migration process owns schema changes. `ProductionDatabaseGuard` refuses a runtime role with superuser/role/database/replication privileges, role memberships, schema CREATE, public object ownership or database ownership. The ordinary runtime needs DML and sequence usage, not DDL. Development and Testcontainers may still run Flyway at startup on their isolated databases.
+
+For a **new empty database** on PostgreSQL 18 with pgvector installed:
+
+1. Create the database as the database administrator. Set `PGHOST`, `PGPORT`, `PGDATABASE`, `PGUSER` and a protected `PGPASSFILE` for the selected target. Do not put passwords in shell history or command arguments.
+2. Run `psql -X -v ON_ERROR_STOP=1 -f ops/bootstrap-db.sql`. It refuses a populated database, creates NOLOGIN `shopupu_migrator` and `shopupu_runtime` roles, gives the schema to the migrator, pre-creates pgvector and revokes public schema creation.
+3. In an interactive administrator psql session use `\password shopupu_migrator` and `\password shopupu_runtime` with different generated passwords. Then enable LOGIN on those two roles. Neither gets membership of the other. Restrict network access and `pg_hba.conf` to intended callers; enable verified TLS for remote connections.
+4. In the deployment process only, supply `FLYWAY_URL=jdbc:postgresql://<target>:<port>/<database>`, `FLYWAY_USER=shopupu_migrator` and `FLYWAY_PASSWORD` from the deployment secret store. Run `./mvnw -B flyway:validate flyway:migrate flyway:validate`. For the first empty schema run `flyway:migrate flyway:validate` (there is no previous history to validate). The plugin explicitly disables clean and silent baselining. Keep migration credentials out of the application environment.
+5. As the migrator run `psql -X -v ON_ERROR_STOP=1 -f ops/grant-runtime.sql`. Repeat after every migration: new objects are unavailable to runtime until explicitly granted. Flyway history is read-only to runtime.
+6. Start the application with profile `prod`, `DB_USERNAME=shopupu_runtime`, its password and `FLYWAY_ENABLED=false`. Verify the application can read/write fixtures but the runtime role cannot create/drop/alter a table or update `flyway_schema_history`.
+
+Existing installations use the old bootstrap account as the application account. Changing Docker's `POSTGRES_USER` or `POSTGRES_PASSWORD` does **not** migrate roles/passwords inside an existing volume. Do not run the empty bootstrap script on it. First restore a backup to an isolated database and rehearse: create the two restricted roles, transfer public table/sequence/schema ownership to the migrator (including Flyway history), revoke PUBLIC schema CREATE, set separate credentials, migrate, grant runtime rights and run the checks above. Review all current grants and object owners, then schedule the same transition for the selected deployment. Historical shared credentials need owner rotation; editing `.env.example` cannot rotate them.
+
+## Backup and isolated restore
+
+Use PostgreSQL client tools matching the database major version and a restricted backup account that can read the required tables. `ops/backup-db.sh NEW_ARCHIVE_PATH` creates a custom-format archive with private file permissions and a SHA-256 checksum; it refuses an existing output path. Use encrypted storage with operator-defined retention and an off-host copy. A dump file alone is not recovery evidence.
+
+Create an empty **isolated** target named `shopupu_restore_<unique_suffix>`; set `RESTORE_DATABASE` to that name and explicit connection variables for the isolated server. Pre-create the pgvector extension as its administrator if restoring with a restricted account. Run `ops/restore-empty-db.sh ARCHIVE_PATH`: it refuses any application tables, never issues DROP/clean, and restores in one transaction. Then set `PGDATABASE` to the restored target and run `psql -X -v ON_ERROR_STOP=1 -f ops/verify-db.sql`.
+
+Capture archive checksum, source/target image digests, migration history, table counts, duration, integrity result and a backend smoke against the restored target. Require zero negative/over-reserved inventory, no failed Flyway migration, consistent paid/refunded orders and exactly-once payment movement regressions. Exercise login, catalog, checkout and a local simulated test payment using disposable fixtures. Remove only drill resources whose names/IDs were created for this drill. Never point load, erase or concurrency fixtures at an existing working database.
+
+Proposed initial demo operating target: daily backup (RPO <=24 hours), isolated restore and startup within 60 minutes (RTO <=60 minutes). These are acceptance targets, **not measured guarantees**; record actual drill results before accepting them. Payment idempotency keys, external IDs, refund operation history and auth versions must be included in every backup. After restoring an older backup, keep traffic and payment creation stopped until Stripe test events/unknown operations have been reconciled; a restored database can otherwise forget already submitted operations.
+
+## Uploads are a separate recovery artifact
+
+PostgreSQL dumps do not contain uploaded product images. Back up the configured `app.uploads.dir` at the same release boundary, recording its image-volume identity and SHA-256 manifest alongside the database archive. Quiesce product image writes or use a consistent filesystem snapshot while taking the pair. Keep the archives outside the public uploads tree with owner-only permissions; apply the same encryption, off-host retention and access policy as for database backups.
+
+For the drill, copy only the selected image snapshot into a new, empty directory owned by the isolated application. Refuse absolute/traversal archive paths, symbolic or hard links and special files; do not extract an unreviewed archive into an existing directory. Compare every restored file to the manifest, resolve stored product image URLs against the isolated image origin and verify representative catalog images over HTTP. Record missing files, permissions, checksums and recovery duration; a successful database restore alone is not a successful product recovery.
+
+The uploads root is public static content. It must contain only intended public image assets: never place archives, credentials, logs or database dumps there. The application generates image filenames and checks allowed signatures, but filesystem ACLs must also prevent another local principal from replacing `uploads/products` with a symlink or planting arbitrary public files. No remote symlink creation path was established in the source review; deployment ACLs and volume contents still need the owner's verification.
+
+## Collation and rollback
+
+The audit observed a recorded/runtime collation version mismatch (2.41 versus 2.36) in the existing database. Merely refreshing its recorded version does not rebuild indexes and is not a repair. Pin the database image digest/OS, reproduce the mismatch on an isolated restored copy, and identify all indexes/constraints depending on the changed collation. During the planned maintenance window rebuild affected indexes using the supported PostgreSQL procedure, check uniqueness/order-sensitive results, and only then refresh the database/explicit collation versions. Rehearse lock duration and rollback on the copy first. The running volume remains unchanged until the owner schedules that maintenance.
+
+Never edit an applied Flyway migration. V21-V24 add columns/tables, but V19 already removed a review title column: rollback to images that require that column is not automatically schema-compatible. The new auth, demo-only payment and erasure behavior also changes semantics. Record an exact tested forward image and a compatible rollback image/digest; rehearse both against the migrated copy. Prefer a forward corrective migration. Restoring a backup into the live database loses newer writes and is a separate operator incident procedure, not an ordinary image rollback.

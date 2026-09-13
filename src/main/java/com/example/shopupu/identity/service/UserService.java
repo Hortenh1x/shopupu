@@ -17,6 +17,7 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 
 @Service
+@org.springframework.transaction.annotation.Transactional
 @RequiredArgsConstructor
 /**
  * describes the UserService class.
@@ -26,6 +27,7 @@ public class UserService {
     private final UserRepository userRepository;
     private final RoleRepository roleRepository;
     private final PasswordEncoder passwordEncoder;
+    private final com.example.shopupu.auth.service.PasswordPolicy passwordPolicy;
 
     // handles getByEmail.
     public Optional<User> getByEmail(String email) {
@@ -45,14 +47,22 @@ public class UserService {
     }
 
     public void setPassword(User user, String rawPassword) {
+        passwordPolicy.validate(rawPassword);
+        user = userRepository.findByIdForUpdate(user.getId())
+                .orElseThrow(() -> new ResourceNotFoundException("User not found"));
+        if (!user.isEnabled() || user.getDeletedAt() != null) throw new UnauthorizedException("Account is disabled");
+        user.setAuthVersion(user.getAuthVersion() + 1);
         user.setPasswordHash(passwordEncoder.encode(rawPassword));
         userRepository.save(user);
     }
 
     // updates profile fields only - roles/enabled are never client-writable (SEC-10)
     public User updateProfile(String email, com.example.shopupu.identity.dto.UpdateProfileRequest request) {
-        User user = userRepository.findByEmail(email)
+        Long id = userRepository.findIdByEmail(email)
                 .orElseThrow(() -> new ResourceNotFoundException("User not found"));
+        User user = userRepository.findByIdForUpdate(id)
+                .orElseThrow(() -> new ResourceNotFoundException("User not found"));
+        if (!user.isEnabled() || user.getDeletedAt() != null) throw new UnauthorizedException("Account is disabled");
         user.setFirstName(request.firstName());
         user.setLastName(request.lastName());
         user.setPhone(request.phone());
@@ -63,17 +73,24 @@ public class UserService {
 
     // verifies the current password and stores the new hash; caller revokes sessions
     public User changePassword(String email, String currentPassword, String newPassword) {
-        User user = userRepository.findByEmail(email)
+        passwordPolicy.validate(newPassword);
+        Long id = userRepository.findIdByEmail(email)
                 .orElseThrow(() -> new ResourceNotFoundException("User not found"));
+        User user = userRepository.findByIdForUpdate(id)
+                .orElseThrow(() -> new ResourceNotFoundException("User not found"));
+        if (!user.isEnabled() || user.getDeletedAt() != null) throw new UnauthorizedException("Account is disabled");
         if (!passwordEncoder.matches(currentPassword, user.getPasswordHash())) {
             throw new UnauthorizedException("Current password is incorrect");
         }
+        user.setAuthVersion(user.getAuthVersion() + 1);
         user.setPasswordHash(passwordEncoder.encode(newPassword));
         return userRepository.save(user);
     }
 
     // handles registerUser.
     public User registerUser(String email, String rawPassword) {
+        passwordPolicy.validate(rawPassword);
+        email = email.trim().toLowerCase(java.util.Locale.ROOT);
         if (userRepository.existsByEmail(email)) {
             throw new ConflictException("User with this email already exists");
         }

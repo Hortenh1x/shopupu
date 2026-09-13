@@ -16,6 +16,11 @@ public record PaymentCallbackRequest(
         @NotNull
         PaymentStatus status,
 
-        String details
+        String details,
+
+        Long localPaymentId
 ) {
+    public PaymentCallbackRequest(String externalEventId, String externalPaymentId, PaymentStatus status, String details) {
+        this(externalEventId, externalPaymentId, status, details, null);
+    }
 }

@@ -62,16 +62,22 @@ These reviews are seeded into the database by **`seed-reviews.sql`** (generated 
 docker compose exec -T db psql -U shopupu -d shopupu -v ON_ERROR_STOP=1 < scripts/generated-reviews/seed-reviews.sql
 ```
 
-How the JSON maps onto the schema (the `reviews` table has no `customerProfile` /
-`verifiedPurchase` / `source` columns, and the public API never exposes `verifiedPurchase`):
+How the JSON maps onto the schema (apply Flyway V23 before using this loader):
+
+- `source = 'SYNTHETIC_DEMO'` is persisted and returned by public/admin review APIs.
+  V23 backfills the 317 documented author/product identities only when the fixture password
+  marker and absent order link also match. Other old reviews remain `UNKNOWN`; new API
+  submissions use `CUSTOMER_SUBMITTED`. None of these values proves a real-money purchase.
+- JSON `verifiedPurchase: true` is generator metadata for fictional stories, not evidence
+  of a purchase. It is never imported or exposed as a verified-purchase API claim.
+  `customerProfile`, size and fit generator fields are not imported.
 
 - The `reviews` table needs a real `user_id` and enforces `unique (user_id, product_id)`,
   so the loader creates **one synthetic user per review** (`demo-review-{productId}-{seq}@shopupu.local`).
   Its **`username` = `customerName`** — that is exactly what the product page displays
   (`ReviewMapper` exposes `username`, never the email).
 - These users are **non-login** accounts: `password_hash` is a placeholder that is not a
-  valid BCrypt hash, so `BCryptPasswordEncoder.matches` always returns false. `enabled` and
-  `email_verified` are true; no roles are assigned.
+  valid BCrypt hash. `enabled` and `email_verified` are false; no roles are assigned.
 - Reviews are inserted with **`status = 'APPROVED'`** — the only status the public endpoint
   `GET /api/v1/catalog/products/{id}/reviews` returns (moderation state `APPROVED`, per the
   `PENDING → APPROVED/REJECTED/DELETED` workflow). `order_id` is null; `created_at` /

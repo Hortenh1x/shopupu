@@ -39,6 +39,7 @@ public class CartService {
     private final ProductVariantRepository variantRepository;
     private final InventoryService inventoryService;
     private final UserRepository userRepository;
+    private final com.example.shopupu.identity.service.AccountDataGuard accountDataGuard;
 
     /** Cart owner: an authenticated user (email) or an anonymous guest (token). */
     public record CartKey(String email, String guestToken) {
@@ -57,6 +58,9 @@ public class CartService {
 
     @Transactional
     public Cart getOrCreateCart(String userEmail) {
+        Long userId = userRepository.findIdByEmail(userEmail)
+                .orElseThrow(() -> new ResourceNotFoundException("User not found"));
+        accountDataGuard.lockActive(userId);
         return cartRepository.findByUser_Email(userEmail)
                 .orElseGet(() -> {
                     User user = userRepository.findByEmail(userEmail)
@@ -96,6 +100,9 @@ public class CartService {
                     .variant(variant)
                     .quantity(quantity)
                     .build();
+            // the response is mapped from this managed instance: keep its
+            // collection in step, or the new line is missing from the reply
+            cart.getItems().add(cartItem);
         } else {
             validateVariantCanBeAdded(variant, cartItem.getQuantity() + quantity);
             cartItem.setQuantity(cartItem.getQuantity() + quantity);
@@ -116,7 +123,7 @@ public class CartService {
                 .orElseThrow(() -> new ResourceNotFoundException("Item not in cart: variant " + variantId));
 
         if (quantity == 0) {
-            cartItemRepository.delete(cartItem);
+            detach(cart, cartItem);
         } else {
             validateVariantCanBeAdded(cartItem.getVariant(), quantity);
             cartItem.setQuantity(quantity);
@@ -129,8 +136,20 @@ public class CartService {
     @Transactional
     public CartResponse removeItem(CartKey key, Long variantId) {
         Cart cart = resolveCart(key, false);
-        cartItemRepository.deleteByCart_IdAndVariant_Id(cart.getId(), variantId);
+        cartItemRepository.findByCart_IdAndVariant_Id(cart.getId(), variantId)
+                .ifPresent(cartItem -> detach(cart, cartItem));
         return reload(cart);
+    }
+
+    /**
+     * Removes a line for real. Deleting the item alone is not enough: the cart
+     * loaded through its entity graph still references it from a cascade=ALL
+     * collection, so Hibernate un-schedules the deletion at flush and the line
+     * silently survives (and the reply is mapped from that same collection).
+     */
+    private void detach(Cart cart, CartItem cartItem) {
+        cart.getItems().remove(cartItem);
+        cartItemRepository.delete(cartItem);
     }
 
     @Transactional
@@ -165,6 +184,9 @@ public class CartService {
         if (guestToken == null || guestToken.isBlank()) {
             return;
         }
+        Long userId = userRepository.findIdByEmail(userEmail)
+                .orElseThrow(() -> new ResourceNotFoundException("User not found"));
+        accountDataGuard.lockActive(userId);
         Cart guestCart = cartRepository.findByGuestToken(guestToken).orElse(null);
         if (guestCart == null || guestCart.getItems().isEmpty()) {
             if (guestCart != null) {

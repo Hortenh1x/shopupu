@@ -1,5 +1,7 @@
 package com.example.shopupu.ai.gateway;
 
+import com.example.shopupu.ai.guard.AiUnavailableException;
+import com.example.shopupu.ai.guard.AiUsageGuard;
 import com.example.shopupu.config.AiProperties;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import java.net.http.HttpClient;
@@ -28,9 +30,11 @@ public class OllamaEmbeddingClient implements EmbeddingClient {
 
     private final AiProperties aiProperties;
     private final RestClient restClient;
+    private final AiUsageGuard usageGuard;
 
-    public OllamaEmbeddingClient(AiProperties aiProperties) {
+    public OllamaEmbeddingClient(AiProperties aiProperties, AiUsageGuard usageGuard) {
         this.aiProperties = aiProperties;
+        this.usageGuard = usageGuard;
         Duration timeout = Duration.ofSeconds(aiProperties.getRequestTimeoutSeconds());
         var requestFactory = new JdkClientHttpRequestFactory(
                 HttpClient.newBuilder().connectTimeout(timeout).build());
@@ -58,16 +62,19 @@ public class OllamaEmbeddingClient implements EmbeddingClient {
     }
 
     private List<float[]> embed(List<String> texts) {
-        OllamaEmbedResponse response = restClient.post()
-                .uri("/api/embed")
-                .contentType(MediaType.APPLICATION_JSON)
-                .body(new OllamaEmbedRequest(aiProperties.getEmbeddingModel(), texts))
-                .retrieve()
-                .body(OllamaEmbedResponse.class);
-        if (response == null || response.embeddings() == null || response.embeddings().size() != texts.size()) {
-            throw new IllegalStateException("Ollama returned an unexpected embeddings response");
+        try (var permit = usageGuard.tryAcquire(texts, 0)) {
+            if (permit == null) throw new AiUnavailableException();
+            OllamaEmbedResponse response = restClient.post()
+                    .uri("/api/embed")
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .body(new OllamaEmbedRequest(aiProperties.getEmbeddingModel(), texts))
+                    .exchange((request, body) -> AiHttpResponse.read(
+                            body, aiProperties.getMaxResponseBytes(), OllamaEmbedResponse.class));
+            if (response == null) throw new AiUnavailableException();
+            return AiHttpResponse.validateEmbeddings(response.embeddings(), texts.size(), dimensions());
+        } catch (Exception exception) {
+            throw new AiUnavailableException();
         }
-        return response.embeddings();
     }
 
     private record OllamaEmbedRequest(String model, List<String> input) {

@@ -20,7 +20,7 @@ public class JwtProperties {
     private String secret;
 
     @Min(1)
-    @Max(60)
+    @Max(15)
     private long accessTokenTtlMin = 15;
 
     @Min(1)

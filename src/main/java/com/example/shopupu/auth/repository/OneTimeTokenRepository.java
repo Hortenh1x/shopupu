@@ -12,6 +12,16 @@ public interface OneTimeTokenRepository extends JpaRepository<OneTimeToken, Long
 
     Optional<OneTimeToken> findByTokenHashAndPurpose(String tokenHash, OneTimeToken.Purpose purpose);
 
+    @Query("select t.user.id from OneTimeToken t where t.tokenHash = :hash and t.purpose = :purpose")
+    Optional<Long> findUserId(@Param("hash") String hash, @Param("purpose") OneTimeToken.Purpose purpose);
+
+    @Modifying
+    @Query("""
+            update OneTimeToken t set t.usedAt = :now where t.tokenHash = :hash
+            and t.purpose = :purpose and t.usedAt is null and t.expiresAt > :now""")
+    int consume(@Param("hash") String hash, @Param("purpose") OneTimeToken.Purpose purpose,
+                @Param("now") Instant now);
+
     @Modifying
     @Query("""
             update OneTimeToken t set t.usedAt = :now

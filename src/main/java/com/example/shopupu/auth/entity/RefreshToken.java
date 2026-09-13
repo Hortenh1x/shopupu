@@ -24,6 +24,12 @@ public class RefreshToken {
     @Column(name = "expires_at", nullable = false)
     private Instant expiresAt;
 
+    @Column(name = "auth_version", nullable = false)
+    private long authVersion;
+
+    @Column(name = "mfa_verified_at")
+    private Instant mfaVerifiedAt;
+
     @Column(nullable = false)
     private boolean revoked;
 

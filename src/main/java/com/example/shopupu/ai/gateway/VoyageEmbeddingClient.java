@@ -1,5 +1,7 @@
 package com.example.shopupu.ai.gateway;
 
+import com.example.shopupu.ai.guard.AiUnavailableException;
+import com.example.shopupu.ai.guard.AiUsageGuard;
 import com.example.shopupu.config.AiProperties;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonProperty;
@@ -27,10 +29,12 @@ public class VoyageEmbeddingClient implements EmbeddingClient {
 
     private final AiProperties aiProperties;
     private final RestClient restClient;
+    private final AiUsageGuard usageGuard;
 
-    public VoyageEmbeddingClient(AiProperties aiProperties) {
+    public VoyageEmbeddingClient(AiProperties aiProperties, AiUsageGuard usageGuard) {
         this.aiProperties = aiProperties;
-        required(aiProperties.getVoyageApiKey(), "ai.voyage-api-key");
+        this.usageGuard = usageGuard;
+        if (aiProperties.isEnabled()) required(aiProperties.getVoyageApiKey(), "ai.voyage-api-key");
         Duration timeout = Duration.ofSeconds(aiProperties.getRequestTimeoutSeconds());
         var requestFactory = new JdkClientHttpRequestFactory(
                 HttpClient.newBuilder().connectTimeout(timeout).build());
@@ -58,20 +62,26 @@ public class VoyageEmbeddingClient implements EmbeddingClient {
     }
 
     private List<float[]> embed(List<String> texts, String inputType) {
-        VoyageEmbeddingsResponse response = restClient.post()
-                .uri("/v1/embeddings")
-                .contentType(MediaType.APPLICATION_JSON)
-                .header("Authorization", "Bearer " + aiProperties.getVoyageApiKey())
-                .body(new VoyageEmbeddingsRequest(texts, aiProperties.getEmbeddingModel(), inputType))
-                .retrieve()
-                .body(VoyageEmbeddingsResponse.class);
-        if (response == null || response.data() == null || response.data().size() != texts.size()) {
-            throw new IllegalStateException("Voyage returned an unexpected embeddings response");
+        try (var permit = usageGuard.tryAcquire(texts, 0)) {
+            if (permit == null) throw new AiUnavailableException();
+            VoyageEmbeddingsResponse response = restClient.post()
+                    .uri("/v1/embeddings")
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .header("Authorization", "Bearer " + aiProperties.getVoyageApiKey())
+                    .body(new VoyageEmbeddingsRequest(texts, aiProperties.getEmbeddingModel(), inputType))
+                    .exchange((request, body) -> AiHttpResponse.read(
+                            body, aiProperties.getMaxResponseBytes(), VoyageEmbeddingsResponse.class));
+            if (response == null || response.data() == null || response.data().size() != texts.size()) {
+                throw new AiUnavailableException();
+            }
+            List<float[]> vectors = response.data().stream()
+                    .sorted(Comparator.comparingInt(VoyageEmbeddingData::index))
+                    .map(VoyageEmbeddingData::embedding)
+                    .toList();
+            return AiHttpResponse.validateEmbeddings(vectors, texts.size(), dimensions());
+        } catch (Exception exception) {
+            throw new AiUnavailableException();
         }
-        return response.data().stream()
-                .sorted(Comparator.comparingInt(VoyageEmbeddingData::index))
-                .map(VoyageEmbeddingData::embedding)
-                .toList();
     }
 
     private void required(String value, String property) {

@@ -1,5 +1,7 @@
 package com.example.shopupu.ai.gateway;
 
+import com.example.shopupu.ai.guard.AiUnavailableException;
+import com.example.shopupu.ai.guard.AiUsageGuard;
 import com.example.shopupu.config.AiProperties;
 import java.net.http.HttpClient;
 import java.time.Duration;
@@ -23,15 +25,19 @@ public class LocalEmbeddingClient implements EmbeddingClient {
 
     private final AiProperties aiProperties;
     private final RestClient restClient;
+    private final AiUsageGuard usageGuard;
 
-    public LocalEmbeddingClient(AiProperties aiProperties) {
+    public LocalEmbeddingClient(AiProperties aiProperties, AiUsageGuard usageGuard) {
         this.aiProperties = aiProperties;
+        this.usageGuard = usageGuard;
         Duration timeout = Duration.ofSeconds(aiProperties.getRequestTimeoutSeconds());
         var requestFactory = new JdkClientHttpRequestFactory(
                 HttpClient.newBuilder().connectTimeout(timeout).build());
         requestFactory.setReadTimeout(timeout);
         this.restClient = RestClient.builder()
-                .baseUrl(required(aiProperties.getEmbeddingBaseUrl(), "ai.embedding-base-url"))
+                .baseUrl(aiProperties.isEnabled()
+                        ? required(aiProperties.getEmbeddingBaseUrl(), "ai.embedding-base-url")
+                        : "http://localhost:8081")
                 .requestFactory(requestFactory)
                 .build();
     }
@@ -52,16 +58,19 @@ public class LocalEmbeddingClient implements EmbeddingClient {
     }
 
     private List<float[]> embed(List<String> texts) {
-        float[][] response = restClient.post()
-                .uri("/embed")
-                .contentType(MediaType.APPLICATION_JSON)
-                .body(new TeiEmbedRequest(texts, true))
-                .retrieve()
-                .body(float[][].class);
-        if (response == null || response.length != texts.size()) {
-            throw new IllegalStateException("Embedding sidecar returned an unexpected response");
+        try (var permit = usageGuard.tryAcquire(texts, 0)) {
+            if (permit == null) throw new AiUnavailableException();
+            float[][] response = restClient.post()
+                    .uri("/embed")
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .body(new TeiEmbedRequest(texts, true))
+                    .exchange((request, body) -> AiHttpResponse.read(
+                            body, aiProperties.getMaxResponseBytes(), float[][].class));
+            if (response == null) throw new AiUnavailableException();
+            return AiHttpResponse.validateEmbeddings(Arrays.asList(response), texts.size(), dimensions());
+        } catch (Exception exception) {
+            throw new AiUnavailableException();
         }
-        return Arrays.asList(response);
     }
 
     private String required(String value, String property) {

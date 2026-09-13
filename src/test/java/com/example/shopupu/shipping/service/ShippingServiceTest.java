@@ -58,6 +58,9 @@ class ShippingServiceTest {
     @Mock
     private OrderService orderService;
 
+    @Mock
+    private com.example.shopupu.identity.service.AccountDataGuard accountDataGuard;
+
     private ShippingProperties shippingProperties;
     private ShippingService shippingService;
     private Order order;
@@ -68,6 +71,7 @@ class ShippingServiceTest {
         shippingProperties = new ShippingProperties();
         shippingProperties.setFreeShippingThreshold(new BigDecimal("100.00"));
         shippingService = new ShippingService(
+                accountDataGuard,
                 orderRepository,
                 shipmentRepository,
                 addressRepository,
@@ -83,7 +87,7 @@ class ShippingServiceTest {
     @Test
     void setAddressCreatesAddressAndDefaultShipment() {
         SetShippingAddressRequest request = addressRequest();
-        when(orderRepository.findById(1L)).thenReturn(Optional.of(order));
+        when(orderRepository.findLockedById(1L)).thenReturn(Optional.of(order));
         when(addressRepository.save(any(ShippingAddress.class))).thenAnswer(invocation -> invocation.getArgument(0));
         when(shipmentRepository.findByOrder(order)).thenReturn(Optional.empty());
         when(shipmentRepository.save(any(Shipment.class))).thenAnswer(invocation -> invocation.getArgument(0));
@@ -99,7 +103,7 @@ class ShippingServiceTest {
     // handles setAddress.
     @Test
     void setAddressSetsAddressSnapshotOnShipment() {
-        when(orderRepository.findById(1L)).thenReturn(Optional.of(order));
+        when(orderRepository.findLockedById(1L)).thenReturn(Optional.of(order));
         when(addressRepository.save(any(ShippingAddress.class))).thenAnswer(invocation -> invocation.getArgument(0));
         when(shipmentRepository.findByOrder(order)).thenReturn(Optional.empty());
         when(shipmentRepository.save(any(Shipment.class))).thenAnswer(invocation -> invocation.getArgument(0));
@@ -131,7 +135,7 @@ class ShippingServiceTest {
                 .cost(new BigDecimal("9.99"))
                 .currency("EUR")
                 .build();
-        when(orderRepository.findById(1L)).thenReturn(Optional.of(order));
+        when(orderRepository.findLockedById(1L)).thenReturn(Optional.of(order));
         when(addressRepository.save(any(ShippingAddress.class))).thenAnswer(invocation -> invocation.getArgument(0));
         when(shipmentRepository.findByOrder(order)).thenReturn(Optional.of(shipment));
         when(shipmentRepository.save(any(Shipment.class))).thenAnswer(invocation -> invocation.getArgument(0));
@@ -148,18 +152,18 @@ class ShippingServiceTest {
     // handles setAddress.
     @Test
     void setAddressRejectsMissingOrderInvalidAddressAndNonCreatedOrder() {
-        when(orderRepository.findById(404L)).thenReturn(Optional.empty());
+        when(orderRepository.findLockedById(404L)).thenReturn(Optional.empty());
         assertThrows(ResourceNotFoundException.class, () -> shippingService.setAddress(new SetShippingAddressRequest(404L, "A", "B", null, "C", "D", "E", "F")));
 
-        when(orderRepository.findById(1L)).thenReturn(Optional.of(order));
+        when(orderRepository.findLockedById(1L)).thenReturn(Optional.of(order));
         assertThrows(BadRequestException.class, () -> shippingService.setAddress(new SetShippingAddressRequest(1L, "", "B", null, "C", "D", "E", "F")));
 
         Order paid = order(2L, OrderStatus.PAID);
-        when(orderRepository.findById(2L)).thenReturn(Optional.of(paid));
+        when(orderRepository.findLockedById(2L)).thenReturn(Optional.of(paid));
         assertThrows(BusinessRuleException.class, () -> shippingService.setAddress(new SetShippingAddressRequest(2L, "A", "B", null, "C", "D", "E", "F")));
 
         Order pendingPayment = order(3L, OrderStatus.PENDING_PAYMENT);
-        when(orderRepository.findById(3L)).thenReturn(Optional.of(pendingPayment));
+        when(orderRepository.findLockedById(3L)).thenReturn(Optional.of(pendingPayment));
         assertThrows(BusinessRuleException.class, () -> shippingService.setAddress(new SetShippingAddressRequest(3L, "A", "B", null, "C", "D", "E", "F")));
 
         verify(shipmentRepository, never()).save(any(Shipment.class));
@@ -169,7 +173,7 @@ class ShippingServiceTest {
     @Test
     void setMethodCreatesOrUpdatesShipmentCost() {
         SetShippingMethodRequest request = new SetShippingMethodRequest(1L, ShippingMethod.DHL);
-        when(orderRepository.findById(1L)).thenReturn(Optional.of(order));
+        when(orderRepository.findLockedById(1L)).thenReturn(Optional.of(order));
         when(shipmentRepository.findByOrder(order)).thenReturn(Optional.empty());
         when(shipmentRepository.save(any(Shipment.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
@@ -184,7 +188,7 @@ class ShippingServiceTest {
     @Test
     void setMethodIsFreeWhenSubtotalAboveThreshold() {
         order.setSubtotalAmount(new BigDecimal("150.00"));
-        when(orderRepository.findById(1L)).thenReturn(Optional.of(order));
+        when(orderRepository.findLockedById(1L)).thenReturn(Optional.of(order));
         when(shipmentRepository.findByOrder(order)).thenReturn(Optional.empty());
         when(shipmentRepository.save(any(Shipment.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
@@ -199,7 +203,7 @@ class ShippingServiceTest {
     @Test
     void setMethodIsFreeWhenSubtotalExactlyAtThreshold() {
         order.setSubtotalAmount(new BigDecimal("100.00"));
-        when(orderRepository.findById(1L)).thenReturn(Optional.of(order));
+        when(orderRepository.findLockedById(1L)).thenReturn(Optional.of(order));
         when(shipmentRepository.findByOrder(order)).thenReturn(Optional.empty());
         when(shipmentRepository.save(any(Shipment.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
@@ -213,7 +217,7 @@ class ShippingServiceTest {
     @Test
     void setMethodChargesWhenSubtotalBelowThreshold() {
         order.setSubtotalAmount(new BigDecimal("99.99"));
-        when(orderRepository.findById(1L)).thenReturn(Optional.of(order));
+        when(orderRepository.findLockedById(1L)).thenReturn(Optional.of(order));
         when(shipmentRepository.findByOrder(order)).thenReturn(Optional.empty());
         when(shipmentRepository.save(any(Shipment.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
@@ -226,12 +230,12 @@ class ShippingServiceTest {
     @Test
     void setMethodRejectsNonCreatedOrders() {
         Order pendingPayment = order(2L, OrderStatus.PENDING_PAYMENT);
-        when(orderRepository.findById(2L)).thenReturn(Optional.of(pendingPayment));
+        when(orderRepository.findLockedById(2L)).thenReturn(Optional.of(pendingPayment));
         assertThrows(BusinessRuleException.class,
                 () -> shippingService.setMethod(new SetShippingMethodRequest(2L, ShippingMethod.DHL)));
 
         Order paid = order(3L, OrderStatus.PAID);
-        when(orderRepository.findById(3L)).thenReturn(Optional.of(paid));
+        when(orderRepository.findLockedById(3L)).thenReturn(Optional.of(paid));
         assertThrows(BusinessRuleException.class,
                 () -> shippingService.setMethod(new SetShippingMethodRequest(3L, ShippingMethod.DHL)));
 
@@ -280,7 +284,7 @@ class ShippingServiceTest {
                 .cost(new BigDecimal("9.99"))
                 .currency("EUR")
                 .build();
-        when(orderRepository.findById(1L)).thenReturn(Optional.of(order));
+        when(orderRepository.findLockedById(1L)).thenReturn(Optional.of(order));
         when(shipmentRepository.findByOrder(order)).thenReturn(Optional.of(shipment));
 
         var dto = shippingService.updateStatus(1L, ShippingStatus.SHIPPED, "track-1");

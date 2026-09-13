@@ -34,12 +34,13 @@ import org.springframework.transaction.annotation.Transactional;
 @Transactional
 public class ReviewService {
 
-    /** Order states that prove the user actually bought the product (REV-01). */
+    /** Order states eligible for review submission; demo orders may use simulated or test payments. */
     private static final Set<OrderStatus> PURCHASED_STATES = EnumSet.of(
             OrderStatus.PAID, OrderStatus.PROCESSING, OrderStatus.SHIPPED,
             OrderStatus.DELIVERED, OrderStatus.COMPLETED);
 
     private final ReviewRepository reviewRepository;
+    private final com.example.shopupu.identity.service.AccountDataGuard accountDataGuard;
     private final ProductRepository productRepository;
     private final OrderRepository orderRepository;
     private final AccessControlService accessControlService;
@@ -66,6 +67,7 @@ public class ReviewService {
 
     public Review createReview(Long productId, Integer rating, String body, Long orderId) {
         User user = accessControlService.currentUser();
+        accountDataGuard.lockActive(user.getId());
         Product product = requireProduct(productId);
         ensureUserCanCreateReview(user, productId);
         ensureVerifiedPurchase(user, productId, orderId);
@@ -83,6 +85,7 @@ public class ReviewService {
 
     @org.springframework.cache.annotation.CacheEvict(cacheNames = "productRating", allEntries = true)
     public Review updateReview(Long reviewId, Integer rating, String body) {
+        accountDataGuard.lockReviewOwner(reviewId);
         Review review = requireReview(reviewId);
         requireReviewOwner(review);
         if (review.getStatus() == ReviewStatus.DELETED) {
@@ -100,6 +103,7 @@ public class ReviewService {
 
     @org.springframework.cache.annotation.CacheEvict(cacheNames = "productRating", allEntries = true)
     public void deleteOwnReview(Long reviewId) {
+        accountDataGuard.lockReviewOwner(reviewId);
         Review review = requireReview(reviewId);
         requireReviewOwner(review);
         ReviewStatus previous = review.getStatus();
@@ -121,6 +125,7 @@ public class ReviewService {
 
     @org.springframework.cache.annotation.CacheEvict(cacheNames = "productRating", allEntries = true)
     public Review updateStatus(Long reviewId, ReviewStatus status) {
+        accountDataGuard.lockReviewOwner(reviewId);
         if (status == ReviewStatus.DELETED) {
             throw new BusinessRuleException("Use DELETE to delete a review");
         }
@@ -136,6 +141,7 @@ public class ReviewService {
 
     @org.springframework.cache.annotation.CacheEvict(cacheNames = "productRating", allEntries = true)
     public void deleteAdminReview(Long reviewId) {
+        accountDataGuard.lockReviewOwner(reviewId);
         Review review = requireReview(reviewId);
         ReviewStatus previous = review.getStatus();
         review.setStatus(ReviewStatus.DELETED);
@@ -175,7 +181,7 @@ public class ReviewService {
         boolean purchased = orderRepository.existsByUserAndStatusInAndItems_ProductId(
                 user, PURCHASED_STATES, productId);
         if (!purchased) {
-            throw new BusinessRuleException("Only verified buyers can review this product");
+            throw new BusinessRuleException("Reviews require an eligible order containing this product");
         }
     }
 

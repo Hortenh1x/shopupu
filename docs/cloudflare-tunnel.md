@@ -33,12 +33,12 @@ Set these (env or `.env`) to the public hostname before starting the backend:
 
 | Variable | Why |
 |---|---|
-| `SERVER_FORWARD_HEADERS_STRATEGY=framework` | honor `X-Forwarded-Proto/Host/For` — correct `https` URLs and real client IP for the rate limiter |
-| `PAYMENT_CALLBACK_URL=https://<host>/api/v1/payments/callback` | the URL the payment gateway calls back |
+| `SERVER_FORWARD_HEADERS_STRATEGY=none` | safe default; all requests through a proxy share its IP bucket until the trust boundary is configured |
 | `CORS_ALLOWED_ORIGINS=https://<frontend-host>` | allow the browser frontend |
 
-The payment webhook stays fail-closed: it is authenticated by the provider HMAC
-signature, not by network origin — the tunnel does not weaken that.
+Enable `framework` forwarding only after the origin is reachable exclusively from your trusted edge and that edge strips/replaces incoming `Forwarded` and `X-Forwarded-*` headers. Spring's framework strategy itself does not authenticate a proxy or validate that chain. Test that a forged client header cannot bypass auth throttling before publishing.
+
+The Stripe **test** webhook is `/api/v1/payments/stripe/webhook`; configure the exact API version from `StripePaymentGatewayClient.API_VERSION` and its own `STRIPE_WEBHOOK_SECRET`. Native Stripe signatures and explicit test-mode checks authenticate events. The legacy `/payments/callback` route is disabled when Stripe is selected. See the external integration setup checklist before connecting a provider.
 
 ## Notes
 

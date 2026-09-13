@@ -63,19 +63,26 @@ public class LocalFileStorageService implements FileStorageService {
 
     private ImageType detectImageType(MultipartFile file) {
         byte[] header = new byte[12];
-        int read;
+        int read = 0;
         try (InputStream in = file.getInputStream()) {
-            read = in.readNBytes(header, 0, header.length);
+            // Loop explicitly: a stream may hand the signature over in several short reads,
+            // and not every InputStream honours readNBytes' "block until len bytes" contract.
+            int chunk;
+            while (read < header.length && (chunk = in.read(header, read, header.length - read)) > 0) {
+                read += chunk;
+            }
         } catch (IOException ex) {
             throw new BadRequestException("Could not read the uploaded file");
         }
         if (read >= 3 && (header[0] & 0xFF) == 0xFF && (header[1] & 0xFF) == 0xD8 && (header[2] & 0xFF) == 0xFF) {
             return ImageType.JPEG;
         }
-        if (read >= 8 && (header[0] & 0xFF) == 0x89 && header[1] == 'P' && header[2] == 'N' && header[3] == 'G') {
+        if (read >= 8 && (header[0] & 0xFF) == 0x89 && header[1] == 'P' && header[2] == 'N' && header[3] == 'G'
+                && header[4] == 0x0D && header[5] == 0x0A && header[6] == 0x1A && header[7] == 0x0A) {
             return ImageType.PNG;
         }
-        if (read >= 6 && header[0] == 'G' && header[1] == 'I' && header[2] == 'F' && header[3] == '8') {
+        if (read >= 6 && header[0] == 'G' && header[1] == 'I' && header[2] == 'F' && header[3] == '8'
+                && (header[4] == '7' || header[4] == '9') && header[5] == 'a') {
             return ImageType.GIF;
         }
         if (read >= 12 && header[0] == 'R' && header[1] == 'I' && header[2] == 'F' && header[3] == 'F'

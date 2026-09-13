@@ -5,7 +5,7 @@
 	<parent>
 		<groupId>org.springframework.boot</groupId>
 		<artifactId>spring-boot-starter-parent</artifactId>
-		<version>4.0.7</version>
+		<version>4.0.8</version>
 		<relativePath/> <!-- lookup parent from repository -->
 	</parent>
 	<groupId>com.example</groupId>
@@ -33,7 +33,11 @@
 		<lombok-mapstruct-binding.version>0.2.0</lombok-mapstruct-binding.version>
 		<bucket4j.version>8.19.0</bucket4j.version>
 		<testcontainers.version>1.21.4</testcontainers.version>
-		<jsoup.version>1.18.3</jsoup.version>
+		<jsoup.version>1.23.2</jsoup.version>
+		<!-- Same-line patches beyond Boot 4.0.8's BOM; see docs/dependency-remediation-2026-09-12.md. -->
+		<tomcat.version>11.0.25</tomcat.version>
+		<jackson-2-bom.version>2.21.6</jackson-2-bom.version>
+		<jackson-bom.version>3.1.6</jackson-bom.version>
 		<jacoco.version>0.8.15</jacoco.version>
 		<spotless.version>2.44.5</spotless.version>
 		<google-api-client.version>2.7.0</google-api-client.version>
@@ -84,6 +88,10 @@
 		<dependency>
 			<groupId>org.springframework.boot</groupId>
 			<artifactId>spring-boot-starter-actuator</artifactId>
+		</dependency>
+		<dependency>
+			<groupId>io.micrometer</groupId>
+			<artifactId>micrometer-registry-prometheus</artifactId>
 		</dependency>
 		<dependency>
 			<groupId>org.springframework.boot</groupId>
@@ -179,6 +187,32 @@
 
 	<build>
 		<plugins>
+            <!-- Explicit operator migration command; never part of verify or application runtime. -->
+            <plugin>
+                <groupId>org.flywaydb</groupId>
+                <artifactId>flyway-maven-plugin</artifactId>
+                <version>${flyway.version}</version>
+                <configuration>
+                    <url>${env.FLYWAY_URL}</url>
+                    <user>${env.FLYWAY_USER}</user>
+                    <password>${env.FLYWAY_PASSWORD}</password>
+                    <locations><location>filesystem:src/main/resources/db/migration</location></locations>
+                    <baselineOnMigrate>false</baselineOnMigrate>
+                    <cleanDisabled>true</cleanDisabled>
+                </configuration>
+                <dependencies>
+                    <dependency>
+                        <groupId>org.flywaydb</groupId>
+                        <artifactId>flyway-database-postgresql</artifactId>
+                        <version>${flyway.version}</version>
+                    </dependency>
+                    <dependency>
+                        <groupId>org.postgresql</groupId>
+                        <artifactId>postgresql</artifactId>
+                        <version>${postgresql.version}</version>
+                    </dependency>
+                </dependencies>
+            </plugin>
 			<plugin>
 				<groupId>org.apache.maven.plugins</groupId>
 				<artifactId>maven-compiler-plugin</artifactId>

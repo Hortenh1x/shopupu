@@ -8,7 +8,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 
-/** Times out payments the provider never confirmed (PAY-04). */
+/** Expires local stub sessions; unresolved provider payments retain their reservations for reconciliation. */
 @Slf4j
 @Component
 @RequiredArgsConstructor

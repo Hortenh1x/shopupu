@@ -250,6 +250,42 @@ class SemanticSearchServiceTest {
         assertEquals("blue jeans", captor.getValue().q);
     }
 
+    @Test
+    void disabledNaturalLanguageFallbackStillEnforcesBudgetAndGender() {
+        aiProperties.setEnabled(false);
+        when(productQueryService.findProducts(any(), any())).thenReturn(new PageImpl<>(List.of()));
+        service.nlSearch("shirt for men under 9.50", PageRequest.of(0, 20));
+        ArgumentCaptor<ProductFilter> captor = ArgumentCaptor.forClass(ProductFilter.class);
+        verify(productQueryService).findProducts(captor.capture(), any());
+        assertEquals(Gender.MEN, captor.getValue().gender);
+        assertEquals(0, new BigDecimal("9.50").compareTo(captor.getValue().maxPrice));
+        verifyNoInteractions(nlQueryParser, queryEmbeddingService, embeddingRepository);
+    }
+
+    @Test
+    void modelCannotRelaxExplicitNaturalLanguageConstraints() {
+        when(nlQueryParser.parse(anyString())).thenReturn(Optional.of(
+                new ParsedProductQuery("shirt", Gender.WOMEN, null, null, null, new BigDecimal("999"))));
+        when(productQueryService.findProducts(any(), any())).thenReturn(new PageImpl<>(List.of()));
+        service.nlSearch("shirt for men under 20", PageRequest.of(0, 20));
+        ArgumentCaptor<ProductFilter> captor = ArgumentCaptor.forClass(ProductFilter.class);
+        verify(productQueryService).findProducts(captor.capture(), any());
+        assertEquals(Gender.MEN, captor.getValue().gender);
+        assertEquals(0, new BigDecimal("20").compareTo(captor.getValue().maxPrice));
+    }
+
+    @Test
+    void stylistKeywordFallbackOnlyQueriesAvailableInventory() {
+        aiProperties.setEnabled(false);
+        when(productQueryService.findProducts(any(), any())).thenReturn(new PageImpl<>(List.of()));
+        assertEquals(List.of(), service.semanticSearchScored("shirt", 6));
+        ArgumentCaptor<ProductFilter> captor = ArgumentCaptor.forClass(ProductFilter.class);
+        verify(productQueryService).findProducts(captor.capture(), any());
+        assertEquals(Boolean.TRUE, captor.getValue().enabled);
+        assertEquals(Boolean.TRUE, captor.getValue().inStock);
+        verifyNoInteractions(queryEmbeddingService, embeddingRepository);
+    }
+
     private ProductEmbeddingRepository.ScoredProductId scored(Long id, double distance) {
         return new ProductEmbeddingRepository.ScoredProductId(id, distance);
     }

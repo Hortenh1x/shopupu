@@ -4,7 +4,6 @@ import com.example.shopupu.common.security.AccessControlService;
 import com.example.shopupu.identity.entity.User;
 import com.example.shopupu.orders.dto.OrderDto;
 import com.example.shopupu.orders.entity.OrderStatus;
-import com.example.shopupu.orders.mapper.OrderMapper;
 import com.example.shopupu.orders.service.OrderService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
@@ -22,7 +21,6 @@ public class OrderController {
 
     private final OrderService orderService;
     private final AccessControlService accessControlService;
-    private final OrderMapper orderMapper;
 
     @PostMapping("/checkout")
     public ResponseEntity<OrderDto> createOrder(
@@ -30,8 +28,7 @@ public class OrderController {
             @jakarta.validation.Valid @RequestBody(required = false) com.example.shopupu.orders.dto.CheckoutRequest request) {
         User user = accessControlService.currentUser();
         String promoCode = request == null ? null : request.promoCode();
-        var order = orderService.createOrderFromCart(user, idempotencyKey, promoCode);
-        return ResponseEntity.status(HttpStatus.CREATED).body(orderMapper.toDto(order));
+        return ResponseEntity.status(HttpStatus.CREATED).body(orderService.createOrderResponse(user, idempotencyKey, promoCode));
     }
 
     @GetMapping
@@ -45,11 +42,11 @@ public class OrderController {
 
     @GetMapping("/{id}")
     public ResponseEntity<OrderDto> getOrderById(@PathVariable Long id) {
-        return ResponseEntity.ok(orderMapper.toDto(orderService.getOrderForCurrentUser(id)));
+        return ResponseEntity.ok(orderService.getOrderResponse(id));
     }
 
     @PatchMapping("/{id}/cancel")
     public ResponseEntity<OrderDto> cancelOrder(@PathVariable Long id) {
-        return ResponseEntity.ok(orderMapper.toDto(orderService.cancelOrder(id)));
+        return ResponseEntity.ok(orderService.cancelOrderResponse(id));
     }
 }

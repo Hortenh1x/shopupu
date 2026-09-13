@@ -18,9 +18,12 @@ public class RefreshTokenCleanupJob {
     private final RefreshTokenRepository refreshTokenRepository;
     private final com.example.shopupu.auth.repository.OneTimeTokenRepository oneTimeTokenRepository;
 
+    private final com.example.shopupu.auth.repository.MfaChallengeRepository mfaChallenges;
+
     @Transactional
     @Scheduled(cron = "0 30 3 * * *")
     public void purgeExpiredTokens() {
+        mfaChallenges.deleteExpired(Instant.now());
         Instant cutoff = Instant.now().minus(1, ChronoUnit.DAYS);
         int removed = refreshTokenRepository.deleteAllExpiredBefore(cutoff);
         int removedOneTime = oneTimeTokenRepository.deleteAllExpiredBefore(cutoff);

@@ -26,7 +26,10 @@ public class StubLlmClient implements LlmClient {
 
     // the currency symbol is optional so "under $150" and "до 150" both parse
     private static final Pattern MAX_PRICE = Pattern.compile(
-            "(?:до|under|below|max|не дороже)\\s*[$€₴£]?\\s*(\\d{2,5})", Pattern.CASE_INSENSITIVE);
+            "(?<![\\p{L}\\p{N}])(?:до|under|below|up to|max(?:imum)?|budget(?: of)?|"
+                    + "bis|unter|höchstens|не дороже)\\s*[$€₴£]?\\s*"
+                    + "(\\d{1,6}(?:[.,]\\d{1,2})?)(?![\\d.,])",
+            Pattern.CASE_INSENSITIVE | Pattern.UNICODE_CASE);
 
     /**
      * Garment types shoppers ask for that the catalog does not carry — the bot
@@ -194,18 +197,31 @@ public class StubLlmClient implements LlmClient {
     }
 
     private static Gender detectGender(String message) {
-        if (matches(message, "муж", "men", "him", "husband", "парн")) {
-            return Gender.MEN;
-        }
-        if (matches(message, "жен", "women", "her", "wife", "девуш")) {
-            return Gender.WOMEN;
-        }
+        if (UNISEX.matcher(message).find()) return Gender.UNISEX;
+        if (KIDS.matcher(message).find()) return Gender.KIDS;
+        if (MEN.matcher(message).find()) return Gender.MEN;
+        if (WOMEN.matcher(message).find()) return Gender.WOMEN;
         return null;
+    }
+
+    private static final Pattern UNISEX = genderPattern("unisex|унисекс");
+    private static final Pattern KIDS = genderPattern("kids?|children|kinder|детск\\w*|ребен\\w*|ребён\\w*");
+    private static final Pattern MEN = genderPattern("men|mens|man|male|him|husband|herren|männer|муж\\w*|парн\\w*");
+    private static final Pattern WOMEN = genderPattern("women|womens|woman|female|her|wife|damen|frauen|жен\\w*|девуш\\w*");
+
+    private static Pattern genderPattern(String alternatives) {
+        return Pattern.compile("\\b(?:" + alternatives + ")\\b",
+                Pattern.CASE_INSENSITIVE | Pattern.UNICODE_CASE | Pattern.UNICODE_CHARACTER_CLASS);
     }
 
     private static BigDecimal detectMaxPrice(String message) {
         Matcher matcher = MAX_PRICE.matcher(message);
-        return matcher.find() ? new BigDecimal(matcher.group(1)) : null;
+        BigDecimal ceiling = null;
+        while (matcher.find()) {
+            BigDecimal amount = new BigDecimal(matcher.group(1).replace(',', '.'));
+            ceiling = ceiling == null ? amount : ceiling.min(amount);
+        }
+        return ceiling;
     }
 
     private static OutfitPlan plan(String reply, OutfitPlan.OutfitSlot... slots) {

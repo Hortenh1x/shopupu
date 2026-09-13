@@ -24,10 +24,9 @@ logging:
     org.hibernate.SQL: INFO
     com.example.shopupu: DEBUG
 
-# Dev AI: real embeddings from local Ollama (bge-m3), summaries stay on the
-# offline stub until you set AI_LLM_PROVIDER=deepseek + DEEPSEEK_API_KEY.
+# External AI is opt-in in every profile. When enabled, local Ollama can provide embeddings.
 # Needs: ollama serve + `ollama pull bge-m3`.
 ai:
-  enabled: true
+  enabled: ${AI_ENABLED:false}
   embedding-provider: ${AI_EMBEDDING_PROVIDER:ollama}
   embedding-base-url: ${AI_EMBEDDING_BASE_URL:http://localhost:11434}

@@ -3,12 +3,13 @@ spring:
   jpa:
     show-sql: false
   flyway:
-    # Migrations are expected to run from the deployment pipeline; keep enabled
-    # as a safety net but never baseline silently in prod.
+    # A separate migration process owns DDL credentials. Runtime only validates schema.
+    enabled: ${FLYWAY_ENABLED:false}
     baseline-on-migrate: false
 
 server:
-  forward-headers-strategy: framework
+  # Forwarding headers are untrusted by default, including in production.
+  forward-headers-strategy: ${SERVER_FORWARD_HEADERS_STRATEGY:none}
 
 management:
   endpoints:

@@ -14,6 +14,8 @@ import org.springframework.transaction.annotation.Transactional;
 @RequiredArgsConstructor
 public class AddressBookService {
 
+    private final AccountDataGuard accountDataGuard;
+
     private final UserAddressRepository addressRepository;
 
     @Transactional(readOnly = true)
@@ -23,6 +25,7 @@ public class AddressBookService {
 
     @Transactional
     public UserAddress addAddress(User user, AddressRequest request) {
+        accountDataGuard.lockActive(user.getId());
         boolean firstAddress = addressRepository.findByUserOrderByDefaultAddressDescCreatedAtAsc(user).isEmpty();
         boolean makeDefault = Boolean.TRUE.equals(request.defaultAddress()) || firstAddress;
         if (makeDefault) {
@@ -38,6 +41,7 @@ public class AddressBookService {
 
     @Transactional
     public UserAddress updateAddress(User user, Long addressId, AddressRequest request) {
+        accountDataGuard.lockActive(user.getId());
         UserAddress address = requireOwn(user, addressId);
         if (Boolean.TRUE.equals(request.defaultAddress()) && !address.isDefaultAddress()) {
             addressRepository.clearDefault(user);
@@ -49,6 +53,7 @@ public class AddressBookService {
 
     @Transactional
     public UserAddress setDefault(User user, Long addressId) {
+        accountDataGuard.lockActive(user.getId());
         UserAddress address = requireOwn(user, addressId);
         addressRepository.clearDefault(user);
         address.setDefaultAddress(true);
@@ -57,6 +62,7 @@ public class AddressBookService {
 
     @Transactional
     public void deleteAddress(User user, Long addressId) {
+        accountDataGuard.lockActive(user.getId());
         UserAddress address = requireOwn(user, addressId);
         addressRepository.delete(address);
     }

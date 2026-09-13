@@ -13,6 +13,13 @@ public interface RefreshTokenRepository extends JpaRepository<RefreshToken, Long
 
     Optional<RefreshToken> findByToken(String token);
 
+    @Query("select rt.user.id from RefreshToken rt where rt.token = :hash")
+    Optional<Long> findUserIdByToken(@Param("hash") String hash);
+
+    @Modifying
+    @Query("update RefreshToken rt set rt.revoked = true where rt.id = :id and rt.revoked = false and rt.expiresAt > :now")
+    int consume(@Param("id") Long id, @Param("now") Instant now);
+
     void deleteByUser(User user);
 
     @Modifying

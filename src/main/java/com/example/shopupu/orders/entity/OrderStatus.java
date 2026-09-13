@@ -24,7 +24,7 @@ public enum OrderStatus {
             PENDING_PAYMENT, Set.of(PAID, CREATED, CANCELLED),
             PAID, Set.of(PROCESSING, SHIPPED, REFUNDED),
             PROCESSING, Set.of(SHIPPED, REFUNDED),
-            SHIPPED, Set.of(DELIVERED, COMPLETED),
+            SHIPPED, Set.of(DELIVERED, COMPLETED, REFUNDED),
             DELIVERED, Set.of(COMPLETED, REFUNDED),
             COMPLETED, Set.of(REFUNDED),
             CANCELLED, Set.of(),

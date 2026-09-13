@@ -68,30 +68,65 @@ cd ~/shopupu && cp .env.example .env
 
 ```env
 JWT_SECRET=<openssl rand -hex 48>
-DB_PASSWORD=<openssl rand -hex 16>        # свежая БД — сразу сильный пароль
+DB_PASSWORD=<openssl rand -hex 16>        # bootstrap-суперпользователь БД (initdb, бэкапы, миграции ролей)
+DB_RUNTIME_PASSWORD=<openssl rand -hex 24> # роль shopupu_runtime — под ней работает приложение (см. §4)
+MFA_ENCRYPTION_KEY=<openssl rand -base64 32> # без него вход ADMIN/MANAGER отвечает 503 MFA_CONFIGURATION_REQUIRED
 DEEPSEEK_API_KEY=<ключ>                   # или AI_ENABLED=false
 GOOGLE_CLIENT_ID=<web client id>          # пусто = кнопка Google скрыта
-RESEND_API_KEY=<ключ>                     # пусто = письма только в лог
-NOTIFICATIONS_FROM_EMAIL=Shopupu <no-reply@shopupu.net>
+NOTIFICATION_PROVIDER=disabled            # smtp | resend — только после проверки отправителя (docs/external-integrations.md)
 BOOTSTRAP_ADMIN_ENABLED=true              # одноразово: создать первого админа
 BOOTSTRAP_ADMIN_EMAIL=<ваш email>
-BOOTSTRAP_ADMIN_PASSWORD=<временный пароль>
+BOOTSTRAP_ADMIN_PASSWORD=<временный пароль, ≥15 символов>
+SERVER_FORWARD_HEADERS_STRATEGY=native    # за Cloudflare Tunnel — см. ниже
+SERVER_TOMCAT_REMOTEIP_REMOTE_IP_HEADER=CF-Connecting-IP
 ```
 
-`PAYMENTS_DEFAULT_PROVIDER` остаётся `stub`, пока нет мерчант-кредов
-(monobank/Fondy + `PAYMENT_CALLBACK_SECRET`) — webhook-путь уже смаршрутизирован.
-`SERVER_FORWARD_HEADERS_STRATEGY=framework` уже дефолт prod-профиля compose
-(за cloudflared это корректно: rate-limiter видит реальные IP).
+`PAYMENTS_DEFAULT_PROVIDER` остаётся `stub` (локальная симуляция), пока не подключён
+Stripe **test mode** (`STRIPE_SECRET_KEY`/`STRIPE_WEBHOOK_SECRET`, инструкция в
+[external-integrations.md](external-integrations.md)); live-провайдеры приложение отвергает.
+Клиентский IP за cloudflared: origin слушает только loopback, а Cloudflare всегда перезаписывает
+`CF-Connecting-IP`, поэтому `native` + этот заголовок дают rate-limiter'у настоящий адрес, а
+`X-Forwarded-For` (его первое значение задаёт клиент) для этого не годится. Без такой настройки
+все посетители делят один bucket на 127.0.0.1.
+
+Миграции схемы приложение в проде **не выполняет** (`FLYWAY_ENABLED=false`); их запускает
+отдельная роль-мигратор из файла `~/shopupu/.migrator.env` (`chmod 600`, в git не попадает):
+
+```env
+FLYWAY_URL=jdbc:postgresql://localhost:5432/shopupu
+FLYWAY_USER=shopupu_migrator
+FLYWAY_PASSWORD=<openssl rand -hex 24>
+```
 
 ## 4. Поднять бекенд
 
 ```bash
 docker compose up -d db
-docker compose --profile prod up -d app   # первая сборка на ARM ~5–10 мин
+# роли: shopupu_migrator владеет схемой и мигрирует, shopupu_runtime — только DML
+docker exec -i shopupu-db-1 psql -X -v ON_ERROR_STOP=1 -U shopupu -d shopupu < ops/bootstrap-db.sql
+docker exec -i shopupu-db-1 psql -X -U shopupu -d shopupu <<'SQL'
+ALTER ROLE shopupu_migrator LOGIN PASSWORD '<FLYWAY_PASSWORD из .migrator.env>';
+ALTER ROLE shopupu_runtime  LOGIN PASSWORD '<DB_RUNTIME_PASSWORD из .env>';
+ALTER DEFAULT PRIVILEGES FOR ROLE shopupu_migrator IN SCHEMA public GRANT SELECT, INSERT, UPDATE, DELETE ON TABLES TO shopupu_runtime;
+ALTER DEFAULT PRIVILEGES FOR ROLE shopupu_migrator IN SCHEMA public GRANT USAGE, SELECT ON SEQUENCES TO shopupu_runtime;
+SQL
+# миграции — Maven в контейнере (JDK/Maven на хосте не нужны), под ролью-мигратором
+docker run --rm --network host --env-file .migrator.env -v "$PWD:/w" -w /w -v shopupu-m2:/root/.m2 \
+  maven:3.9-eclipse-temurin-25 mvn -B -q flyway:migrate flyway:validate
+docker exec -i shopupu-db-1 psql -X -v ON_ERROR_STOP=1 -U shopupu -d shopupu < ops/grant-runtime.sql
+docker compose build app                  # первая сборка на ARM ~5–10 мин
+docker compose --profile prod up -d app
 curl -s localhost:8080/actuator/health    # {"status":"UP"}
 ```
 
-После первого входа админом: выключите `BOOTSTRAP_ADMIN_ENABLED`, смените пароль.
+Приложение при старте проверяет роль (`ProductionDatabaseGuard`): суперпользователь или
+владелец схемы как `DB_RUNTIME_USERNAME` — отказ старта. Существующую БД, где приложение
+работало от bootstrap-аккаунта, переводите по процедуре в
+[database-recovery.md](database-recovery.md) (перенос владения объектов на мигратора, затем
+гранты) — пустой `bootstrap-db.sql` на ней не запускать.
+
+После первого входа админом (первый вход требует TOTP-энролмент — сохраните recovery-коды):
+выключите `BOOTSTRAP_ADMIN_ENABLED`, смените пароль.
 
 ## 5. Данные
 
@@ -166,10 +201,15 @@ Console; для писем — верифицируйте домен в Resend.
 
 ## Day-2
 
-- Обновление бекенда: `git pull && docker compose build app && docker compose --profile prod up -d app`.
+- Обновление бекенда: `git pull && docker compose build app`, затем миграции под мигратором
+  (команда `docker run … mvn flyway:migrate flyway:validate` из §4; V-файлы аддитивны, но
+  `ProductionDatabaseGuard`/Hibernate `validate` не пустят приложение на несмигрированную схему),
+  `docker compose --profile prod up -d app`, `curl localhost:8080/actuator/health`.
 - Обновление фронта: `git pull && npm ci && npm run build && sudo systemctl restart shopupu-web`.
-- Бекапы: cron с `pg_dump -Fc` + `uploads/` куда-нибудь наружу (Object Storage
-  free tier — 20 GB).
+- Бекапы: `~/.local/share/shopupu-ops/nightly-backup.sh` по cron (03:40 UTC) кладёт
+  `pg_dump -Fc` + `uploads.tar` + `SHA256SUMS` в `~/backups/shopupu/<ts>/` (14 копий);
+  off-host копию забирайте `scp` на доверенную машину. Восстановление и репетиция —
+  [database-recovery.md](database-recovery.md).
 - `docker system prune -f` изредка (build-кэш на 50 GB диске).
 - Реальные платежи: см. «Real payments later» в [deploy-cloudflare.md](deploy-cloudflare.md).
 - Инциденты: [runbook.md](runbook.md) (там же процедура reconciliation-mismatch).

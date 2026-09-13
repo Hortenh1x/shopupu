@@ -58,7 +58,12 @@ services:
       FONDY_MERCHANT_ID: ${FONDY_MERCHANT_ID:-}
       FONDY_SECRET: ${FONDY_SECRET:-}
       # Enable forwarding only after edge header sanitization and origin isolation.
+      # Behind Cloudflare Tunnel use strategy=native with CF-Connecting-IP: the origin only
+      # accepts loopback connections from cloudflared, and Cloudflare overwrites that header,
+      # so rate limits key on the real client instead of a spoofable X-Forwarded-For.
       SERVER_FORWARD_HEADERS_STRATEGY: ${SERVER_FORWARD_HEADERS_STRATEGY:-none}
+      SERVER_TOMCAT_REMOTEIP_REMOTE_IP_HEADER: ${SERVER_TOMCAT_REMOTEIP_REMOTE_IP_HEADER:-X-Forwarded-For}
+      SERVER_TOMCAT_REMOTEIP_PROTOCOL_HEADER: ${SERVER_TOMCAT_REMOTEIP_PROTOCOL_HEADER:-X-Forwarded-Proto}
       GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID:-}
       RESEND_API_KEY: ${RESEND_API_KEY:-}
       NOTIFICATION_PROVIDER: ${NOTIFICATION_PROVIDER:-disabled}

@@ -161,6 +161,26 @@ class SemanticSearchServiceTest {
     }
 
     @Test
+    void nlSearchJudgesTheWindowAmongCandidatesTheAttributesAllow() {
+        // Nearest hit is a women's product; the shopper asked for men's. The window must be
+        // drawn around the best *surviving* hit, not around the one the filters rejected.
+        float[] vector = {1, 0};
+        when(nlQueryParser.parse("men's trousers under 90"))
+                .thenReturn(Optional.of(new ParsedProductQuery(
+                        "trousers", Gender.MEN, null, null, null, new BigDecimal("90"))));
+        when(queryEmbeddingService.embedQuery("trousers")).thenReturn(vector);
+        when(embeddingRepository.findNearestProductIdsWithDistance(any(), anyString(), anyInt()))
+                .thenReturn(List.of(scored(12L, 0.20), scored(13L, 0.40), scored(5L, 0.61)));
+        when(productQueryService.findListItemsByIdsMatching(eq(List.of(12L, 13L, 5L)), any()))
+                .thenReturn(List.of(listItem(13L), listItem(5L)));
+
+        var page = service.nlSearch("men's trousers under 90", PageRequest.of(0, 20));
+
+        assertEquals(List.of(13L), page.getContent().stream().map(ProductListItem::id).toList(),
+                "the men's trousers survive; the far-off tank top stays outside the window");
+    }
+
+    @Test
     void nlSearchStillAnswersAVagueQueryWhoseBestHitIsFarther() {
         // "black dress for a party" only reaches 0.50 on the live catalog; a fixed
         // threshold tuned for precise queries would answer it with nothing at all
@@ -169,8 +189,8 @@ class SemanticSearchServiceTest {
         when(queryEmbeddingService.embedQuery("black dress")).thenReturn(new float[] {1, 0});
         when(embeddingRepository.findNearestProductIdsWithDistance(any(), anyString(), anyInt()))
                 .thenReturn(List.of(scored(7L, 0.50), scored(3L, 0.565)));
-        when(productQueryService.findListItemsByIdsMatching(eq(List.of(7L)), any()))
-                .thenReturn(List.of(listItem(7L)));
+        when(productQueryService.findListItemsByIdsMatching(eq(List.of(7L, 3L)), any()))
+                .thenReturn(List.of(listItem(7L), listItem(3L)));
 
         var page = service.nlSearch("black dress for a party", PageRequest.of(0, 20));
 

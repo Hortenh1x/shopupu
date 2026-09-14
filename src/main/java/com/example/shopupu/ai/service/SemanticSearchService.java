@@ -8,6 +8,7 @@ import com.example.shopupu.catalog.model.ProductFilter;
 import com.example.shopupu.catalog.service.ProductQueryService;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
@@ -160,22 +161,31 @@ public class SemanticSearchService {
             // KNN always returns *something*, so relevance is judged twice: an absolute
             // ceiling rejects a query the catalog cannot answer at all, and a window
             // around the best hit keeps the field as tight as that query allows
-            double best = scored.get(0).distance();
-            if (best > aiProperties.getNlSearchMaxDistance()) {
+            double ceiling = aiProperties.getNlSearchMaxDistance();
+            if (scored.get(0).distance() > ceiling) {
                 return null;
             }
-            double cutoff = Math.min(
-                    aiProperties.getNlSearchMaxDistance(), best + aiProperties.getNlSearchDistanceMargin());
-            List<Long> ids = scored.stream()
-                    .filter(hit -> hit.distance() <= cutoff)
-                    .map(ProductEmbeddingRepository.ScoredProductId::productId)
-                    .toList();
-            if (ids.isEmpty()) {
-                return null;
+            Map<Long, Double> distanceOf = new java.util.LinkedHashMap<>();
+            for (ProductEmbeddingRepository.ScoredProductId hit : scored) {
+                if (hit.distance() <= ceiling) {
+                    distanceOf.put(hit.productId(), hit.distance());
+                }
             }
             // q is dropped on purpose: the embedding already matched the keywords
-            List<ProductListItem> matches = productQueryService.findListItemsByIdsMatching(ids, attributesOf(filter));
-            return matches.isEmpty() ? null : pageOf(matches, pageable);
+            List<ProductListItem> matches = productQueryService.findListItemsByIdsMatching(
+                    List.copyOf(distanceOf.keySet()), attributesOf(filter));
+            if (matches.isEmpty()) {
+                return null;
+            }
+            // The window is measured among the candidates the shopper's attributes allow:
+            // "men's trousers under 90" used to return nothing because the nearest hit was
+            // a women's product the filters then rejected, and everything else sat outside
+            // the window drawn around it.
+            double cutoff = Math.min(ceiling, distanceOf.get(matches.get(0).id()) + aiProperties.getNlSearchDistanceMargin());
+            List<ProductListItem> kept = matches.stream()
+                    .filter(item -> distanceOf.get(item.id()) <= cutoff)
+                    .toList();
+            return pageOf(kept, pageable);
         } catch (Exception ex) {
             log.warn("NL semantic search unavailable; using keyword search");
             return null;

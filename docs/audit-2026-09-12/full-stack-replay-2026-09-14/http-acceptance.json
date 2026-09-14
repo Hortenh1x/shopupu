@@ -1,0 +1,21 @@
+{
+  "status": "PASS",
+  "checks": [
+    "current schema includes MFA/refund/privacy/provenance contracts",
+    "privileged login requires and completes local MFA",
+    "privileged login requires and completes local MFA",
+    "owner/key binding, repeat checkout/payment transitions and admin-only full local refund",
+    "owned synthetic PNG upload is retrievable without changing bytes"
+  ],
+  "boundedPublicLoad": {
+    "requests": 120,
+    "maximumConcurrency": 4,
+    "targetRequestsPerSecond": 4,
+    "errors": 0,
+    "p95Milliseconds": 13.716267014387995,
+    "elapsedSeconds": 29.75672545802081,
+    "proposedP95BudgetMilliseconds": 750,
+    "productionCapacityClaim": false
+  },
+  "externalProviders": "NOT_TESTED"
+}

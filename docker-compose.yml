@@ -25,7 +25,12 @@ services:
   # host network: Ollama (127.0.0.1:11434) and Postgres (127.0.0.1:5432) are
   # reachable as localhost, and cloudflared routes to http://localhost:8080.
   app:
-    build: .
+    build:
+      context: .
+      # Stamp the image with the deployed revision (org.opencontainers.image.revision);
+      # deploy-oracle.md exports VCS_REF=$(git rev-parse HEAD) before `compose build`.
+      args:
+        VCS_REF: ${VCS_REF:-unknown}
     profiles: ["prod"]
     restart: unless-stopped
     network_mode: host

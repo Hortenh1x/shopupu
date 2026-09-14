@@ -4,7 +4,7 @@ begin;
 insert into users(email,password_hash,username,first_name,enabled,email_verified)
 select prefix || '-' || :'nonce' || '@example.invalid', password_hash,
        prefix || '-' || :'nonce', case when prefix = 'buyer-a' then 'Account A' else 'Account B' end, true,true
-from users cross join (values ('buyer-a'),('buyer-b'),('manager'),('admin-de')) names(prefix)
+from users cross join (values ('buyer-a'),('buyer-b'),('manager'),('admin-de'),('admin-a11y')) names(prefix)
 where email = :'admin_email';
 insert into user_roles(user_id,role_id)
 select u.id,r.id from users u cross join roles r
@@ -18,6 +18,11 @@ where u.email='manager-' || :'nonce' || '@example.invalid' and r.name in ('MANAG
 insert into user_roles(user_id,role_id)
 select u.id,r.id from users u cross join roles r
 where u.email='admin-de-' || :'nonce' || '@example.invalid' and r.name in ('ADMIN','CUSTOMER');
+-- Third ADMIN for the accessibility acceptance: it enrolls at a 390px viewport and must not share
+-- an authenticator with the German run, which may or may not be included.
+insert into user_roles(user_id,role_id)
+select u.id,r.id from users u cross join roles r
+where u.email='admin-a11y-' || :'nonce' || '@example.invalid' and r.name in ('ADMIN','CUSTOMER');
 insert into categories(name,slug) values('Acceptance clothing','acceptance-' || :'nonce');
 insert into products(title,slug,description,price,category_id,enabled)
 select 'Acceptance Tee', 'acceptance-tee-' || :'nonce', 'A fictional clothing item for isolated verification.',19.00,id,true
@@ -37,5 +42,6 @@ select json_build_object(
  'buyerBEmail', 'buyer-b-' || :'nonce' || '@example.invalid',
  'managerEmail', 'manager-' || :'nonce' || '@example.invalid',
  'adminDeEmail', 'admin-de-' || :'nonce' || '@example.invalid',
+ 'adminA11yEmail', 'admin-a11y-' || :'nonce' || '@example.invalid',
  'productId', p.id, 'productSlug',p.slug,'variantId',v.id)
 from products p join product_variants v on v.product_id=p.id where p.slug='acceptance-tee-' || :'nonce';

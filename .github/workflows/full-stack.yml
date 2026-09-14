@@ -1,0 +1,98 @@
+name: Full-stack acceptance
+
+# The guarded isolated harness (docs/full-stack-verification.md) on the pinned toolchain:
+# JDK 25, Node 24, a 2 GiB / no-swap / 2-CPU cgroup, disposable stack on 18080/3120/15432.
+# Manual and weekly — it is evidence for a release record, not a per-commit gate.
+on:
+  workflow_dispatch:
+    inputs:
+      frontend_ref:
+        description: shopupu-web ref to pair with this backend revision
+        default: main
+      require_de:
+        description: Include the German locale acceptance
+        type: boolean
+        default: true
+  schedule:
+    - cron: "20 4 * * 1"
+
+permissions:
+  contents: read
+
+jobs:
+  acceptance:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          path: shopupu
+
+      - uses: actions/checkout@v4
+        with:
+          repository: Hortenh1x/shopupu-web
+          ref: ${{ github.event.inputs.frontend_ref || 'main' }}
+          path: shopupu-web
+
+      - name: Set up JDK 25
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '25'
+          cache: maven
+          cache-dependency-path: shopupu/pom.xml
+
+      - name: Set up Node 24
+        uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+          cache-dependency-path: shopupu-web/package-lock.json
+
+      - name: Install ripgrep (harness prerequisite)
+        run: sudo apt-get update -qq && sudo apt-get install -y -qq ripgrep
+
+      # Owner-side provisioning the harness deliberately does not do itself: the Maven
+      # repository is warmed outside the cgroup, Chromium and its OS libraries are installed
+      # for the matching Playwright version, and both trees are left clean for the snapshot.
+      - name: Warm the Maven repository
+        working-directory: shopupu
+        run: ./mvnw -B -q -DskipTests package
+
+      - name: Provision Chromium for the frontend's Playwright version
+        working-directory: shopupu-web
+        run: |
+          npm ci --no-audit --no-fund
+          npx playwright install --with-deps chromium
+
+      - name: Run the guarded harness
+        id: harness
+        env:
+          SHOPUPU_RESOURCE_GUARD: ${{ github.workspace }}/shopupu/ops/ci/limited-run.sh
+        run: |
+          set +e
+          args=(--frontend "$GITHUB_WORKSPACE/shopupu-web" --artifacts "$GITHUB_WORKSPACE/full-stack-artifacts")
+          [[ "${{ github.event.inputs.require_de || 'true' }}" != "true" ]] || args+=(--require-de)
+          ./shopupu/ops/check-full-stack.sh "${args[@]}"
+          status=$?
+          echo "status=$status" >> "$GITHUB_OUTPUT"
+          if [[ $status -eq 75 ]]; then echo "::warning::Harness DEFERRED (exit 75): resource guard refused to start or stopped the run."; fi
+          exit $status
+
+      - name: Summarize
+        if: always()
+        run: |
+          {
+            echo "### Full-stack acceptance"
+            echo "- backend: \`${GITHUB_SHA}\` · frontend ref: \`${{ github.event.inputs.frontend_ref || 'main' }}\` · exit: \`${{ steps.harness.outputs.status || 'n/a' }}\`"
+            if [[ -f full-stack-artifacts/summary.json ]]; then echo; echo '```json'; cat full-stack-artifacts/summary.json; echo '```'; fi
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: full-stack-acceptance-${{ github.run_id }}
+          path: full-stack-artifacts
+          if-no-files-found: warn
+          retention-days: 30

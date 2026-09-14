@@ -19,6 +19,7 @@ import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
+import org.springframework.web.multipart.MaxUploadSizeExceededException;
 import org.springframework.web.servlet.resource.NoResourceFoundException;
 
 @Slf4j
@@ -93,6 +94,12 @@ public class GlobalExceptionHandler {
     public ProblemDetail handleTypeMismatch(MethodArgumentTypeMismatchException ex, HttpServletRequest request) {
         return baseProblem(HttpStatus.BAD_REQUEST,
                 "Invalid value for parameter '" + ex.getName() + "'", "BAD_REQUEST", request);
+    }
+
+    // Tomcat rejects the body before the controller runs; a client-side mistake, not a server fault.
+    @ExceptionHandler(MaxUploadSizeExceededException.class)
+    public ProblemDetail handleUploadTooLarge(MaxUploadSizeExceededException ex, HttpServletRequest request) {
+        return baseProblem(HttpStatus.PAYLOAD_TOO_LARGE, "Upload exceeds the size limit", "PAYLOAD_TOO_LARGE", request);
     }
 
     @ExceptionHandler({IllegalArgumentException.class, IllegalStateException.class})

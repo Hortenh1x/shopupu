@@ -50,11 +50,8 @@ Artifacts use `umask 077`, but database dumps and browser traces still contain g
 
 ## Cross-repository CI integration
 
-No automatic cross-repository CI gate is claimed or installed by this change. The existing CI workflow remains separate. An owner can invoke this script from a manual protected job after:
+`.github/workflows/full-stack.yml` runs this harness on GitHub-hosted `ubuntu-24.04` runners — manually (`workflow_dispatch`, with the frontend ref and the German requirement as inputs) and weekly. It is evidence for a release record, not a per-commit gate; the repository CI workflows still own backend `verify`, frontend unit tests and image builds.
 
-- checking out the backend at the triggering immutable commit and the frontend repository at an explicit full commit SHA, with private-repository read authorization if required;
-- preparing JDK 25, Node 24, Python 3.12+, the matching Chromium and system libraries, local Docker, and a working resource guard satisfying the same limits;
-- ensuring at least 6 GiB available RAM (a smaller hosted runner must defer/fail rather than bypass protection);
-- invoking `./ops/check-full-stack.sh --frontend <checkout> --require-de` and retaining the private evidence on both success and failure.
+The job performs the owner-side provisioning the harness deliberately does not do itself, all outside the guard: it checks out both repositories side by side, installs JDK 25 / Node 24 / ripgrep, warms the Maven repository, provisions the frontend's matching Chromium with `npx playwright install --with-deps chromium`, and only then invokes `./ops/check-full-stack.sh --frontend <checkout> [--require-de]` with `SHOPUPU_RESOURCE_GUARD=ops/ci/limited-run.sh`. That guard is the CI counterpart of the desktop one with the same contract — shared flock, at least 6 GiB `MemAvailable`, a transient systemd scope capped at 2 GiB RAM / zero swap / two CPUs, stopped below 4 GiB available. Hosted runners have no user systemd manager, so the scope is created by the system manager through passwordless `sudo` and the command drops back to the runner user; the harness still verifies the actual cgroup limits itself. Exit 75 is surfaced as a **DEFERRED** warning and fails the job; it is never a PASS. The artifact directory (`summary.json`, HTTP/restore/browser evidence, logs) is uploaded for 30 days and `summary.json` is echoed into the job summary.
 
 Pin the two source SHAs in the release record. A branch name alone is insufficient to reproduce a cross-repository schema result. Image builds and full test suites must remain separate serialized guarded jobs; Docker image-build memory is not controlled by this script's process cgroup.

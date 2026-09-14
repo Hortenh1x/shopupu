@@ -114,7 +114,7 @@ SQL
 docker run --rm --network host --env-file .migrator.env -v "$PWD:/w" -w /w -v shopupu-m2:/root/.m2 \
   maven:3.9-eclipse-temurin-25 mvn -B -q flyway:migrate flyway:validate
 docker exec -i shopupu-db-1 psql -X -v ON_ERROR_STOP=1 -U shopupu -d shopupu < ops/grant-runtime.sql
-docker compose build app                  # первая сборка на ARM ~5–10 мин
+VCS_REF=$(git rev-parse HEAD) docker compose build app   # первая сборка на ARM ~5–10 мин; VCS_REF попадает в label образа
 docker compose --profile prod up -d app
 curl -s localhost:8080/actuator/health    # {"status":"UP"}
 ```
@@ -201,7 +201,7 @@ Console; для писем — верифицируйте домен в Resend.
 
 ## Day-2
 
-- Обновление бекенда: `git pull && docker compose build app`, затем миграции под мигратором
+- Обновление бекенда: `git pull && VCS_REF=$(git rev-parse HEAD) docker compose build app`, затем миграции под мигратором
   (команда `docker run … mvn flyway:migrate flyway:validate` из §4; V-файлы аддитивны, но
   `ProductionDatabaseGuard`/Hibernate `validate` не пустят приложение на несмигрированную схему),
   `docker compose --profile prod up -d app`, `curl localhost:8080/actuator/health`.

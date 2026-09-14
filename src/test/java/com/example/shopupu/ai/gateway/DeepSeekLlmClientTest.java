@@ -66,4 +66,22 @@ class DeepSeekLlmClientTest {
     private DeepSeekLlmClient client() {
         return new DeepSeekLlmClient(properties, new ObjectMapper(), new AiUsageGuard(properties), builder);
     }
+
+    @Test
+    void stylistPromptStatesTheRequestLocaleAsTheDefaultLanguage() {
+        org.springframework.context.i18n.LocaleContextHolder.setLocale(java.util.Locale.GERMAN);
+        try {
+            assertTrue(DeepSeekLlmClient.interfaceLanguageHint().contains("in German;"));
+        } finally {
+            org.springframework.context.i18n.LocaleContextHolder.resetLocaleContext();
+        }
+        // No request context (background work) and unsupported locales fall back to English.
+        assertTrue(DeepSeekLlmClient.interfaceLanguageHint().contains("in English;"));
+        org.springframework.context.i18n.LocaleContextHolder.setLocale(java.util.Locale.FRENCH);
+        try {
+            assertTrue(DeepSeekLlmClient.interfaceLanguageHint().contains("in English;"));
+        } finally {
+            org.springframework.context.i18n.LocaleContextHolder.resetLocaleContext();
+        }
+    }
 }

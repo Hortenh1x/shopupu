@@ -82,7 +82,8 @@ public class DeepSeekLlmClient implements LlmClient {
             Detect it from the words alone and mirror it in "reply" and every "slot" label.
             Currency, prices and place names are NOT language cues: "a warm outfit under
             150 euros" is English — reply in English, not French; "тёплый образ до 150 евро"
-            is Russian — reply in Russian.
+            is Russian — reply in Russian. When the last message could be read as more than
+            one language, or you are unsure, use the interface language stated below.
             Never mix languages inside one answer: an English "reply" must not be paired
             with Russian slot labels. Only "query" is always English, whatever the shopper wrote.
             Only put garment types the catalog carries into slots. Be honest: when the shopper
@@ -138,11 +139,23 @@ public class DeepSeekLlmClient implements LlmClient {
             return Optional.empty();
         }
         List<Message> messages = new java.util.ArrayList<>();
-        messages.add(new Message("system", STYLIST_SYSTEM + "\n\nCatalog:\n" + catalogContext));
+        messages.add(new Message("system", STYLIST_SYSTEM + "\n\n" + interfaceLanguageHint()
+                + "\n\nCatalog:\n" + catalogContext));
         for (ChatMessage turn : conversation) {
             messages.add(new Message("assistant".equals(turn.role()) ? "assistant" : "user", turn.content()));
         }
         return completeMessages(OutfitPlan.class, messages);
+    }
+
+    /**
+     * The live model drifted into Dutch/Italian/French slot labels for plain English
+     * requests ("... under 150 euro"); word-based detection alone is not reliable, so the
+     * request's UI locale is stated as the default the model falls back to.
+     */
+    static String interfaceLanguageHint() {
+        return "The shop's interface is currently shown to this shopper in "
+                + com.example.shopupu.common.i18n.SupportedLocales.current().getDisplayLanguage(java.util.Locale.ENGLISH)
+                + "; that is the default language for \"reply\" and \"slot\" labels.";
     }
 
     private <T> Optional<T> complete(Class<T> type, String system, String user) {

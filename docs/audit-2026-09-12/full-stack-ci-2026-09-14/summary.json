@@ -1,0 +1,9 @@
+{
+  "schemaFreshness": "PASS",
+  "httpSmokeAndBoundedLoad": "PASS",
+  "browser": "PASS",
+  "germanIncluded": true,
+  "restoreDrill": "PASS",
+  "externalServices": "NOT_TESTED",
+  "productionCapacity": "NOT_MEASURED"
+}

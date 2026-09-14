@@ -1,0 +1,56 @@
+{
+  "site": "https://shopupu.net",
+  "ranAt": "2026-09-14T14:05:06Z",
+  "results": [
+    {
+      "case": "stylist: women, budget 150",
+      "result": "PASS",
+      "detail": "1 products, total 104.00 ≤ 150.0: True; gender ok: True; degraded=False; unavailable=['Oversized oxford shirt', 'Minimal white leather sneakers']; 1779 ms"
+    },
+    {
+      "case": "stylist: men, budget 120 (explicit fields)",
+      "result": "PASS",
+      "detail": "1 products, total 96.00 ≤ 120.0: True; gender ok: True; degraded=False; unavailable=['Oversized oxford shirt', 'Straight jeans', 'White leather sneakers']; 1610 ms"
+    },
+    {
+      "case": "stylist: budget from text only",
+      "result": "PASS",
+      "detail": "0 products, total 0.00 ≤ 90.0: True; gender ok: True; degraded=False; unavailable=['Merino crewneck', 'Quilted puffer vest', 'Cashmere scarf']; 1642 ms"
+    },
+    {
+      "case": "stylist: impossible budget",
+      "result": "PASS",
+      "detail": "0 products, total 0.00 ≤ 20.0: True; gender ok: True; degraded=False; unavailable=['a coat for 20 euro total', 'Ribbed tank', 'Straight jeans', 'Wool beanie']; 1883 ms"
+    },
+    {
+      "case": "stylist: prompt injection in history",
+      "result": "PASS",
+      "detail": "1 products, total 96.00 ≤ 100.0: True; gender ok: True; degraded=False; unavailable=['technical rain jacket', 'relaxed cargo pants']; 1686 ms"
+    },
+    {
+      "case": "nl-search: women's jacket under 120",
+      "result": "PASS",
+      "detail": "1 hits: #7 Cropped Denim Jacket WOMEN 112.0; constraints hold: True; 1354 ms"
+    },
+    {
+      "case": "nl-search: men's trousers under 90",
+      "result": "PASS",
+      "detail": "0 hits: ; constraints hold: True; 1357 ms"
+    },
+    {
+      "case": "nl-search: nonsense query",
+      "result": "PASS",
+      "detail": "0 hits: ; constraints hold: True; 1348 ms"
+    },
+    {
+      "case": "review-summary #7",
+      "result": "PASS",
+      "detail": "HTTP 200 (122 ms) lang=None "
+    },
+    {
+      "case": "similar #7",
+      "result": "PASS",
+      "detail": "HTTP 200, 4 items (143 ms)"
+    }
+  ]
+}

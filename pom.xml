@@ -42,6 +42,18 @@
 		<spotless.version>2.44.5</spotless.version>
 		<google-api-client.version>2.7.0</google-api-client.version>
 	</properties>
+	<dependencyManagement>
+		<dependencies>
+			<!-- Test-only transitive of Testcontainers; 1.24.0 carries two archive-parsing DoS
+			     advisories (GHSA-4g9r-vxhx-9pgx, GHSA-4265-ccf5-phj5) that Dependabot flags. -->
+			<dependency>
+				<groupId>org.apache.commons</groupId>
+				<artifactId>commons-compress</artifactId>
+				<version>1.28.0</version>
+			</dependency>
+		</dependencies>
+	</dependencyManagement>
+
 	<dependencies>
         <dependency>
             <groupId>org.springdoc</groupId>

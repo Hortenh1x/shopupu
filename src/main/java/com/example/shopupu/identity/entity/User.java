@@ -47,6 +47,10 @@ public class User {
     @Column(name = "deleted_at")
     private Instant deletedAt;
 
+    /** Last sign-in or session renewal; drives the 12-month inactivity retention rule (LEG-06). */
+    @Column(name = "last_login_at")
+    private Instant lastLoginAt;
+
     /** Confirmed via a one-time emailed token (AUTH-06). */
     @Builder.Default
     @Column(name = "email_verified", nullable = false)

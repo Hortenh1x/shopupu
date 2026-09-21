@@ -109,6 +109,15 @@ notifications:
     from: ${NOTIFICATIONS_FROM_EMAIL:}
     timeout-seconds: ${RESEND_TIMEOUT_SECONDS:10}
 
+# Retention periods published on the storefront's "Data and privacy" page (LEG-06);
+# the nightly DataRetentionJob enforces them. Change the page if you change these.
+retention:
+  enabled: ${RETENTION_ENABLED:true}
+  audit-events: ${RETENTION_AUDIT_EVENTS:P12M}
+  inactive-accounts: ${RETENTION_INACTIVE_ACCOUNTS:P12M}
+  erased-account-records: ${RETENTION_ERASED_ACCOUNT_RECORDS:P24M}
+  batch-size: 500
+
 jwt:
   # No default on purpose: the application must fail to start without a real secret.
   # Dev profile supplies a local-only value in application-dev.yml.

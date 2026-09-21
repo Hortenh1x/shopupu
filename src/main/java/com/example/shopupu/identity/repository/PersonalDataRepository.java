@@ -89,6 +89,22 @@ public class PersonalDataRepository {
     }
 
     /** Flush review mutations first: the shared review->product lock order avoids stale AI writes. */
+    /**
+     * Retention (LEG-06): the pseudonymised financial history of an erased account is kept for
+     * a bounded period and then dropped together with the account row. Foreign keys cascade
+     * (order items, status history, payments and their events, shipments, carts, reviews,
+     * consents, tokens); inventory movements keep their textual order reference only.
+     * The deleted_at guard makes this a no-op for any account that is not erased and past the cutoff.
+     */
+    public int deleteErasedAccount(long userId, java.time.Instant cutoff) {
+        // pgjdbc cannot infer a type for Instant; OffsetDateTime binds as timestamptz.
+        var before = java.time.OffsetDateTime.ofInstant(cutoff, java.time.ZoneOffset.UTC);
+        jdbc.sql("delete from orders where user_id in (select id from users where id = :userId and deleted_at < :cutoff)")
+                .param("userId", userId).param("cutoff", before).update();
+        return jdbc.sql("delete from users where id = :userId and deleted_at < :cutoff")
+                .param("userId", userId).param("cutoff", before).update();
+    }
+
     public void deleteReviewSummaries(List<Long> productIds) {
         for (Long productId : productIds) {
             jdbc.sql("select id from products where id = :id for update").param("id", productId).query(Long.class).optional();

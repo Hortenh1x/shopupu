@@ -34,6 +34,13 @@ services:
     profiles: ["prod"]
     restart: unless-stopped
     network_mode: host
+    # Container logs are the only application log; cap them so they neither fill the disk
+    # nor outlive the retention the privacy page states (JSON/ECS lines, ~500 MB at most).
+    logging:
+      driver: json-file
+      options:
+        max-size: "50m"
+        max-file: "10"
     # match the host owner of ./uploads so stored images stay writable
     user: "1000:1000"
     depends_on:

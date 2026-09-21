@@ -23,12 +23,23 @@ public class RecommendationComputationJob {
 
     private final AiProperties aiProperties;
     private final ProductRecommendationRepository recommendationRepository;
+    private final ProductEmbeddingService productEmbeddingService;
     private final CacheManager cacheManager;
 
     @Scheduled(cron = "0 30 3 * * *")
     public void recomputeNightly() {
         if (!aiProperties.isEnabled()) {
             return;
+        }
+        // Self-heal first: a product whose indexing failed once (provider down at the time)
+        // otherwise stays invisible to semantic search until someone presses Backfill.
+        try {
+            int indexed = productEmbeddingService.backfillMissing();
+            if (indexed > 0) {
+                log.info("Nightly embedding backfill indexed {} products", indexed);
+            }
+        } catch (Exception ex) {
+            log.warn("Nightly embedding backfill failed", ex);
         }
         recompute();
     }

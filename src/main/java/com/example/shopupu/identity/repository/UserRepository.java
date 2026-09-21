@@ -22,4 +22,18 @@ public interface UserRepository extends JpaRepository<User, Long> {
     Optional<User> findByUsername(String username);
     boolean existsByEmail(String email);
     boolean existsByUsername(String username);
+
+    /** Live accounts without ADMIN/MANAGER whose last sign-in is older than the cutoff; null = unknown, never a candidate. */
+    @org.springframework.data.jpa.repository.Query("""
+            select u.id from User u where u.deletedAt is null and u.lastLoginAt < :cutoff
+            and not exists (select 1 from User p join p.roles r where p.id = u.id and r.name in ('ADMIN', 'MANAGER'))
+            order by u.id""")
+    java.util.List<Long> findInactiveCustomerIds(
+            @org.springframework.data.repository.query.Param("cutoff") java.time.Instant cutoff,
+            org.springframework.data.domain.Pageable pageable);
+
+    @org.springframework.data.jpa.repository.Query("select u.id from User u where u.deletedAt < :cutoff order by u.id")
+    java.util.List<Long> findErasedBefore(
+            @org.springframework.data.repository.query.Param("cutoff") java.time.Instant cutoff,
+            org.springframework.data.domain.Pageable pageable);
 }

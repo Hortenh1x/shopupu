@@ -42,6 +42,7 @@ public class RefreshTokenService {
         if (!locked.isEnabled() || !assuranceValid(locked, mfaVerifiedAt)) {
             throw new UnauthorizedException("Sign in with MFA to continue");
         }
+        touchLastLogin(locked);
         String raw = randomToken();
         var token = RefreshToken.builder().user(locked).token(hash(raw))
                 .authVersion(locked.getAuthVersion()).mfaVerifiedAt(mfaVerifiedAt)
@@ -96,6 +97,17 @@ public class RefreshTokenService {
     public static boolean assuranceValid(User user, Instant verifiedAt) {
         return !privileged(user) || (user.getMfaSecretCiphertext() != null && verifiedAt != null
                 && !verifiedAt.isAfter(Instant.now()) && verifiedAt.plus(Duration.ofHours(12)).isAfter(Instant.now()));
+    }
+
+    /**
+     * Every issued session (sign-in, registration, renewal) counts as activity for the
+     * inactivity retention rule; renewals are frequent, so the row is only written hourly.
+     */
+    private static void touchLastLogin(User user) {
+        Instant now = Instant.now();
+        if (user.getLastLoginAt() == null || user.getLastLoginAt().isBefore(now.minus(1, ChronoUnit.HOURS))) {
+            user.setLastLoginAt(now);
+        }
     }
 
     private User lock(Long id) {

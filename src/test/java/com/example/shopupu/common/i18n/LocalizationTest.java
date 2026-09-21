@@ -32,6 +32,24 @@ class LocalizationTest {
         assertThat(unknown.getDetail()).isEqualTo("Die Anfrage ist ungültig. Bitte prüfe deine Eingaben.");
     }
 
+    @Test void wrongVerbAndContentTypeAreClientErrorsWithLocalizedTitles() {
+        var handler = new GlobalExceptionHandler();
+        var german = new MockHttpServletRequest("POST", "/api/v1/orders");
+        german.addHeader("Accept-Language", "de");
+        var method = handler.handleMethodNotSupported(
+                new org.springframework.web.HttpRequestMethodNotSupportedException("POST"), german);
+        assertThat(method.getStatus()).isEqualTo(405);
+        assertThat(method.getTitle()).isEqualTo("Methode nicht erlaubt");
+        assertThat(method.getProperties()).containsEntry("code", "METHOD_NOT_ALLOWED");
+        assertThat(method.getDetail()).isEqualTo("Diese Methode ist für diese Ressource nicht erlaubt.");
+        var english = new MockHttpServletRequest("POST", "/api/v1/orders/checkout");
+        var media = handler.handleMediaTypeNotSupported(
+                new org.springframework.web.HttpMediaTypeNotSupportedException("text/plain"), english);
+        assertThat(media.getStatus()).isEqualTo(415);
+        assertThat(media.getTitle()).isEqualTo("Unsupported Media Type");
+        assertThat(media.getProperties()).containsEntry("code", "UNSUPPORTED_MEDIA_TYPE");
+    }
+
     @Test void securityErrorsUseHeaderBeforeMvcWithoutLosingCorrelation() throws Exception {
         var request = new MockHttpServletRequest("GET", "/api/v1/orders");
         request.addHeader("Accept-Language", "de");

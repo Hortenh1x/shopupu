@@ -15,6 +15,8 @@ import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.security.core.AuthenticationException;
 import org.springframework.validation.FieldError;
+import org.springframework.web.HttpMediaTypeNotSupportedException;
+import org.springframework.web.HttpRequestMethodNotSupportedException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
@@ -94,6 +96,18 @@ public class GlobalExceptionHandler {
     public ProblemDetail handleTypeMismatch(MethodArgumentTypeMismatchException ex, HttpServletRequest request) {
         return baseProblem(HttpStatus.BAD_REQUEST,
                 "Invalid value for parameter '" + ex.getName() + "'", "BAD_REQUEST", request);
+    }
+
+    // A wrong verb or content type on a known path is the client's mistake; it used to reach the
+    // catch-all as a 500 with an error log for every probe.
+    @ExceptionHandler(HttpRequestMethodNotSupportedException.class)
+    public ProblemDetail handleMethodNotSupported(HttpRequestMethodNotSupportedException ex, HttpServletRequest request) {
+        return baseProblem(HttpStatus.METHOD_NOT_ALLOWED, "Method not allowed for this resource", "METHOD_NOT_ALLOWED", request);
+    }
+
+    @ExceptionHandler(HttpMediaTypeNotSupportedException.class)
+    public ProblemDetail handleMediaTypeNotSupported(HttpMediaTypeNotSupportedException ex, HttpServletRequest request) {
+        return baseProblem(HttpStatus.UNSUPPORTED_MEDIA_TYPE, "Unsupported request content type", "UNSUPPORTED_MEDIA_TYPE", request);
     }
 
     // Tomcat rejects the body before the controller runs; a client-side mistake, not a server fault.
